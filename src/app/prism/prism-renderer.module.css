@@ -1,0 +1,11 @@
+.surface {
+  display: block;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.canvas {
+  display: block;
+  height: 100%;
+  width: 100%;
+}
