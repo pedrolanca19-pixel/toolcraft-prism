@@ -89,7 +89,7 @@ function createTarget(gl: Context, width: number, height: number): Target {
   const fb = gl.createFramebuffer();
   if (!tex || !fb) throw new Error("Prism Field could not allocate a render target.");
   gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, w, h, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, w, h);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);

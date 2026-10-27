@@ -3,7 +3,7 @@ import type { ToolcraftProductExportRenderer } from "@/toolcraft/runtime";
 import { createPrismGl, type PrismGl } from "./prism-gl";
 import { readPrismSettings } from "./prism-settings";
 
-type ExportResource = Readonly<{ canvas: HTMLCanvasElement; gl: PrismGl }>;
+type ExportResource = Readonly<{ canvas: OffscreenCanvas; gl: PrismGl }>;
 
 let cached: ExportResource | null = null;
 let releaseTimer = 0;
@@ -11,7 +11,7 @@ let releaseTimer = 0;
 function acquire(): ExportResource {
   window.clearTimeout(releaseTimer);
   if (!cached) {
-    const canvas = document.createElement("canvas");
+    const canvas = new OffscreenCanvas(2, 2);
     cached = { canvas, gl: createPrismGl(canvas) };
   }
   return cached;
