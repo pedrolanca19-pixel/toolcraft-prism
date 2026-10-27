@@ -264,3 +264,14 @@ export function createPrismGl(canvas: HTMLCanvasElement | OffscreenCanvas): Pris
     },
   };
 }
+
+export type PrismGlResult = Readonly<{ gl: PrismGl } | { message: string }>;
+
+/** Same as createPrismGl, but reports a failure as a message instead of throwing. */
+export function tryCreatePrismGl(canvas: HTMLCanvasElement | OffscreenCanvas): PrismGlResult {
+  try {
+    return { gl: createPrismGl(canvas) };
+  } catch (error) {
+    return { message: error instanceof Error ? error.message : "WebGL2 initialization failed." };
+  }
+}

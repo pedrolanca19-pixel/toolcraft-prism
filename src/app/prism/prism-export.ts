@@ -1,6 +1,7 @@
 import type { ToolcraftProductExportRenderer } from "@/toolcraft/runtime";
 
 import { createPrismGl, type PrismGl } from "./prism-gl";
+import { prismPipelinePasses } from "./prism-pipeline";
 import { readPrismSettings } from "./prism-settings";
 
 type ExportResource = Readonly<{ canvas: OffscreenCanvas; gl: PrismGl }>;
@@ -28,21 +29,36 @@ function scheduleRelease(): void {
 
 export const prismExportRenderer = {
   baseFileName: "prism-field",
-  renderFrame({ context, frame, pixelRatio, signal, state, timelineProgress }) {
+  async renderFrame({
+    context,
+    frame,
+    pixelRatio,
+    rendererPipeline,
+    signal,
+    state,
+    timelineProgress,
+  }) {
     signal.throwIfAborted();
     const settings = readPrismSettings(state.values);
-    const { canvas, gl } = acquire();
-    try {
-      gl.render({
-        height: Math.max(2, Math.round(frame.height * pixelRatio)),
-        includeBackdrop: settings.includeBackground,
-        progress: timelineProgress,
-        settings,
-        width: Math.max(2, Math.round(frame.width * pixelRatio)),
-      });
-      context.drawImage(canvas, frame.x, frame.y, frame.width, frame.height);
-    } finally {
-      scheduleRelease();
+    const render = (): void => {
+      const { canvas, gl } = acquire();
+      try {
+        gl.render({
+          height: Math.max(2, Math.round(frame.height * pixelRatio)),
+          includeBackdrop: settings.includeBackground,
+          progress: timelineProgress,
+          settings,
+          width: Math.max(2, Math.round(frame.width * pixelRatio)),
+        });
+        context.drawImage(canvas, frame.x, frame.y, frame.width, frame.height);
+      } finally {
+        scheduleRelease();
+      }
+    };
+    if (rendererPipeline) {
+      await rendererPipeline.runPass(prismPipelinePasses.imageExport, undefined, render);
+      return;
     }
+    render();
   },
 } satisfies ToolcraftProductExportRenderer;

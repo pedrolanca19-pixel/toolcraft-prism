@@ -4,48 +4,67 @@ import type {
   ToolcraftProductReadiness,
   ToolcraftTransferMode,
 } from "./acceptance/types";
-import { appSchema } from "./app-schema";
-
-const starterPersistenceSlices =
-  appSchema.persistence.storage === "localStorage"
-    ? appSchema.persistence.include
-    : [];
+import { appSchema, PRISM_LOOP_SECONDS } from "./app-schema";
+import {
+  prismActionAcceptance,
+  prismControlAcceptance,
+  prismRuntimeAcceptance,
+  prismSectionInventory,
+} from "./prism/prism-acceptance";
 
 export const appTransferMode: ToolcraftTransferMode = {
-  animationIntent: { mode: "none" },
+  animationIntent: {
+    loopDuration: {
+      evidence:
+        "Every motion setting is a whole number of cycles per loop, so any loop length is seamless; 20 seconds gives a calm default pace.",
+      seconds: PRISM_LOOP_SECONDS,
+      source: "product-derived",
+    },
+    mode: "timeline-playback",
+  },
   mode: "new-toolcraft-app",
   referenceInputs: [],
 };
 
 export const appProductReadiness: ToolcraftProductReadiness = {
-  mode: "starter",
-  reason:
-    "Neutral Toolcraft template before a product schema, renderer, and acceptance matrix are authored.",
+  exportIntent: {
+    image: { mode: "toolcraft-default" },
+    svg: { mode: "not-requested" },
+    video: {
+      evidence: {
+        messageRef: "claude-code-session/session_01XwNnKEC2w4jxAZsHQVztvL#user-message:o-prism-flow-era-um-ref",
+        messageText:
+          "o prism flow era um ref da app mas eu quero as funcionalidade e todos os setting the primeira app que crias te",
+        quote: "eu quero as funcionalidade e todos os setting the primeira app que crias te",
+        source: "user-message",
+      },
+      mode: "user-requested",
+    },
+  },
+  interactionOwnership: [],
+  mode: "product",
+  productName: "Prism Field",
+  productSummary:
+    "Animated field of prismatic light: a soft folded sheet with refraction, glow and spectral color bands.",
+  requestedBehavior:
+    "Generate an animated prismatic light sheet with a versatile set of controls, including every function and setting of the first Prism Field app: presets, randomize, mask, palette, backdrop, PNG export and video export.",
+  viewInteraction: {
+    mode: "non-spatial",
+    reason:
+      "The sheet is a shaded 2D shader image; it has no editable three-dimensional scene or model to orbit.",
+  },
 };
 
+const persistenceSlices =
+  appSchema.persistence.storage === "localStorage"
+    ? appSchema.persistence.include
+    : [];
+
 export const appAcceptance: readonly ToolcraftComponentAcceptance[] = [
-  {
-    automated: true,
-    automatedTestName:
-      "declares production reload coverage for the starter schema",
-    browser: {
-      budget: "extended-io",
-      file: "e2e/app-persistence.spec.ts",
-      testName: "browser: app restores exact canvas, values, and panel workspace slices after reload",
-    },
-    componentType: "persistence",
-    evidence: "persistence-state",
-    expectedObservable:
-      "Canvas size and zoom, their runtime values, and the moved and collapsed Controls workspace remain visibly restored after a real browser reload.",
-    fixture: "starter runtime persisted workspace",
-    id: "persistence.reload",
-    kind: "runtime",
-    persistenceCoverage: "reload",
-    persistenceSlices: starterPersistenceSlices,
-    target: "canvas.size.width",
-    userAction: "Edit Canvas width and zoom, move and collapse Controls, wait for persistence, and reload the page.",
-  },
+  ...prismControlAcceptance,
+  ...prismActionAcceptance,
+  ...prismRuntimeAcceptance(persistenceSlices),
 ];
 
-// Product entries use the same explicit stable section IDs as appSchema.
-export const appControlSectionInventory: readonly ToolcraftControlSectionInventoryEntry[] = [];
+export const appControlSectionInventory: readonly ToolcraftControlSectionInventoryEntry[] =
+  prismSectionInventory;

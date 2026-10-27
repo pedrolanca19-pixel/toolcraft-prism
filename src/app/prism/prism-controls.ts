@@ -138,7 +138,7 @@ export const PRISM_RANDOMIZABLE_SECTIONS = [
   "finish",
 ] as const satisfies readonly PrismSectionId[];
 
-export const prismShuffleTarget = (section: PrismSectionId): string => `prism.shuffle.${section}`;
+export const prismShuffleTarget = (section: PrismSectionId): string => `prism.shuffle-${section}`;
 
 function shuffleControl(section: PrismSectionId): ToolcraftControlSchema {
   return {
@@ -147,6 +147,8 @@ function shuffleControl(section: PrismSectionId): ToolcraftControlSchema {
     ],
     applicability: always,
     label: "Variation",
+    performanceReason: "Writes a batch of control values in one history step.",
+    performanceRole: "responsiveness",
     target: prismShuffleTarget(section),
     type: "actions",
   };
@@ -168,6 +170,8 @@ function prismSection(section: PrismSectionId): ToolcraftControlSectionSchema {
                 mode: "conditional",
               },
               label: "Stops",
+              performanceReason: "Copies four color values in one history step.",
+              performanceRole: "responsiveness",
               target: "prism.palette.edit",
               type: "actions",
             } satisfies ToolcraftControlSchema,
@@ -188,7 +192,9 @@ const presetsSection: ToolcraftControlSectionSchema = {
         value: `preset:${name}`,
       })),
       applicability: always,
-      label: "Presets",
+      label: false,
+      performanceReason: "Replaces the Prism values in one history step.",
+      performanceRole: "responsiveness",
       target: "prism.presets",
       type: "actions",
     },
@@ -199,6 +205,8 @@ const presetsSection: ToolcraftControlSectionSchema = {
       ],
       applicability: always,
       label: "Variation",
+      performanceReason: "Writes a batch of control values in one history step.",
+      performanceRole: "responsiveness",
       target: "prism.randomize",
       type: "actions",
     },

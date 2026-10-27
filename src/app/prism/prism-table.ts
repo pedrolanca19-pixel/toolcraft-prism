@@ -109,7 +109,7 @@ export const PRISM_ENTRIES = {
   foldFreq: slider("folds", "Fold density", 0.3, 12, 0.01, 2.2),
   foldAngle: angle("folds", "Fold angle", -180, 180, 38),
   foldSpread: angle("folds", "Layer spread", -90, 90, 38),
-  layers: int("folds", "Fold layers", 1, 3, 3),
+  layers: int("folds", "Layer count", 1, 3, 3),
   layerFalloff: slider("folds", "Layer weight", 0.2, 1, 0.01, 0.62),
   foldSharp: slider("folds", "Crease sharpness", 0, 1, 0.01, 0.35),
   foldNoise: slider("folds", "Wobble", 0, 2, 0.01, 0.55),
@@ -124,7 +124,7 @@ export const PRISM_ENTRIES = {
   edgeSoft: slider("surface", "Edge softness", 0.01, 1, 0.01, 0.3),
   seed: int("surface", "Seed", 0, 999, 7),
 
-  intensity: slider("lighting", "Intensity", 0, 4, 0.01, 1.5, { randomMax: 1.6, randomMin: 1 }),
+  intensity: slider("lighting", "Prism intensity", 0, 4, 0.01, 1.5, { randomMax: 1.6, randomMin: 1 }),
   relief: slider("lighting", "Relief depth", 0, 1.5, 0.01, 0.9),
   lightAngle: angle("lighting", "Light azimuth", -180, 180, 40),
   lightElev: angle("lighting", "Light elevation", 5, 90, 42),
@@ -161,20 +161,20 @@ export const PRISM_ENTRIES = {
   tilt: slider("refraction", "Tilt color", -3, 3, 0.01, 0.3),
   tiltAngle: angle("refraction", "Tilt direction", -180, 180, 20),
   dispersion: slider("refraction", "Dispersion", 0, 0.5, 0.001, 0.04, { randomMax: 0.15, randomMin: 0 }),
-  saturation: slider("refraction", "Saturation", 0, 1.5, 0.01, 0.8, { randomMax: 1.2, randomMin: 0.6 }),
+  saturation: slider("refraction", "Prism saturation", 0, 1.5, 0.01, 0.8, { randomMax: 1.2, randomMin: 0.6 }),
 
   bloom: slider("glow", "Bloom", 0, 3, 0.01, 0.8, { randomMax: 1.2, randomMin: 0.3 }),
-  bloomThreshold: slider("glow", "Threshold", 0, 1, 0.01, 0.3),
-  bloomRadius: slider("glow", "Radius", 0.2, 4, 0.01, 1.2),
+  bloomThreshold: slider("glow", "Bloom Threshold", 0, 1, 0.01, 0.3),
+  bloomRadius: slider("glow", "Bloom Radius", 0.2, 4, 0.01, 1.2),
   bloomSpread: slider("glow", "Spread", 0, 1, 0.01, 0.5),
-  bloomTint: { def: "#FFFFFF", kind: "color", label: "Tint", section: "glow" } satisfies ColorEntry,
+  bloomTint: { def: "#FFFFFF", kind: "color", label: "Bloom Tint", section: "glow" } satisfies ColorEntry,
   bloomTintAmt: slider("glow", "Tint amount", 0, 1, 0.01, 0),
   aberration: slider("glow", "Aberration", 0, 0.03, 0.0005, 0.004, { randomMax: 0.012, randomMin: 0 }),
 
   zoom: slider("placement", "Zoom", 0.2, 4, 0.01, 1, { randomMax: 2, randomMin: 0.6 }),
   panX: slider("placement", "Position X", -2, 2, 0.01, 0, { randomMax: 0.4, randomMin: -0.4 }),
   panY: slider("placement", "Position Y", -2, 2, 0.01, 0, { randomMax: 0.3, randomMin: -0.3 }),
-  rotate: angle("placement", "Rotation", -180, 180, 0),
+  rotate: angle("placement", "Prism rotation", -180, 180, 0),
   stretch: slider("placement", "Stretch", 0.25, 4, 0.01, 1),
   persp: slider("placement", "Perspective", -1, 1, 0.01, 0.15),
   mirror: {
@@ -216,7 +216,7 @@ export const PRISM_ENTRIES = {
   bgAmount: slider("backdrop", "Backdrop amount", 0, 1, 0.01, 1),
 
   exposure: slider("finish", "Exposure", 0.2, 3, 0.01, 1, { randomMax: 1.6, randomMin: 0.7 }),
-  contrast: slider("finish", "Contrast", 0.5, 2, 0.01, 1.05, { randomMax: 1.4, randomMin: 0.9 }),
+  contrast: slider("finish", "Prism contrast", 0.5, 2, 0.01, 1.05, { randomMax: 1.4, randomMin: 0.9 }),
   vignette: slider("finish", "Vignette", 0, 1, 0.01, 0.3),
   grain: slider("finish", "Film grain", 0, 0.3, 0.005, 0.035),
 } satisfies Record<string, PrismTableEntry>;
