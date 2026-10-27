@@ -1,0 +1,49 @@
+# Dependencies
+node_modules
+
+# Build output
+dist
+dist-ssr
+.vite
+.turbo
+.output
+.next
+*.tsbuildinfo
+
+# Test output
+coverage
+test-results
+playwright-report
+.playwright-mcp
+
+# Local environment
+.env
+.env.*
+!.env.example
+.toolcraft
+
+# Logs
+logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+
+# Local agent diagnostics
+.agents/*.pid
+.agents/*.started
+.agents/*probe*.mjs
+.agents/probe-shots/
+.agents/trace-frames/
+.agents/trace-*.jsonl
+
+# Local throwaway archives
+_to_delete/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json

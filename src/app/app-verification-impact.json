@@ -1,0 +1,622 @@
+{
+  "version": 3,
+  "owners": [
+    {
+      "acceptanceIds": [
+        "dispersion.canvas.infinity.mode-and-restoration",
+        "dispersion.canvas.infinity.scene-bounds-image-export",
+        "dispersion.export.actions",
+        "dispersion.frame.shape"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/app-composition.tsx"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.canvas.aspectRatio",
+        "dispersion.canvas.renderScale",
+        "dispersion.canvas.size.height",
+        "dispersion.canvas.size.width",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.runtime.canvas.viewport",
+        "dispersion.runtime.persistence.reload",
+        "dispersion.runtime.settingsTransfer",
+        "dispersion.runtime.timeline.playback"
+      ],
+      "kind": "functional",
+      "path": "src/app/app-schema.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.export.actions",
+        "dispersion.export.image.format",
+        "dispersion.export.image.resolution",
+        "dispersion.export.includeBackground",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.runtime.timeline.playback"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-export.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.canvas.aspectRatio",
+        "dispersion.canvas.infinity.mode-and-restoration",
+        "dispersion.canvas.renderScale",
+        "dispersion.canvas.size.height",
+        "dispersion.canvas.size.width",
+        "dispersion.colorBalance",
+        "dispersion.effect.area",
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.distribution",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode",
+        "dispersion.effect.sparkle.size",
+        "dispersion.effect.sparkle.twinkle",
+        "dispersion.export.actions",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.runtime.canvas.viewport",
+        "dispersion.runtime.timeline.playback",
+        "dispersion.canvas.infinity.mode-and-restoration"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-pipeline.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.canvas.renderScale",
+        "dispersion.effect.area",
+        "dispersion.effect.mode",
+        "dispersion.export.includeBackground",
+        "dispersion.frame.cornerRadius",
+        "dispersion.frame.shape",
+        "dispersion.lens.enabled",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.runtime.canvas.viewport",
+        "dispersion.runtime.timeline.playback"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame"
+      ],
+      "path": "src/app/dispersion/dispersion-renderer.tsx"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.canvas.infinity.mode-and-restoration",
+        "dispersion.export.includeBackground",
+        "dispersion.frame.cornerRadius",
+        "dispersion.frame.shape"
+      ],
+      "kind": "presentation",
+      "path": "src/app/dispersion/dispersion-renderer.module.css"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.bend",
+        "dispersion.curve",
+        "dispersion.curveDepth",
+        "dispersion.shading",
+        "dispersion.chromaSplit",
+        "dispersion.colorBalance",
+        "dispersion.customColorA",
+        "dispersion.customColorB",
+        "dispersion.customColorC",
+        "dispersion.customColorD",
+        "dispersion.effect.area",
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distribution",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode",
+        "dispersion.effect.sparkle.size",
+        "dispersion.effect.sparkle.twinkle",
+        "dispersion.export.image.format",
+        "dispersion.export.image.resolution",
+        "dispersion.export.includeBackground",
+        "dispersion.frame.cornerRadius",
+        "dispersion.frame.shape",
+        "dispersion.glow",
+        "dispersion.height",
+        "dispersion.inset",
+        "dispersion.intensity",
+        "dispersion.lens.count",
+        "dispersion.lens.enabled",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.mode",
+        "dispersion.motion.detail",
+        "dispersion.motion.flow",
+        "dispersion.motion.seed",
+        "dispersion.motion.shimmer",
+        "dispersion.motion.undulation",
+        "dispersion.position",
+        "dispersion.refraction",
+        "dispersion.softness",
+        "dispersion.sparkle",
+        "dispersion.spectrum",
+        "dispersion.spread"
+      ],
+      "kind": "functional",
+      "path": "src/app/dispersion/dispersion-schema-sections.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.bend",
+        "dispersion.curve",
+        "dispersion.curveDepth",
+        "dispersion.shading",
+        "dispersion.chromaSplit",
+        "dispersion.colorBalance",
+        "dispersion.customColorA",
+        "dispersion.customColorB",
+        "dispersion.customColorC",
+        "dispersion.customColorD",
+        "dispersion.effect.area",
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distribution",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode",
+        "dispersion.effect.sparkle.size",
+        "dispersion.effect.sparkle.twinkle",
+        "dispersion.export.includeBackground",
+        "dispersion.frame.cornerRadius",
+        "dispersion.frame.shape",
+        "dispersion.glow",
+        "dispersion.height",
+        "dispersion.inset",
+        "dispersion.intensity",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.mode",
+        "dispersion.motion.detail",
+        "dispersion.motion.flow",
+        "dispersion.motion.seed",
+        "dispersion.motion.shimmer",
+        "dispersion.motion.undulation",
+        "dispersion.position",
+        "dispersion.refraction",
+        "dispersion.runtime.timeline.playback",
+        "dispersion.softness",
+        "dispersion.sparkle",
+        "dispersion.spectrum",
+        "dispersion.spread"
+      ],
+      "kind": "functional",
+      "path": "src/app/dispersion/dispersion-values.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-masks-glsl.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview"
+      ],
+      "kind": "functional",
+      "path": "src/app/dispersion/dispersion-masks-schema.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview"
+      ],
+      "kind": "functional",
+      "path": "src/app/dispersion/dispersion-masks-values.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.effect.area",
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distribution",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode",
+        "dispersion.effect.sparkle.size",
+        "dispersion.effect.sparkle.twinkle",
+        "dispersion.sparkle"
+      ],
+      "kind": "functional",
+      "path": "src/app/dispersion/dispersion-effects-schema.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-paper-grain.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.bend",
+        "dispersion.curve",
+        "dispersion.curveDepth",
+        "dispersion.shading",
+        "dispersion.chromaSplit",
+        "dispersion.colorBalance",
+        "dispersion.customColorA",
+        "dispersion.customColorB",
+        "dispersion.customColorC",
+        "dispersion.customColorD",
+        "dispersion.effect.area",
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distribution",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode",
+        "dispersion.effect.sparkle.size",
+        "dispersion.effect.sparkle.twinkle",
+        "dispersion.export.includeBackground",
+        "dispersion.frame.cornerRadius",
+        "dispersion.frame.shape",
+        "dispersion.glow",
+        "dispersion.height",
+        "dispersion.inset",
+        "dispersion.intensity",
+        "dispersion.mode",
+        "dispersion.motion.detail",
+        "dispersion.motion.flow",
+        "dispersion.motion.seed",
+        "dispersion.motion.shimmer",
+        "dispersion.motion.undulation",
+        "dispersion.position",
+        "dispersion.refraction",
+        "dispersion.runtime.timeline.playback",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.softness",
+        "dispersion.sparkle",
+        "dispersion.spectrum",
+        "dispersion.spread",
+        "dispersion.canvas.infinity.mode-and-restoration"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-light-sheet-core.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.bend",
+        "dispersion.curve",
+        "dispersion.curveDepth",
+        "dispersion.shading",
+        "dispersion.chromaSplit",
+        "dispersion.colorBalance",
+        "dispersion.customColorA",
+        "dispersion.customColorB",
+        "dispersion.customColorC",
+        "dispersion.customColorD",
+        "dispersion.effect.area",
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distribution",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode",
+        "dispersion.effect.sparkle.size",
+        "dispersion.effect.sparkle.twinkle",
+        "dispersion.export.includeBackground",
+        "dispersion.frame.cornerRadius",
+        "dispersion.frame.shape",
+        "dispersion.glow",
+        "dispersion.height",
+        "dispersion.inset",
+        "dispersion.intensity",
+        "dispersion.mode",
+        "dispersion.motion.detail",
+        "dispersion.motion.flow",
+        "dispersion.motion.seed",
+        "dispersion.motion.shimmer",
+        "dispersion.motion.undulation",
+        "dispersion.position",
+        "dispersion.refraction",
+        "dispersion.runtime.timeline.playback",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.softness",
+        "dispersion.sparkle",
+        "dispersion.spectrum",
+        "dispersion.spread",
+        "dispersion.canvas.infinity.mode-and-restoration"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-shaders.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.bend",
+        "dispersion.curve",
+        "dispersion.curveDepth",
+        "dispersion.shading",
+        "dispersion.canvas.renderScale",
+        "dispersion.chromaSplit",
+        "dispersion.colorBalance",
+        "dispersion.customColorA",
+        "dispersion.customColorB",
+        "dispersion.customColorC",
+        "dispersion.customColorD",
+        "dispersion.effect.area",
+        "dispersion.effect.grain.amount",
+        "dispersion.effect.grain.distribution",
+        "dispersion.effect.grain.distortion",
+        "dispersion.effect.grain.drift",
+        "dispersion.effect.grain.scale",
+        "dispersion.effect.grain.softness",
+        "dispersion.effect.mode",
+        "dispersion.effect.sparkle.size",
+        "dispersion.effect.sparkle.twinkle",
+        "dispersion.export.actions",
+        "dispersion.export.image.format",
+        "dispersion.export.image.resolution",
+        "dispersion.export.includeBackground",
+        "dispersion.frame.cornerRadius",
+        "dispersion.frame.shape",
+        "dispersion.glow",
+        "dispersion.height",
+        "dispersion.inset",
+        "dispersion.intensity",
+        "dispersion.masks.enabled",
+        "dispersion.masks.items",
+        "dispersion.masks.items.properties",
+        "dispersion.masks.preview",
+        "dispersion.mode",
+        "dispersion.position",
+        "dispersion.refraction",
+        "dispersion.runtime.timeline.playback",
+        "dispersion.softness",
+        "dispersion.sparkle",
+        "dispersion.spectrum",
+        "dispersion.spread",
+        "dispersion.canvas.infinity.mode-and-restoration"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-webgl.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.lens.angle",
+        "dispersion.lens.bias",
+        "dispersion.lens.count",
+        "dispersion.lens.dispersion",
+        "dispersion.lens.dispersionColor",
+        "dispersion.lens.dispersionShift",
+        "dispersion.lens.enabled",
+        "dispersion.lens.focusCenter",
+        "dispersion.lens.focusEdges",
+        "dispersion.lens.grainMixer",
+        "dispersion.lens.grainOverlay",
+        "dispersion.lens.imageX",
+        "dispersion.lens.imageY",
+        "dispersion.lens.lensBulge",
+        "dispersion.lens.lensCircle",
+        "dispersion.lens.noise",
+        "dispersion.lens.noiseFrequency",
+        "dispersion.lens.noiseOffset",
+        "dispersion.lens.perspective",
+        "dispersion.lens.spread",
+        "dispersion.lens.swirl"
+      ],
+      "kind": "functional",
+      "path": "src/app/dispersion/dispersion-lens-distortion-schema.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.lens.angle",
+        "dispersion.lens.bias",
+        "dispersion.lens.count",
+        "dispersion.lens.dispersion",
+        "dispersion.lens.dispersionColor",
+        "dispersion.lens.dispersionShift",
+        "dispersion.lens.enabled",
+        "dispersion.lens.focusCenter",
+        "dispersion.lens.focusEdges",
+        "dispersion.lens.grainMixer",
+        "dispersion.lens.grainOverlay",
+        "dispersion.lens.imageX",
+        "dispersion.lens.imageY",
+        "dispersion.lens.lensBulge",
+        "dispersion.lens.lensCircle",
+        "dispersion.lens.noise",
+        "dispersion.lens.noiseFrequency",
+        "dispersion.lens.noiseOffset",
+        "dispersion.lens.perspective",
+        "dispersion.lens.spread",
+        "dispersion.lens.swirl",
+        "dispersion.canvas.infinity.mode-and-restoration"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-lens-distortion.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.lens.angle",
+        "dispersion.lens.bias",
+        "dispersion.lens.count",
+        "dispersion.lens.dispersion",
+        "dispersion.lens.dispersionColor",
+        "dispersion.lens.dispersionShift",
+        "dispersion.lens.enabled",
+        "dispersion.lens.focusCenter",
+        "dispersion.lens.focusEdges",
+        "dispersion.lens.grainMixer",
+        "dispersion.lens.grainOverlay",
+        "dispersion.lens.imageX",
+        "dispersion.lens.imageY",
+        "dispersion.lens.lensBulge",
+        "dispersion.lens.lensCircle",
+        "dispersion.lens.noise",
+        "dispersion.lens.noiseFrequency",
+        "dispersion.lens.noiseOffset",
+        "dispersion.lens.perspective",
+        "dispersion.lens.spread",
+        "dispersion.lens.swirl"
+      ],
+      "kind": "functional",
+      "path": "src/app/dispersion/dispersion-lens-distortion-values.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.effect.area"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-webgl-utils.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.canvas.renderScale",
+        "dispersion.export.actions",
+        "dispersion.lens.enabled"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-webgl-target.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.appearance.background",
+        "dispersion.canvas.infinity.mode-and-restoration",
+        "dispersion.export.includeBackground",
+        "dispersion.lens.enabled"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.shader-resource",
+        "dispersion.preview-frame",
+        "dispersion.image-export"
+      ],
+      "path": "src/app/dispersion/dispersion-backdrop.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.canvas.infinity.mode-and-restoration",
+        "dispersion.runtime.canvas.viewport",
+        "dispersion.canvas.renderScale"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.preview-frame"
+      ],
+      "path": "src/app/dispersion/dispersion-view-window.ts"
+    },
+    {
+      "acceptanceIds": [
+        "dispersion.canvas.infinity.mode-and-restoration",
+        "dispersion.runtime.canvas.viewport",
+        "dispersion.canvas.renderScale"
+      ],
+      "kind": "performance",
+      "passIds": [
+        "dispersion.preview-frame"
+      ],
+      "path": "src/app/dispersion/dispersion-infinite-viewport.tsx"
+    }
+  ]
+}
