@@ -315,7 +315,7 @@ export async function expectToolcraftInfinityCanvasUnavailableImageExportEvidenc
     validateToolcraftExportArtifactInspection(inspection, requirementId);
     expect(
       inspection,
-      `Unavailable-image export "${requirementId}" must decode to the expected visible scene bounds.`,
+      `Unavailable-image export "${requirementId}" must decode to the saved export artboard dimensions.`,
     ).toMatchObject(expectedSize);
     validateUnavailableImageResourceObservation(
       await readUnavailableImageResourceObservation(record.observe),
@@ -358,11 +358,6 @@ export async function expectToolcraftInfinityCanvasUnavailableImageExportEvidenc
   }
   await attachToolcraftBrowserRuntimeEvidence({
     evidenceType: "exported-artifact",
-    requirementId,
-    target: exportTarget,
-  });
-  await attachToolcraftBrowserRuntimeEvidence({
-    evidenceType: "infinity-scene-bounds-image-export",
     requirementId,
     target: exportTarget,
   });

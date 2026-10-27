@@ -1,5 +1,7 @@
 "use client";
 
+import * as React from "react";
+
 import { getToolcraftCanvasFrame } from "../../state/canvas-frame";
 import type { ToolcraftState } from "../../state/types";
 import { useToolcraftCommittedSelector } from "../app-shell/toolcraft-selectors";
@@ -14,7 +16,10 @@ function canvasStatesEqual(
 }
 
 export function useToolcraftCanvasFrame() {
-  return getToolcraftCanvasFrame(
-    useToolcraftCommittedSelector(selectCanvas, canvasStatesEqual),
+  const canvas = useToolcraftCommittedSelector(selectCanvas, canvasStatesEqual);
+
+  return React.useMemo(
+    () => getToolcraftCanvasFrame(canvas),
+    [canvas],
   );
 }

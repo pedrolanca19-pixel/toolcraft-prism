@@ -35,7 +35,6 @@ const expectedVerificationReceiptExports = [
   "assertToolcraftVerificationInputsUnchanged",
   "collectToolcraftVerificationInputs",
   "readToolcraftDurablePerformanceBaseline",
-  "validateToolcraftCurrentPerformanceImpactInventory",
   "validateToolcraftPerformanceReceipt",
   "validateToolcraftVerificationReceipt",
 ];
@@ -67,6 +66,7 @@ async function collectCrossSpawnImportFacts(rootDir) {
   const graph = await createToolcraftLocalDependencyGraph({
     entries: inventory.entries.filter(({ role }) => role === "production"),
     rootDir,
+    sourceRecordMode: "imports-only",
   });
   return graph.moduleImports.filter(({ specifier }) =>
     isToolcraftPackageRootOrSubpath(specifier, "cross-spawn")
@@ -92,6 +92,7 @@ test("receipt production dependency graph is acyclic", async () => {
   const graph = await createToolcraftLocalDependencyGraph({
     entries,
     rootDir,
+    sourceRecordMode: "imports-only",
   });
   const violations = getToolcraftProductionCycleViolations(graph).filter(({ cycle }) =>
     cycle.some((repoPath) => /toolcraft-(?:delivery|verification)-receipt/iu.test(repoPath)),
@@ -158,6 +159,7 @@ test("plan execution owns one exact evidence and authority boundary", async () =
     "executeToolcraftTargetedPerformanceVerificationCore",
   ]);
   assert.deepEqual(Object.keys(proofProcess).sort(), [
+    "captureToolcraftProofIpcProcess",
     "captureToolcraftProofProcess",
     "detectToolcraftPackageManager",
     "ensureToolcraftChromium",
@@ -165,6 +167,7 @@ test("plan execution owns one exact evidence and authority boundary", async () =
     "getToolcraftFrozenInstallCommand",
     "runToolcraftProofPackageScript",
     "runToolcraftProofProcess",
+    "terminateToolcraftProofProcessTree",
   ]);
   for (const obsolete of [
     "toolcraft-targeted-evidence-policy.mjs",

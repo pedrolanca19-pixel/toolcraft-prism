@@ -18,14 +18,17 @@ type ToolcraftPanelsCommand = Extract<
 >;
 
 function panelPatchesEqual(
-  panel: ToolcraftState["panels"][keyof ToolcraftState["panels"]],
+  panel: NonNullable<ToolcraftState["panels"][keyof ToolcraftState["panels"]]>,
   patch: ToolcraftPanelPatch,
 ): boolean {
-  const scalarKeys = ["collapsed", "extended", "hidden", "snapEdge"] as const;
+  const scalarKeys = [
+    "collapsed", "extended", "hidden", "scrollTop", "snapEdge",
+  ] as const;
 
   return (
     (!patch.offset ||
-      (panel.offset.x === patch.offset.x && panel.offset.y === patch.offset.y)) &&
+      (panel.offset.x === patch.offset.x &&
+        panel.offset.y === patch.offset.y)) &&
     scalarKeys.every(
       (key) => !Object.hasOwn(patch, key) || Object.is(panel[key], patch[key]),
     )
@@ -38,6 +41,14 @@ function updatePanel(
   patch: ToolcraftPanelPatch,
 ): ToolcraftState {
   const panel = state.panels[panelId];
+  if (!panel) return state;
+
+  if (
+    patch.scrollTop !== undefined &&
+    (!Number.isFinite(patch.scrollTop) || patch.scrollTop < 0)
+  ) {
+    return state;
+  }
 
   if (panelPatchesEqual(panel, patch)) {
     return state;

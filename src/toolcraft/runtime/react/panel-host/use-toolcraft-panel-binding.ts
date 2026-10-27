@@ -14,7 +14,7 @@ import type { PanelStateChange } from "./panel-host-types";
 
 export type ToolcraftPanelBinding<PanelId extends ToolcraftPanelId> = {
   onPanelStateChange: PanelStateChange;
-  panelState: ToolcraftPanelsState[PanelId];
+  panelState: NonNullable<ToolcraftPanelsState[PanelId]>;
 };
 
 export function useToolcraftPanelBinding<PanelId extends ToolcraftPanelId>({
@@ -32,6 +32,7 @@ export function useToolcraftPanelBinding<PanelId extends ToolcraftPanelId>({
     [panelId],
   );
   const runtimePanelState = useToolcraftCommittedSelector(selectPanelState);
+  if (!runtimePanelState) throw new Error(`Panel ${panelId} requires its enabled module.`);
   const controlled = panelState !== undefined;
   const handlePanelStateChange = React.useCallback<PanelStateChange>(
     (patch) => {
@@ -43,7 +44,7 @@ export function useToolcraftPanelBinding<PanelId extends ToolcraftPanelId>({
     },
     [controlled, dispatch, onPanelStateChange, panelId],
   );
-  const resolvedPanelState: ToolcraftPanelsState[PanelId] =
+  const resolvedPanelState: NonNullable<ToolcraftPanelsState[PanelId]> =
     panelState === undefined
       ? runtimePanelState
       : { ...runtimePanelState, ...panelState };

@@ -2,54 +2,54 @@ import type {
   ResolvedToolcraftAppSchema,
   ToolcraftPerformancePath,
 } from "@/toolcraft/runtime";
+import { resolveToolcraftAppCapabilities } from "@/toolcraft/runtime";
 
-import {
-  TOOLCRAFT_PERFORMANCE_PIPELINE_PHASES,
-} from "../src/app/test-evidence/browser-performance-contract";
+import { TOOLCRAFT_PERFORMANCE_PIPELINE_PHASES } from "../src/app/test-evidence/browser-performance-contract";
 import type { ToolcraftBrowserRuntimeRequirement } from "../src/app/test-evidence/browser-runtime-contract";
 import { schemaHasVideoExportPanelAction } from "../src/app/acceptance/output-export";
+import { requiresToolcraftVectorScreenMotion } from "../src/app/acceptance/vector-screen-motion";
+import type { ToolcraftOrientationGizmoCoverage } from "../src/app/acceptance/types";
 import {
   getRequiredToolcraftControlPartCoverage,
   type ToolcraftBackgroundOutputCoverage,
   type ToolcraftComponentAcceptance,
   type ToolcraftControlSectionInventoryEntry,
   type ToolcraftInfinityCanvasCoverage,
+  type ToolcraftExportArtifactCoverage,
   type ToolcraftModelImportCoverage,
-  type ToolcraftOrientationGizmoCoverage,
   type ToolcraftTimelinePlaybackCoverage,
   TOOLCRAFT_REQUIRED_MODEL_IMPORT_COVERAGE,
 } from "../src/app/app-acceptance";
 import { expandToolcraftControlApplicabilityRequirements } from "./browser-runtime-applicability-requirements";
-import { getToolcraftPerformancePathTestName } from "./performance-path-helpers";
+import { getToolcraftPerformancePathTestName } from "./performance-path-adapter-matrix";
+import { hasExactToolcraftCollectionItemKeyframeCoverage } from "../src/app/acceptance/control-acceptance-coverage";
 
 type BrowserAcceptanceRequirementSource = Pick<
   ToolcraftComponentAcceptance,
   | "browser"
-  | "browserTestName"
   | "backgroundOutputCoverage"
   | "canvasHandle"
   | "controlPartCoverage"
+  | "collectionItemKeyframeCoverage"
   | "evidence"
   | "exportArtifactCoverage"
   | "id"
   | "infinityCanvasCoverage"
+  | "infinityOverflowCoverage"
   | "layerCoverage"
   | "modelImportCoverage"
+  | "motionReferenceCoverage"
   | "orientationGizmoCoverage"
   | "referenceCoverage"
   | "referenceTimelineCoverage"
   | "renderScaleCoverage"
+  | "selectionScopeCoverage"
   | "target"
   | "timelineCoverage"
   | "timelinePlaybackCoverage"
 > & {
   kind?: ToolcraftComponentAcceptance["kind"];
 };
-
-type BrowserSchemaRequirementSource = Pick<
-  ResolvedToolcraftAppSchema,
-  "canvas" | "panels"
->;
 
 function getAcceptanceEvidenceType(
   evidence: ToolcraftComponentAcceptance["evidence"],
@@ -99,6 +99,7 @@ const timelinePlaybackCoverage = Object.keys(
 ) as Array<keyof typeof timelineEvidenceTypeByCoverage>;
 
 const backgroundOutputEvidenceTypeByCoverage = {
+  "finite-media-stacking": "background-finite-media-stacking",
   "image-transparent-when-excluded": "background-image-transparency",
   "infinity-viewport-color-and-dependency": "background-infinity-viewport",
   "preview-hidden-when-excluded": "background-preview-exclusion",
@@ -111,6 +112,15 @@ const backgroundOutputEvidenceTypeByCoverage = {
 const backgroundOutputCoverage = Object.keys(
   backgroundOutputEvidenceTypeByCoverage,
 ) as ToolcraftBackgroundOutputCoverage[];
+
+const exportArtifactEvidenceTypeByCoverage = {
+  "all-required-image-export-behavior": "image-export-artifact",
+  "all-required-svg-export-behavior": "svg-export-artifact",
+  "all-required-video-export-behavior": "video-export-artifact",
+} as const satisfies Record<
+  ToolcraftExportArtifactCoverage,
+  ToolcraftBrowserRuntimeRequirement["evidenceType"]
+>;
 
 const orientationEvidenceTypeByCoverage = {
   "axis-drag": "orientation-axis-drag",
@@ -130,8 +140,9 @@ const orientationGizmoCoverage = Object.keys(
 ) as ToolcraftOrientationGizmoCoverage[];
 
 const infinityCanvasEvidenceTypeByCoverage = {
-  "mode-and-restoration": "infinity-mode-restoration",
+  "mode-continuity-and-restoration": "infinity-mode-continuity",
   "scene-bounds-image-export": "infinity-scene-bounds-image-export",
+  "scene-bounds-svg-export": "infinity-scene-bounds-svg-export",
   "scene-bounds-video-export": "infinity-scene-bounds-video-export",
 } as const satisfies Record<
   ToolcraftInfinityCanvasCoverage,
@@ -165,7 +176,7 @@ const modelImportEvidenceTypeByCoverage = {
 
 function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
   acceptance: readonly BrowserAcceptanceRequirementSource[],
-  schema?: BrowserSchemaRequirementSource,
+  schema?: ResolvedToolcraftAppSchema,
 ): ToolcraftBrowserRuntimeRequirement[] {
   const controlsByTarget = new Map(
     (schema?.panels.controls?.sections ?? []).flatMap((section) =>
@@ -176,13 +187,17 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
   );
 
   return acceptance.flatMap((entry) => {
-    if (!entry.browser) return [];
+    if (entry.browser === false) return [];
+    const browserProofTestName = entry.browser.testName;
 
     const target = entry.target ?? entry.canvasHandle?.writesTarget;
     const control = target ? controlsByTarget.get(target) : undefined;
-    const hasOrientationCoverage =
-      entry.orientationGizmoCoverage !== undefined;
-    const evidenceTypes: ToolcraftBrowserRuntimeRequirement["evidenceType"][] = [];
+    const hasOrientationCoverage = entry.orientationGizmoCoverage !== undefined;
+    const evidenceTypes: ToolcraftBrowserRuntimeRequirement["evidenceType"][] =
+      [];
+    if (control && requiresToolcraftVectorScreenMotion(control)) {
+      evidenceTypes.push("vector-screen-motion");
+    }
     const baseEvidenceType = getAcceptanceEvidenceType(entry.evidence);
     const exportArtifactCoverage = entry.exportArtifactCoverage
       ? typeof entry.exportArtifactCoverage === "string"
@@ -192,16 +207,13 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
     if (
       baseEvidenceType &&
       entry.renderScaleCoverage === undefined &&
+      entry.infinityOverflowCoverage === undefined &&
       exportArtifactCoverage.length === 0
     ) {
       evidenceTypes.push(baseEvidenceType);
     }
     for (const coverage of exportArtifactCoverage) {
-      evidenceTypes.push(
-        coverage === "all-required-image-export-behavior"
-          ? "image-export-artifact"
-          : "video-export-artifact",
-      );
+      evidenceTypes.push(exportArtifactEvidenceTypeByCoverage[coverage]);
     }
 
     if (entry.canvasHandle && !hasOrientationCoverage) {
@@ -214,7 +226,7 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
       const coverage =
         entry.timelinePlaybackCoverage === "all-playback-behavior"
           ? timelinePlaybackCoverage
-          : entry.timelinePlaybackCoverage ?? [];
+          : (entry.timelinePlaybackCoverage ?? []);
       evidenceTypes.push(
         ...coverage.map((item) => timelineEvidenceTypeByCoverage[item]),
       );
@@ -222,12 +234,22 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
     if (entry.layerCoverage) {
       evidenceTypes.push(layerEvidenceTypeByCoverage[entry.layerCoverage]);
     }
+    if (entry.selectionScopeCoverage === "two-entity-isolation") {
+      evidenceTypes.push("selection-scoped-control");
+    }
     if (entry.infinityCanvasCoverage) {
       evidenceTypes.push(
         infinityCanvasEvidenceTypeByCoverage[entry.infinityCanvasCoverage],
       );
     }
-    if (entry.referenceCoverage || entry.referenceTimelineCoverage) {
+    if (entry.infinityOverflowCoverage) {
+      evidenceTypes.push("infinity-output-overflow");
+    }
+    if (
+      entry.referenceCoverage ||
+      entry.referenceTimelineCoverage ||
+      (entry.motionReferenceCoverage?.length ?? 0) > 0
+    ) {
       evidenceTypes.push("reference-parity");
     }
     const backgroundCoverage =
@@ -237,9 +259,13 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
               (item !== "video-background-preserved" ||
                 (schema ? schemaHasVideoExportPanelAction(schema) : false)) &&
               (item !== "infinity-viewport-color-and-dependency" ||
-                schema?.canvas.sizing.mode === "editable-output"),
+                schema?.canvas.sizing.mode === "editable-output") &&
+              (item !== "finite-media-stacking" ||
+                (schema
+                  ? resolveToolcraftAppCapabilities(schema).hasMedia
+                  : false)),
           )
-        : entry.backgroundOutputCoverage ?? [];
+        : (entry.backgroundOutputCoverage ?? []);
     evidenceTypes.push(
       ...backgroundCoverage.map(
         (item) => backgroundOutputEvidenceTypeByCoverage[item],
@@ -260,44 +286,63 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
       evidenceType,
       requirementId: entry.id,
       target,
-      testName: entry.browserTestName,
+      testName: browserProofTestName,
     }));
+    const validCollectionCoverage =
+      control &&
+      hasExactToolcraftCollectionItemKeyframeCoverage({
+        control,
+        coverage: entry.collectionItemKeyframeCoverage,
+        label: entry.id,
+        timelineMode:
+          schema?.panels.timeline?.enabled === true
+            ? schema.panels.timeline.mode
+            : null,
+      });
+    requirements.push(
+      ...(validCollectionCoverage
+        ? (entry.collectionItemKeyframeCoverage ?? [])
+        : []
+      ).map((fieldId) => ({
+        evidenceType: "timeline-keyframes" as const,
+        requirementId: `${entry.id}:${fieldId}`,
+        target,
+        testName: browserProofTestName,
+      })),
+    );
 
     for (const state of entry.renderScaleCoverage?.states ?? []) {
       requirements.push({
         evidenceType: "canvas-render-scale-backing",
         requirementId: `${entry.id}#${state}`,
         target,
-        testName: entry.browserTestName,
+        testName: browserProofTestName,
       });
     }
 
-    const orientationCoverage =
+    const orientationCoverage: readonly ToolcraftOrientationGizmoCoverage[] =
       entry.orientationGizmoCoverage ===
       "all-required-orientation-gizmo-behavior"
         ? orientationGizmoCoverage
-        : entry.orientationGizmoCoverage ?? [];
+        : (entry.orientationGizmoCoverage ?? []);
     for (const item of orientationCoverage) {
       requirements.push({
         evidenceType: orientationEvidenceTypeByCoverage[item],
         requirementId: `${entry.id}#${item}`,
         target,
-        testName:
-          item === "export-clean"
-            ? (entry.canvasHandle?.exportCleanTestName ?? entry.browserTestName)
-            : entry.browserTestName,
+        testName: browserProofTestName,
       });
     }
     const modelImportCoverage =
       entry.modelImportCoverage === "all-required-model-import-behavior"
         ? TOOLCRAFT_REQUIRED_MODEL_IMPORT_COVERAGE
-        : entry.modelImportCoverage ?? [];
+        : (entry.modelImportCoverage ?? []);
     for (const item of modelImportCoverage) {
       requirements.push({
         evidenceType: modelImportEvidenceTypeByCoverage[item],
         requirementId: `${entry.id}#${item}`,
         target,
-        testName: entry.browserTestName,
+        testName: browserProofTestName,
       });
     }
     const controlParts =
@@ -305,13 +350,13 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
         ? control
           ? getRequiredToolcraftControlPartCoverage(control)
           : []
-        : entry.controlPartCoverage ?? [];
+        : (entry.controlPartCoverage ?? []);
     for (const part of controlParts) {
       requirements.push({
         evidenceType: "compound-control-part",
         requirementId: `${entry.id}#${part}`,
         target: entry.target,
-        testName: entry.browserTestName,
+        testName: browserProofTestName,
       });
     }
     if (entry.canvasHandle && !hasOrientationCoverage) {
@@ -319,7 +364,7 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
         evidenceType: "canvas-export-clean",
         requirementId: entry.id,
         target: entry.canvasHandle.writesTarget,
-        testName: entry.canvasHandle.exportCleanTestName,
+        testName: browserProofTestName,
       });
     }
     return requirements;
@@ -328,7 +373,7 @@ function deriveUnqualifiedToolcraftBrowserRuntimeRequirements(
 
 export function deriveToolcraftBrowserRuntimeRequirements(
   acceptance: readonly BrowserAcceptanceRequirementSource[],
-  schema?: BrowserSchemaRequirementSource,
+  schema?: ResolvedToolcraftAppSchema,
   sectionInventory: readonly ToolcraftControlSectionInventoryEntry[] = [],
 ): ToolcraftBrowserRuntimeRequirement[] {
   return acceptance.flatMap((entry) => {
@@ -337,7 +382,7 @@ export function deriveToolcraftBrowserRuntimeRequirements(
       schema,
     );
     return expandToolcraftControlApplicabilityRequirements({
-      entry,
+      entry: { ...entry, kind: entry.kind ?? "runtime" },
       schema,
       sectionInventory,
       templates,
@@ -361,10 +406,8 @@ export function deriveToolcraftPerformancePathRuntimeRequirements(
   schema: ResolvedToolcraftAppSchema,
 ): ToolcraftBrowserRuntimeRequirement[] {
   return paths.flatMap((path) => {
-    const evidenceTypes: ToolcraftBrowserRuntimeRequirement["evidenceType"][] = [
-      "performance-measurement",
-      "performance-budget",
-    ];
+    const evidenceTypes: ToolcraftBrowserRuntimeRequirement["evidenceType"][] =
+      ["performance-measurement", "performance-budget"];
     if (pathProductOutcomeInteractions.has(path.interaction)) {
       evidenceTypes.push("performance-product-outcome");
     }
@@ -374,7 +417,10 @@ export function deriveToolcraftPerformancePathRuntimeRequirements(
     if (path.interaction === "export") {
       evidenceTypes.push("performance-output-completion");
     }
-    if (path.interaction === "control-drag" || path.interaction === "mask-drag") {
+    if (
+      path.interaction === "control-drag" ||
+      path.interaction === "mask-drag"
+    ) {
       evidenceTypes.push("performance-control-drag");
     }
     if (path.interaction === "animation-frame") {

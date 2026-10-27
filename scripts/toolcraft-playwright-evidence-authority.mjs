@@ -28,6 +28,9 @@ export function inspectToolcraftPlaywrightEvidenceAuthority({
   sourceFile,
 }) {
   const violations = [];
+  const createRequireNames = new Set();
+  const moduleNamespaceNames = new Set();
+  const loaderNames = new Set(["require"]);
 
   function report(node) {
     violations.push({
@@ -39,6 +42,32 @@ export function inspectToolcraftPlaywrightEvidenceAuthority({
   }
 
   function visit(node) {
+    if (ts.isImportDeclaration(node) && resolveStaticString(node.moduleSpecifier) === "node:module" &&
+      node.importClause) {
+      if (node.importClause.name) moduleNamespaceNames.add(node.importClause.name.text);
+      const bindings = node.importClause.namedBindings;
+      if (bindings && ts.isNamespaceImport(bindings)) moduleNamespaceNames.add(bindings.name.text);
+      if (bindings && ts.isNamedImports(bindings)) for (const specifier of bindings.elements) {
+        if (importedName(specifier) === "createRequire") createRequireNames.add(specifier.name.text);
+      }
+    }
+    const isCreateRequireCall = (call) => ts.isIdentifier(call.expression)
+      ? createRequireNames.has(call.expression.text)
+      : ts.isPropertyAccessExpression(call.expression) && call.expression.name.text === "createRequire" &&
+        ts.isIdentifier(call.expression.expression) && moduleNamespaceNames.has(call.expression.expression.text);
+    const isModuleRequire = (expression) => ts.isPropertyAccessExpression(expression) && expression.name.text === "require" &&
+      ts.isIdentifier(expression.expression) && expression.expression.text === "module";
+    if (ts.isVariableDeclaration(node) && node.initializer) {
+      if (ts.isObjectBindingPattern(node.name) && ts.isIdentifier(node.initializer) && moduleNamespaceNames.has(node.initializer.text)) {
+        for (const element of node.name.elements) if (ts.isIdentifier(element.name) &&
+          importedName(element) === "createRequire") createRequireNames.add(element.name.text);
+      }
+      if (ts.isIdentifier(node.name) && ((ts.isCallExpression(node.initializer) && isCreateRequireCall(node.initializer)) ||
+        (ts.isIdentifier(node.initializer) && loaderNames.has(node.initializer.text)) || isModuleRequire(node.initializer))) loaderNames.add(node.name.text);
+      if (ts.isIdentifier(node.name) && ((ts.isIdentifier(node.initializer) && createRequireNames.has(node.initializer.text)) ||
+        (ts.isPropertyAccessExpression(node.initializer) && node.initializer.name.text === "createRequire" &&
+          ts.isIdentifier(node.initializer.expression) && moduleNamespaceNames.has(node.initializer.expression.text)))) createRequireNames.add(node.name.text);
+    }
     if (
       ts.isImportDeclaration(node) &&
       isPlaywrightAuthorityModule(resolveStaticString(node.moduleSpecifier)) &&
@@ -79,9 +108,11 @@ export function inspectToolcraftPlaywrightEvidenceAuthority({
     if (ts.isCallExpression(node) && node.arguments.length > 0) {
       const callee = node.expression;
       const isDynamicImport = callee.kind === ts.SyntaxKind.ImportKeyword;
-      const isRequire = ts.isIdentifier(callee) && callee.text === "require";
+      const isRequire = ts.isIdentifier(callee) && loaderNames.has(callee.text);
+      const isModuleRequireCall = isModuleRequire(callee);
+      const isCreatedRequire = ts.isCallExpression(callee) && isCreateRequireCall(callee);
       if (
-        (isDynamicImport || isRequire) &&
+        (isDynamicImport || isRequire || isModuleRequireCall || isCreatedRequire) &&
         isPlaywrightAuthorityModule(resolveStaticString(node.arguments[0]))
       ) {
         report(node);

@@ -60,13 +60,22 @@ export async function inspectToolcraftImageDownload({
       );
       try {
         const canvas = document.createElement("canvas");
-        canvas.width = 64;
-        canvas.height = 64;
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
         const context = canvas.getContext("2d", { willReadFrequently: true });
         if (!context) throw new Error("Unable to inspect exported image pixels.");
+        context.drawImage(bitmap, 0, 0);
+        const pixels = context.getImageData(0, 0, bitmap.width, bitmap.height).data;
+        const digest = await crypto.subtle.digest("SHA-256", pixels);
+        const decodedPixelHash = Array.from(new Uint8Array(digest), (byte) =>
+          byte.toString(16).padStart(2, "0"),
+        ).join("");
+        canvas.width = 64;
+        canvas.height = 64;
         context.imageSmoothingEnabled = false;
         context.drawImage(bitmap, 0, 0, 64, 64);
         return {
+          decodedPixelHash,
           height: bitmap.height,
           pixels: Array.from(context.getImageData(0, 0, 64, 64).data),
           width: bitmap.width,
@@ -87,7 +96,7 @@ export async function inspectToolcraftImageDownload({
   return Object.freeze({
     inspection: Object.freeze({
       byteLength: bytes.byteLength,
-      decodedPixelHash: observation.decodedPixelHash,
+      decodedPixelHash: decoded.decodedPixelHash,
       height: decoded.height,
       kind: "image",
       mediaType,

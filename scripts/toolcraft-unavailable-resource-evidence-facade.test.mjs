@@ -2,15 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  createArtifactAction,
-  createSession,
   executeClosurelessObservation,
   getHarnessState,
   loadUnavailableResourceFacade,
   resetHarness,
-  setActivationError,
-  setCleanupFailure,
-  setMalformedActivation,
 } from "./toolcraft-unavailable-resource-evidence-facade-test-helpers.mjs";
 
 test("closureless observation harness rejects browser callbacks with outer references", () => {
@@ -27,11 +22,16 @@ function createFiniteObservation(width, height) {
     canvasMode: "finite",
     finiteCanvasSize: { height, width },
     finiteControlSize: { height, width },
-    finiteControlsPresent: true,
+    finiteControlsPresent: { aspectRatio: true, height: true, width: true },
     overflow: "hidden",
+    productScene: {
+      backingHeight: 400,
+      backingWidth: 640,
+      viewportRect: { height: 400, width: 640, x: -320, y: -200 },
+      worldRect: { height: 400, width: 640, x: -320, y: -200 },
+    },
     productSceneStatus: null,
-    sceneRect: null,
-    viewportOffset: { x: 0, y: 0 },
+    viewport: { offsetX: 0, offsetY: 0, zoom: 100 },
   };
 }
 
@@ -41,40 +41,113 @@ function createInfiniteObservation() {
     canvasMode: "infinite",
     finiteCanvasSize: null,
     finiteControlSize: null,
-    finiteControlsPresent: false,
+    finiteControlsPresent: { aspectRatio: false, height: false, width: false },
     overflow: "visible",
+    productScene: {
+      backingHeight: 400,
+      backingWidth: 640,
+      viewportRect: { height: 400, width: 640, x: -320, y: -200 },
+      worldRect: { height: 400, width: 640, x: -320, y: -200 },
+    },
     productSceneStatus: "ready",
-    sceneRect: { height: 400, width: 640, x: -320, y: -200 },
-    viewportOffset: { x: 0, y: 0 },
+    viewport: { offsetX: 0, offsetY: 0, zoom: 100 },
   };
+}
+
+const preservedTransition = Object.freeze({
+  productHostPreserved: true,
+  productOutputPreserved: true,
+});
+
+function createPreservedTransitions() {
+  return {
+    afterReloadToRestored: preservedTransition,
+    beforeToEnabled: preservedTransition,
+    restoredToUndone: preservedTransition,
+    undoneToRedone: preservedTransition,
+  };
+}
+
+function createModeObservations() {
+  const before = createFiniteObservation(1920, 1080);
+  const infinite = createInfiniteObservation();
+  const afterPan = {
+    ...infinite,
+    productScene: {
+      ...infinite.productScene,
+      viewportRect: {
+        ...infinite.productScene.viewportRect,
+        x: infinite.productScene.viewportRect.x + 24,
+        y: infinite.productScene.viewportRect.y - 12,
+      },
+    },
+    viewport: { offsetX: 24, offsetY: -12, zoom: 100 },
+  };
+  const withPostPan = (observation) => ({
+    ...observation,
+    productScene: afterPan.productScene,
+    viewport: afterPan.viewport,
+  });
+  return {
+    afterPan,
+    afterReload: withPostPan(infinite),
+    before,
+    enabled: infinite,
+    redone: withPostPan(before),
+    restored: withPostPan(before),
+    undone: withPostPan(infinite),
+  };
+}
+
+function replaceRecordEntry(record, key, patch) {
+  record[key] = { ...record[key], ...patch };
+}
+
+function replaceObservationPart(observations, key, part, patch) {
+  replaceRecordEntry(observations, key, {
+    [part]: { ...observations[key][part], ...patch },
+  });
+}
+
+function replaceProductRect(observations, key, rect, patch) {
+  const productScene = observations[key].productScene;
+  replaceObservationPart(observations, key, "productScene", {
+    [rect]: { ...productScene[rect], ...patch },
+  });
+}
+
+function replaceEveryProductScene(observations, patch) {
+  for (const key of Object.keys(observations)) {
+    replaceObservationPart(observations, key, "productScene", patch);
+  }
+}
+
+function runInfinityModeEvidence(facade, observations, transitions) {
+  return facade.expectToolcraftInfinityCanvasModeEvidence(
+    observations,
+    transitions,
+    {
+      expectedFiniteSize: { height: 1080, width: 1920 },
+      expectedSceneRect: observations.before.productScene.worldRect,
+      requirementId: "canvas.infinity.mode",
+      target: "canvas.infinity",
+    },
+  );
 }
 
 test("Infinity mode recipe rejects a wrong restored dormant finite size", async (context) => {
   const facade = await loadUnavailableResourceFacade(context);
   resetHarness();
-  const before = createFiniteObservation(1920, 1080);
-  const infinite = createInfiniteObservation();
+  const observations = createModeObservations();
 
   await assert.rejects(
-    facade.expectToolcraftInfinityCanvasModeEvidence(
+    runInfinityModeEvidence(
+      facade,
       {
-        afterPan: {
-          ...infinite,
-          viewportOffset: { x: 24, y: -12 },
-        },
-        afterReload: infinite,
-        before,
-        enabled: infinite,
-        redone: before,
+        ...observations,
         restored: createFiniteObservation(1280, 720),
-        undone: infinite,
       },
-      {
-        expectedFiniteSize: { height: 1080, width: 1920 },
-        expectedSceneRect: infinite.sceneRect,
-        requirementId: "canvas.infinity.mode",
-        target: "canvas.infinity",
-      },
+      createPreservedTransitions(),
     ),
   );
   assert.deepEqual(getHarnessState().attachments, []);
@@ -83,28 +156,12 @@ test("Infinity mode recipe rejects a wrong restored dormant finite size", async 
 test("Infinity mode recipe accepts exact restored dormant finite dimensions", async (context) => {
   const facade = await loadUnavailableResourceFacade(context);
   resetHarness();
-  const before = createFiniteObservation(1920, 1080);
-  const infinite = createInfiniteObservation();
+  const observations = createModeObservations();
 
-  await facade.expectToolcraftInfinityCanvasModeEvidence(
-    {
-      afterPan: {
-        ...infinite,
-        viewportOffset: { x: 24, y: -12 },
-      },
-      afterReload: infinite,
-      before,
-      enabled: infinite,
-      redone: before,
-      restored: before,
-      undone: infinite,
-    },
-    {
-      expectedFiniteSize: { height: 1080, width: 1920 },
-      expectedSceneRect: infinite.sceneRect,
-      requirementId: "canvas.infinity.mode",
-      target: "canvas.infinity",
-    },
+  await runInfinityModeEvidence(
+    facade,
+    observations,
+    createPreservedTransitions(),
   );
   assert.deepEqual(getHarnessState().attachments, [
     {
@@ -113,278 +170,54 @@ test("Infinity mode recipe accepts exact restored dormant finite dimensions", as
       target: "canvas.infinity",
     },
     {
-      evidenceType: "infinity-mode-restoration",
+      evidenceType: "infinity-mode-continuity",
       requirementId: "canvas.infinity.mode",
       target: "canvas.infinity",
     },
   ]);
 });
 
-test("unavailable-image export recipe proves typed fault before evidence and cleans up", async (context) => {
-  const facade = await loadUnavailableResourceFacade(context);
-  resetHarness();
-  const session = createSession();
-  const fixture = facade.createToolcraftUnavailableImageResourceFixture(
-    session,
-    {
-      fileName: "unavailable.png",
-      sourceTarget: "source.images",
-      target: "canvas.infinity",
-    },
-  );
-  const exportAction = createArtifactAction(
-    session,
-    "canvas.infinity",
-    new Uint8Array([1, 2, 3]),
-  );
-  const inspection =
-    await facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      fixture,
-      exportAction,
-      async () => ({ byteLength: 3, height: 2004, width: 2048 }),
-      {
-        expectedSize: { height: 2004, width: 2048 },
-        requirementId: "canvas.infinity.image-export",
-      },
+for (const [name, update] of [
+  ["viewport offset", ({ observations }) =>
+    replaceObservationPart(observations, "enabled", "viewport", { offsetX: 1 })],
+  ["viewport zoom", ({ observations }) =>
+    replaceObservationPart(observations, "enabled", "viewport", { zoom: 125 })],
+  ["product world rect", ({ observations }) =>
+    replaceProductRect(observations, "undone", "worldRect", { width: 639 })],
+  ["product viewport rect", ({ observations }) =>
+    replaceProductRect(observations, "restored", "viewportRect", { x: -319 })],
+  ["product backing", ({ observations }) =>
+    replaceObservationPart(observations, "redone", "productScene", {
+      backingWidth: 639,
+    })],
+  ["all-null product backing", ({ observations }) =>
+    replaceEveryProductScene(observations, {
+      backingHeight: null,
+      backingWidth: null,
+    })],
+  ["zero-area product viewport rect", ({ observations }) =>
+    replaceEveryProductScene(observations, {
+      viewportRect: { height: 400, width: 0, x: -320, y: -200 },
+    })],
+  ["product host identity", ({ transitions }) =>
+    replaceRecordEntry(transitions, "restoredToUndone", {
+      productHostPreserved: false,
+    })],
+  ["product output identity", ({ transitions }) =>
+    replaceRecordEntry(transitions, "undoneToRedone", {
+      productOutputPreserved: false,
+    })],
+]) {
+  test(`Infinity mode recipe rejects mismatched ${name}`, async (context) => {
+    const facade = await loadUnavailableResourceFacade(context);
+    resetHarness();
+    const observations = createModeObservations();
+    const transitions = createPreservedTransitions();
+    update({ observations, transitions });
+
+    await assert.rejects(
+      runInfinityModeEvidence(facade, observations, transitions),
     );
-
-  assert.deepEqual(inspection, {
-    byteLength: 3,
-    height: 2004,
-    width: 2048,
+    assert.deepEqual(getHarnessState().attachments, []);
   });
-  const state = getHarnessState();
-  assert.equal(state.actionCalls, 2);
-  assert.equal(state.artifactValidations, 1);
-  assert.equal(state.closurelessObservationCalls, 4);
-  assert.equal(state.sessionAssertions, 1);
-  assert.deepEqual(state.attachments, [
-    {
-      evidenceType: "exported-artifact",
-      requirementId: "canvas.infinity.image-export",
-      target: "canvas.infinity",
-    },
-    {
-      evidenceType: "infinity-scene-bounds-image-export",
-      requirementId: "canvas.infinity.image-export",
-      target: "canvas.infinity",
-    },
-  ]);
-  assert.deepEqual(state.trace, [
-    "action:activate",
-    "assert:active",
-    "artifact",
-    "assert:active",
-    "action:cleanup",
-    "assert:cleaned",
-    "evidence:exported-artifact",
-    "evidence:infinity-scene-bounds-image-export",
-  ]);
-  assert.deepEqual(state.bridgeActions, ["activate", "cleanup"]);
-  assert.deepEqual(state.eventNames, [
-    "toolcraft.browser-proof.unavailable-resource-request",
-    "toolcraft.browser-proof.unavailable-resource-request",
-  ]);
-  assert.deepEqual(state.selectorNames, [
-    '[data-slot="toolcraft-runtime-app"]',
-    '[data-slot="toolcraft-runtime-app"]',
-  ]);
-  assert.ok(
-    state.attributeNames.length > 0 &&
-      state.attributeNames.every(
-        (name) => name === "data-toolcraft-unavailable-resource-evidence",
-      ),
-  );
-  assert.equal(state.pollCalls, 2);
-});
-
-test("unavailable-image export recipe cleans up and emits no evidence when decoded bounds fail", async (context) => {
-  const facade = await loadUnavailableResourceFacade(context);
-  resetHarness();
-  const session = createSession();
-  const fixture = facade.createToolcraftUnavailableImageResourceFixture(
-    session,
-    {
-      fileName: "unavailable.png",
-      target: "canvas.infinity",
-    },
-  );
-
-  await assert.rejects(
-    facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      fixture,
-      createArtifactAction(
-        session,
-        "canvas.infinity",
-        new Uint8Array([1, 2, 3]),
-      ),
-      async () => ({ byteLength: 3, height: 100, width: 100 }),
-      {
-        expectedSize: { height: 2004, width: 2048 },
-        requirementId: "canvas.infinity.image-export",
-      },
-    ),
-  );
-
-  assert.equal(getHarnessState().actionCalls, 2);
-  assert.deepEqual(getHarnessState().attachments, []);
-  assert.equal(getHarnessState().observation.status, "cleaned");
-});
-
-test("unavailable-image export recipe emits no evidence when cleanup fails", async (context) => {
-  const facade = await loadUnavailableResourceFacade(context);
-  resetHarness();
-  setCleanupFailure();
-  const session = createSession();
-  const fixture = facade.createToolcraftUnavailableImageResourceFixture(
-    session,
-    {
-      fileName: "unavailable.png",
-      target: "canvas.infinity",
-    },
-  );
-
-  await assert.rejects(
-    facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      fixture,
-      createArtifactAction(
-        session,
-        "canvas.infinity",
-        new Uint8Array([1, 2, 3]),
-      ),
-      async () => ({ byteLength: 3, height: 2004, width: 2048 }),
-      {
-        expectedSize: { height: 2004, width: 2048 },
-        requirementId: "canvas.infinity.image-export",
-      },
-    ),
-    /cleanup failed/u,
-  );
-
-  assert.deepEqual(getHarnessState().attachments, []);
-  assert.deepEqual(getHarnessState().trace, [
-    "action:activate",
-    "assert:active",
-    "artifact",
-    "assert:active",
-    "action:cleanup",
-  ]);
-});
-
-test("unavailable-image export recipe surfaces bridge errors before artifact work", async (context) => {
-  const facade = await loadUnavailableResourceFacade(context);
-  resetHarness();
-  setActivationError("activation failed");
-  const session = createSession();
-  const fixture = facade.createToolcraftUnavailableImageResourceFixture(
-    session,
-    { fileName: "unavailable.png", target: "canvas.infinity" },
-  );
-
-  await assert.rejects(
-    facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      fixture,
-      createArtifactAction(
-        session,
-        "canvas.infinity",
-        new Uint8Array([1]),
-      ),
-      async () => ({ byteLength: 1, height: 1, width: 1 }),
-      {
-        expectedSize: { height: 1, width: 1 },
-        requirementId: "canvas.infinity.image-export",
-      },
-    ),
-    /activation failed/u,
-  );
-  assert.deepEqual(getHarnessState().trace, ["action:activate"]);
-  assert.deepEqual(getHarnessState().attachments, []);
-});
-
-test("unavailable-image export recipe rejects malformed bridge observations", async (context) => {
-  const facade = await loadUnavailableResourceFacade(context);
-  resetHarness();
-  setMalformedActivation();
-  const session = createSession();
-  const fixture = facade.createToolcraftUnavailableImageResourceFixture(
-    session,
-    { fileName: "unavailable.png", target: "canvas.infinity" },
-  );
-
-  await assert.rejects(
-    facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      fixture,
-      createArtifactAction(
-        session,
-        "canvas.infinity",
-        new Uint8Array([1]),
-      ),
-      async () => ({ byteLength: 1, height: 1, width: 1 }),
-      {
-        expectedSize: { height: 1, width: 1 },
-        requirementId: "canvas.infinity.image-export",
-      },
-    ),
-    /published malformed state/u,
-  );
-  assert.deepEqual(getHarnessState().attachments, []);
-});
-
-test("unavailable-image export recipe rejects forged fixtures and target mismatch", async (context) => {
-  const facade = await loadUnavailableResourceFacade(context);
-  resetHarness();
-  const session = createSession();
-  const fixture = facade.createToolcraftUnavailableImageResourceFixture(
-    session,
-    {
-      fileName: "unavailable.png",
-      target: "canvas.infinity",
-    },
-  );
-
-  await assert.rejects(
-    facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      {},
-      { result: new Uint8Array([1]), target: "canvas.infinity" },
-      async () => ({ byteLength: 1, height: 1, width: 1 }),
-      {
-        expectedSize: { height: 1, width: 1 },
-        requirementId: "canvas.infinity.image-export",
-      },
-    ),
-    /protected Toolcraft unavailable-resource fixture facade/u,
-  );
-  await assert.rejects(
-    facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      fixture,
-      createArtifactAction(
-        session,
-        "actions.output",
-        new Uint8Array([1]),
-      ),
-      async () => ({ byteLength: 1, height: 1, width: 1 }),
-      {
-        expectedSize: { height: 1, width: 1 },
-        requirementId: "canvas.infinity.image-export",
-      },
-    ),
-  );
-  await assert.rejects(
-    facade.expectToolcraftInfinityCanvasUnavailableImageExportEvidence(
-      fixture,
-      createArtifactAction(
-        createSession(),
-        "canvas.infinity",
-        new Uint8Array([1]),
-      ),
-      async () => ({ byteLength: 1, height: 1, width: 1 }),
-      {
-        expectedSize: { height: 1, width: 1 },
-        requirementId: "canvas.infinity.image-export",
-      },
-    ),
-    /same browser proof session/u,
-  );
-  assert.equal(getHarnessState().actionCalls, 0);
-  assert.deepEqual(getHarnessState().attachments, []);
-});
+}

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   defineToolcraft,
-  type ToolcraftAppSchema,
+  type ToolcraftProductDefinition,
 } from "@/toolcraft/runtime";
 
 import {
@@ -10,41 +10,54 @@ import {
 } from "./app-acceptance.contract-fixtures";
 
 const schema = {
-  canvas: { enabled: true },
-  panels: {
-    controls: {
-      sections: [],
-      title: "Controls",
+  base: {
+    canvas: { enabled: true },
+    identity: { id: "contract-production", title: "Contract production" },
+    panels: {
+      controls: {
+        sections: [],
+        title: "Controls",
+      },
     },
   },
-} satisfies ToolcraftAppSchema;
+  modules: [],
+} satisfies ToolcraftProductDefinition;
 
 describe("Toolcraft acceptance contract schema fixtures", () => {
-  it("authors neutral fixture controls explicitly without masking legacy input", () => {
+  it("preserves explicit authored applicability without a compatibility adapter", () => {
     const fixture = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                legacy: {
-                  target: "shape.legacy",
-                  type: "slider",
-                  visibleWhen: { equals: true, target: "shape.enabled" },
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                controls: {
+                  conditional: {
+                    applicability: {
+                      all: [{ equals: true, target: "shape.enabled" }],
+                      mode: "conditional" as const,
+                    },
+                    target: "shape.conditional",
+                    type: "slider",
+                  },
+                  neutral: {
+                    applicability: { mode: "always" as const },
+                    target: "shape.enabled",
+                    type: "switch",
+                  },
                 },
-                neutral: {
-                  target: "shape.enabled",
-                  type: "switch",
-                },
+                id: "shape",
+                title: "Shape",
               },
-              id: "shape",
-              title: "Shape",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [],
     });
     const controls = fixture.panels.controls?.sections.find(
       (section) => section.id === "shape",
@@ -54,16 +67,19 @@ describe("Toolcraft acceptance contract schema fixtures", () => {
       mode: "always",
       origin: "explicit",
     });
-    expect(controls?.legacy?.applicability).toEqual({
+    expect(controls?.conditional?.applicability).toEqual({
       all: [{ equals: true, target: "shape.enabled" }],
       mode: "conditional",
-      origin: "legacy",
+      origin: "explicit",
     });
   });
 
-  it("opts unrelated unit fixtures out without changing the production default", () => {
+  it("requires fixture persistence policy to be explicit", () => {
     const productionDefault = defineToolcraft(schema);
-    const contractFixture = defineContractSchemaFixture(schema);
+    const contractFixture = defineContractSchemaFixture({
+      ...schema,
+      base: { ...schema.base, persistence: { storage: "none" } },
+    });
 
     expect(productionDefault.persistence.storage).toBe("localStorage");
     expect(contractFixture.persistence).toEqual({

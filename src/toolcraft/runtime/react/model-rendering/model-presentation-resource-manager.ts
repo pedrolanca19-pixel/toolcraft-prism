@@ -31,6 +31,7 @@ type SharedPresentation = Readonly<{
 }>;
 
 type PendingEntry = {
+  activeWaiters: number;
   controller: AbortController;
   key: string;
   promise: Promise<ReadyEntry>;
@@ -85,7 +86,7 @@ function abortError(): DOMException {
 }
 
 function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) throw abortError();
+  signal.throwIfAborted();
 }
 
 function ownedBytes(
@@ -95,31 +96,6 @@ function ownedBytes(
   const copy = new Uint8Array(source.byteLength);
   copy.set(source);
   return copy;
-}
-
-function waitForSignal<Result>(
-  promise: Promise<Result>,
-  signal: AbortSignal,
-): Promise<Result> {
-  throwIfAborted(signal);
-  return new Promise((resolve, reject) => {
-    const onAbort = () => {
-      cleanup();
-      reject(abortError());
-    };
-    const cleanup = () => signal.removeEventListener("abort", onAbort);
-    signal.addEventListener("abort", onAbort, { once: true });
-    void promise.then(
-      (value) => {
-        cleanup();
-        resolve(value);
-      },
-      (error: unknown) => {
-        cleanup();
-        reject(error);
-      },
-    );
-  });
 }
 
 async function loadTextureBitmaps(
@@ -170,8 +146,8 @@ async function loadTextureBitmaps(
       let bitmap: ImageBitmap;
       try {
         bitmap = await createImage(new Blob([bytes], { type: texture.mimeType }));
-      } catch {
-        throwIfAborted(signal);
+      } catch (error) {
+        if (signal.aborted) throw error;
         reportFailure?.({
           code: "appearance-resource-decode-failed",
           resourceRef: texture.resourceRef,
@@ -202,7 +178,9 @@ async function loadTextureBitmaps(
       byTextureId,
     });
   } catch (error) {
-    for (const bitmap of bitmaps) bitmap.close();
+    for (const bitmap of bitmaps) {
+      try { bitmap.close(); } catch { /* The load failure remains primary. */ }
+    }
     throw error;
   }
 }
@@ -232,13 +210,14 @@ async function loadSharedPresentation(
     options.onAppearanceResourceFailure,
     signal,
   );
-  throwIfAborted(signal);
-  const appearance = createToolcraftThreeModelAppearance(
-    document,
-    decoded.byTextureId,
-  );
+  let appearance: ToolcraftThreeModelAppearance | undefined;
+  let built: ToolcraftCanonicalThreeModel | undefined;
   try {
-    const built = buildToolcraftCanonicalThreeModel(
+    // Ownership transfers from the texture helper before any abort/constructor
+    // can throw. Every resource created below stays inside this cleanup guard.
+    throwIfAborted(signal);
+    appearance = createToolcraftThreeModelAppearance(document, decoded.byTextureId);
+    built = buildToolcraftCanonicalThreeModel(
       document,
       appearance.materialForPrimitive,
     );
@@ -250,8 +229,15 @@ async function loadSharedPresentation(
       document,
     });
   } catch (error) {
-    appearance.dispose();
-    for (const bitmap of decoded.bitmaps) bitmap.close();
+    const cleanups = [
+      ...[...new Set(built?.geometries)].map((geometry) => () => geometry.dispose()),
+      () => appearance?.dispose(),
+      ...decoded.bitmaps.map((bitmap) => () => bitmap.close()),
+      () => built?.modelRoot.clear(),
+    ];
+    for (const cleanup of cleanups) {
+      try { cleanup(); } catch { /* Preserve the acquisition/cancellation error. */ }
+    }
     throw error;
   }
 }
@@ -299,6 +285,7 @@ export function createToolcraftModelPresentationResourceManager(
       options.retainResourceRef?.(ref) ?? (() => undefined),
     );
     const pending: PendingEntry = {
+      activeWaiters: 0,
       controller,
       key,
       promise: Promise.resolve(undefined as unknown as ReadyEntry),
@@ -311,6 +298,7 @@ export function createToolcraftModelPresentationResourceManager(
         if (disposed || controller.signal.aborted || entries.get(key) !== pending) {
           disposedCount += 1;
           disposeSharedPresentation(shared);
+          controller.signal.throwIfAborted();
           throw abortError();
         }
         const ready: ReadyEntry = {
@@ -327,7 +315,7 @@ export function createToolcraftModelPresentationResourceManager(
       }).catch((error: unknown) => {
         pending.state = "failed";
         if (entries.get(key) === pending) entries.delete(key);
-        releaseReachability();
+        try { releaseReachability(); } catch { /* The load failure remains primary. */ }
         throw error;
       });
     entries.set(key, pending);
@@ -373,20 +361,40 @@ export function createToolcraftModelPresentationResourceManager(
         return leaseFromReady(current, acquireOptions.signal);
       }
       if (current?.state === "failed") entries.delete(key);
-      if (current?.state === "pending") cacheHitCount += 1;
-      const pending = current?.state === "pending"
+      const reusable = current?.state === "pending" && !current.controller.signal.aborted;
+      if (reusable) cacheHitCount += 1;
+      const pending = reusable
         ? current
         : startPending(ref, key);
       pending.waiters += 1;
+      pending.activeWaiters += 1;
+      let active = true;
+      const stopWaiting = () => {
+        if (!active) return;
+        active = false;
+        pending.activeWaiters -= 1;
+        if (pending.activeWaiters === 0 && entries.get(key) === pending) {
+          pending.controller.abort(acquireOptions.signal.reason);
+        }
+      };
+      acquireOptions.signal.addEventListener("abort", stopWaiting, { once: true });
+      if (acquireOptions.signal.aborted) stopWaiting();
       let ready: ReadyEntry | undefined;
       try {
-        ready = await waitForSignal(pending.promise, acquireOptions.signal);
+        // Cancellation stops unused shared work, but does not release its owner
+        // before a non-cooperating resolver/decoder has actually settled.
+        ready = await pending.promise;
         return leaseFromReady(ready, acquireOptions.signal);
+      } catch (error) {
+        if (acquireOptions.signal.aborted && pending.controller.signal.aborted &&
+          error === pending.controller.signal.reason) throw acquireOptions.signal.reason;
+        throw error;
       } finally {
+        acquireOptions.signal.removeEventListener("abort", stopWaiting);
+        stopWaiting();
         const cached = entries.get(key);
-        if (cached?.state === "pending") {
+        if (cached === pending) {
           cached.waiters -= 1;
-          if (cached.waiters === 0) cached.controller.abort();
         } else if (ready && cached === ready) {
           ready.pendingAcquisitions -= 1;
           disposeReadyIfUnowned(ready);
@@ -405,7 +413,6 @@ export function createToolcraftModelPresentationResourceManager(
       for (const entry of entries.values()) {
         if (entry.state !== "ready") {
           entry.controller.abort();
-          entry.releaseReachability();
         } else {
           entry.disposed = true;
           disposedCount += 1;

@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { Tabs, TabsList, TabsTrigger } from "../../composites";
+import { observeBrowserResize } from "../../primitives/browser-transport";
 import { cn } from "../../../lib/utils";
 import type { ControlOption } from "../control-types";
 import { StaticSelect } from "../select";
@@ -86,21 +87,13 @@ export function TabsControl({
 
     updatePresentation();
 
-    if (typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const observer = new ResizeObserver(updatePresentation);
-
-    observer.observe(wrapper);
-    observer.observe(list);
-    for (const measurementTarget of list.querySelectorAll<HTMLElement>(
-      '[data-slot="tabs-trigger"], [data-slot="tabs-trigger-label"]',
-    )) {
-      observer.observe(measurementTarget);
-    }
-
-    return () => observer.disconnect();
+    return observeBrowserResize([
+      wrapper,
+      list,
+      ...list.querySelectorAll<HTMLElement>(
+        '[data-slot="tabs-trigger"], [data-slot="tabs-trigger-label"]',
+      ),
+    ], updatePresentation);
   }, [options]);
 
   return (

@@ -24,7 +24,7 @@ import { tryNormalizeLocalModelSourceUri } from "../model-source-path";
 import type { FbxBinaryEmbeddedImage } from "./fbx-binary-preflight";
 import {
   threeStaticGeometryFailure,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 import type {
   ThreeStaticAppearanceCatalog,
   ThreeStaticAppearanceMaterialSource,

@@ -1,4 +1,4 @@
-import type { ToolcraftMediaAssetDraft } from "../state/types";
+import type { ToolcraftMediaBatchImportAsset } from "../state/types";
 import type { ToolcraftBinaryAssetLease } from "./repository/binary-asset-repository";
 import type {
   ToolcraftPreparedSourceAsset,
@@ -73,36 +73,45 @@ export function validateToolcraftPreparedSourceAssets(
 export function freezeToolcraftPreparedAssetDraft(
   asset: PreparedAsset,
   sourceTarget?: string,
-): ToolcraftMediaAssetDraft {
-  const { sourceTarget: _handlerSourceTarget, ...assetWithoutSourceTarget } =
-    asset;
-  const canonicalAsset = {
-    ...assetWithoutSourceTarget,
-    ...(sourceTarget ? { sourceTarget } : {}),
-  } as PreparedAsset;
-
-  if (canonicalAsset.assetKind === "image") {
+): ToolcraftMediaBatchImportAsset {
+  if (asset.assetKind === "image") {
+    const {
+      sourceTarget: _handlerSourceTarget,
+      ...assetWithoutSourceTarget
+    } = asset;
     return Object.freeze({
-      ...canonicalAsset,
-      position: Object.freeze({ ...canonicalAsset.position }),
-      ...(canonicalAsset.size
-        ? { size: Object.freeze({ ...canonicalAsset.size }) }
-        : {}),
-      ...(canonicalAsset.transform
-        ? { transform: Object.freeze({ ...canonicalAsset.transform }) }
-        : {}),
+      asset: Object.freeze({
+        ...assetWithoutSourceTarget,
+        position: Object.freeze({ ...asset.position }),
+        sourceSize: Object.freeze({ ...asset.sourceSize }),
+        ...(sourceTarget ? { sourceTarget } : {}),
+        ...(asset.transform
+          ? { transform: Object.freeze({ ...asset.transform }) }
+          : {}),
+      }),
+      policy: "prepared-source",
     });
   }
-  if (canonicalAsset.assetKind === "file") {
+  if (asset.assetKind === "file") {
+    const {
+      sourceTarget: _handlerSourceTarget,
+      ...assetWithoutSourceTarget
+    } = asset;
     return Object.freeze({
-      ...canonicalAsset,
-      position: Object.freeze({ ...canonicalAsset.position }),
+      ...assetWithoutSourceTarget,
+      position: Object.freeze({ ...asset.position }),
+      ...(sourceTarget ? { sourceTarget } : {}),
     });
   }
 
+  const {
+    sourceTarget: _handlerSourceTarget,
+    ...assetWithoutSourceTarget
+  } = asset;
   return Object.freeze({
-    ...canonicalAsset,
-    position: Object.freeze({ ...canonicalAsset.position }),
-    size: Object.freeze({ ...canonicalAsset.size }),
+    ...assetWithoutSourceTarget,
+    position: Object.freeze({ ...asset.position }),
+    size: Object.freeze({ ...asset.size }),
+    ...(sourceTarget ? { sourceTarget } : {}),
   });
 }

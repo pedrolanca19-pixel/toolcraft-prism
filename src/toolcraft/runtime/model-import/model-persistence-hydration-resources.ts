@@ -11,7 +11,6 @@ import { TOOLCRAFT_DEFAULT_MODEL_IMPORT_LIMITS } from "./model-import-limit-valu
 import {
   decodeToolcraftModelSourceBundleDescriptor,
   TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_CONTENT_TYPE,
-  TOOLCRAFT_MODEL_SOURCE_BUNDLE_LEGACY_DESCRIPTOR_CONTENT_TYPE,
 } from "./model-source-bundle-codec";
 import type {
   ToolcraftModelSourceBundle,
@@ -22,10 +21,7 @@ import { sha256ToolcraftModelWorkerBytes } from "./worker/model-import-worker-re
 import { decodeToolcraftModelRepairPlanEnvelope } from "./topology/model-repair-plan-codec";
 import type { ToolcraftModelTopologyProfile } from "../schema/types";
 
-export type ToolcraftPersistedModelLifecycle =
-  | "clean"
-  | "fixed"
-  | "repairable";
+export type ToolcraftPersistedModelLifecycle = "clean" | "fixed" | "repairable";
 
 function abortIfRequested(signal: AbortSignal): void {
   if (!signal.aborted) return;
@@ -62,34 +58,43 @@ export async function hasValidToolcraftModelDocumentResource(
     ? ref.slice("toolcraft:model-document:".length)
     : null;
   if (!expectedDigest) return false;
-  if (await sha256ToolcraftModelWorkerBytes(ownedBytes(entry.bytes)) !==
-      expectedDigest) return false;
+  if (
+    (await sha256ToolcraftModelWorkerBytes(ownedBytes(entry.bytes))) !==
+    expectedDigest
+  )
+    return false;
   try {
     const document = decodeToolcraftModelDocument(entry.bytes);
     const textures = document.version === 1 ? [] : document.textures;
-    const expectedRefs = [...new Set(
-      textures.map(({ resourceRef }) => resourceRef),
-    )].sort();
+    const expectedRefs = [
+      ...new Set(textures.map(({ resourceRef }) => resourceRef)),
+    ].sort();
     if (
       entry.dependencies.length !== expectedRefs.length ||
-      entry.dependencies.some((dependency, index) =>
-        dependency !== expectedRefs[index]
+      entry.dependencies.some(
+        (dependency, index) => dependency !== expectedRefs[index],
       )
-    ) return false;
+    )
+      return false;
     const texturesByRef = new Map(
       textures.map((texture) => [texture.resourceRef, texture]),
     );
-    const valid = await Promise.all(expectedRefs.map(async (resourceRef) => {
-      const identity = parseToolcraftModelAppearanceResourceRef(resourceRef);
-      const texture = texturesByRef.get(resourceRef);
-      const resource = await repository.get(resourceRef);
-      abortIfRequested(signal);
-      return identity !== null &&
-        texture?.contentDigest === identity &&
-        resource?.contentType === texture.mimeType &&
-        await sha256ToolcraftModelWorkerBytes(ownedBytes(resource.bytes)) ===
-          identity;
-    }));
+    const valid = await Promise.all(
+      expectedRefs.map(async (resourceRef) => {
+        const identity = parseToolcraftModelAppearanceResourceRef(resourceRef);
+        const texture = texturesByRef.get(resourceRef);
+        const resource = await repository.get(resourceRef);
+        abortIfRequested(signal);
+        return (
+          identity !== null &&
+          texture?.contentDigest === identity &&
+          resource?.contentType === texture.mimeType &&
+          (await sha256ToolcraftModelWorkerBytes(
+            ownedBytes(resource.bytes),
+          )) === identity
+        );
+      }),
+    );
     return valid.every(Boolean);
   } catch {
     return false;
@@ -111,7 +116,7 @@ export async function hasValidToolcraftModelRepairPlanResource(
     !entry ||
     entry.ref !== ref ||
     entry.contentType !== TOOLCRAFT_MODEL_REPAIR_PLAN_CONTENT_TYPE ||
-    await sha256ToolcraftModelWorkerBytes(ownedBytes(entry.bytes)) !==
+    (await sha256ToolcraftModelWorkerBytes(ownedBytes(entry.bytes))) !==
       identity.envelopeDigest
   ) {
     return false;
@@ -141,7 +146,7 @@ async function readSourceFile(
     entry.ref !== file.resourceRef ||
     entry.contentType !== file.mimeType ||
     entry.bytes.byteLength !== file.byteLength ||
-    await sha256ToolcraftModelWorkerBytes(ownedBytes(entry.bytes)) !==
+    (await sha256ToolcraftModelWorkerBytes(ownedBytes(entry.bytes))) !==
       file.contentDigest
   ) {
     throw new Error(`Model source resource "${file.path}" is unavailable.`);
@@ -160,7 +165,9 @@ async function readZipSourceFiles(
   workerClient: ToolcraftModelWorkerClient,
   jobId: string,
   signal: AbortSignal,
-): Promise<readonly ToolcraftModelSourceBundleTransfer["sourceFiles"][number][]> {
+): Promise<
+  readonly ToolcraftModelSourceBundleTransfer["sourceFiles"][number][]
+> {
   if (bundle.packageSource.kind !== "zip") {
     throw new Error("The model source package is not a ZIP archive.");
   }
@@ -173,17 +180,20 @@ async function readZipSourceFiles(
     storedArchive.ref !== archive.resourceRef ||
     storedArchive.contentType !== archive.mimeType ||
     storedArchive.bytes.byteLength !== archive.byteLength ||
-    await sha256ToolcraftModelWorkerBytes(ownedBytes(storedArchive.bytes)) !==
+    (await sha256ToolcraftModelWorkerBytes(ownedBytes(storedArchive.bytes))) !==
       archive.contentDigest
   ) {
     throw new Error("The saved model archive is unavailable.");
   }
-  const terminal = await workerClient.extractModelPackage({
-    archive: ownedBytes(storedArchive.bytes),
-    archiveDigest: archive.contentDigest,
-    jobId,
-    limits: TOOLCRAFT_DEFAULT_MODEL_IMPORT_LIMITS,
-  }, { signal });
+  const terminal = await workerClient.extractModelPackage(
+    {
+      archive: ownedBytes(storedArchive.bytes),
+      archiveDigest: archive.contentDigest,
+      jobId,
+      limits: TOOLCRAFT_DEFAULT_MODEL_IMPORT_LIMITS,
+    },
+    { signal },
+  );
   abortIfRequested(signal);
   if (terminal.kind === "cancelled") {
     const error = new Error("Model hydration was cancelled.");
@@ -207,25 +217,27 @@ async function readZipSourceFiles(
       extracted.uncompressedBytes !== expected.byteLength ||
       extracted.contentDigest !== expected.contentDigest ||
       extracted.mimeType !== expected.mimeType ||
-      await sha256ToolcraftModelWorkerBytes(
+      (await sha256ToolcraftModelWorkerBytes(
         new Uint8Array(extracted.bytes),
-      ) !== expected.contentDigest
+      )) !== expected.contentDigest
     ) {
       throw new Error("The saved model archive manifest has changed.");
     }
   }
-  return Object.freeze(bundle.sourceFiles.map((file) => {
-    const extracted = extractedByPath.get(file.path);
-    if (!extracted) {
-      throw new Error(`Model source resource "${file.path}" is unavailable.`);
-    }
-    return Object.freeze({
-      bytes: ownedBytes(new Uint8Array(extracted.bytes)).buffer,
-      contentDigest: file.contentDigest,
-      mimeType: file.mimeType,
-      path: file.path,
-    });
-  }));
+  return Object.freeze(
+    bundle.sourceFiles.map((file) => {
+      const extracted = extractedByPath.get(file.path);
+      if (!extracted) {
+        throw new Error(`Model source resource "${file.path}" is unavailable.`);
+      }
+      return Object.freeze({
+        bytes: ownedBytes(new Uint8Array(extracted.bytes)).buffer,
+        contentDigest: file.contentDigest,
+        mimeType: file.mimeType,
+        path: file.path,
+      });
+    }),
+  );
 }
 
 export async function readToolcraftModelSourceBundleForHydration(
@@ -233,19 +245,20 @@ export async function readToolcraftModelSourceBundleForHydration(
   asset: ToolcraftModelAsset,
   workerClient: ToolcraftModelWorkerClient,
   signal: AbortSignal,
-): Promise<Readonly<{
-  bundle: ToolcraftModelSourceBundle;
-  transfer: ToolcraftModelSourceBundleTransfer;
-}>> {
+): Promise<
+  Readonly<{
+    bundle: ToolcraftModelSourceBundle;
+    transfer: ToolcraftModelSourceBundleTransfer;
+  }>
+> {
   abortIfRequested(signal);
   const descriptor = await repository.get(asset.sourceBundleRef);
   abortIfRequested(signal);
   if (
     !descriptor ||
     descriptor.ref !== asset.sourceBundleRef ||
-    descriptor.contentType !== TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_CONTENT_TYPE &&
     descriptor.contentType !==
-      TOOLCRAFT_MODEL_SOURCE_BUNDLE_LEGACY_DESCRIPTOR_CONTENT_TYPE
+      TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_CONTENT_TYPE
   ) {
     throw new Error("The model source bundle is unavailable.");
   }
@@ -253,23 +266,28 @@ export async function readToolcraftModelSourceBundleForHydration(
   if (bundle.aggregateDigest !== asset.sourceBundleDigest) {
     throw new Error("The model source bundle identity does not match state.");
   }
-  const sourceFiles = bundle.packageSource.kind === "zip"
-    ? await readZipSourceFiles(
-        repository,
-        bundle,
-        workerClient,
-        `model-hydration-extract-${asset.id}`,
-        signal,
-      )
-    : (await Promise.all(bundle.sourceFiles.map(async (file) => {
-        try {
-          return await readSourceFile(repository, file, signal);
-        } catch (error) {
-          abortIfRequested(signal);
-          if (file.path === bundle.rootPath) throw error;
-          return null;
-        }
-      }))).filter((file): file is NonNullable<typeof file> => file !== null);
+  const sourceFiles =
+    bundle.packageSource.kind === "zip"
+      ? await readZipSourceFiles(
+          repository,
+          bundle,
+          workerClient,
+          `model-hydration-extract-${asset.id}`,
+          signal,
+        )
+      : (
+          await Promise.all(
+            bundle.sourceFiles.map(async (file) => {
+              try {
+                return await readSourceFile(repository, file, signal);
+              } catch (error) {
+                abortIfRequested(signal);
+                if (file.path === bundle.rootPath) throw error;
+                return null;
+              }
+            }),
+          )
+        ).filter((file): file is NonNullable<typeof file> => file !== null);
   return Object.freeze({
     bundle,
     transfer: Object.freeze({

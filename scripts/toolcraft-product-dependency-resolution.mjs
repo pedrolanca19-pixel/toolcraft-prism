@@ -98,6 +98,10 @@ export async function loadToolcraftLocalModuleAliases({
       continue;
     }
     if (typeof packageJson.name !== "string") continue;
+    aliases.push({
+      kind: "local-package-identity",
+      localPackageName: packageJson.name,
+    });
     for (const [exportKey, exportValue] of getPackageExportEntries(
       packageJson.exports,
     )) {
@@ -115,14 +119,15 @@ export async function loadToolcraftLocalModuleAliases({
 
   return aliases.sort(
     (left, right) =>
-      right.match.length - left.match.length ||
-      compareCodeUnits(left.match, right.match),
+      (right.match?.length ?? 0) - (left.match?.length ?? 0) ||
+      compareCodeUnits(left.match ?? "", right.match ?? ""),
   );
 }
 
 function aliasCandidates(specifier, importerRepoPath, aliases) {
   const candidates = [];
   for (const alias of aliases) {
+    if (alias.kind === "local-package-identity") continue;
     if (alias.importerPrefix && !importerRepoPath.startsWith(alias.importerPrefix)) {
       continue;
     }
@@ -159,7 +164,13 @@ export function isToolcraftLocalDependencySpecifier({
   return (
     cleanSpecifier.startsWith(".") ||
     cleanSpecifier.startsWith("/") ||
-    aliasCandidates(cleanSpecifier, importer.repoPath, aliases).length > 0
+    aliasCandidates(cleanSpecifier, importer.repoPath, aliases).length > 0 ||
+    aliases.some(
+      ({ localPackageName }) =>
+        localPackageName &&
+        (cleanSpecifier === localPackageName ||
+          cleanSpecifier.startsWith(`${localPackageName}/`)),
+    )
   );
 }
 

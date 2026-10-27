@@ -4,27 +4,27 @@ import type {
 } from "./types";
 
 function slugifyToolcraftAppId(value: string | undefined): string {
-  const slug = String(value ?? "")
+  return String(value ?? "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-
-  return slug || "toolcraft-app";
 }
 
-export function resolveToolcraftAppIdentity({
-  controlsTitle,
-  identity,
-  legacyAppId,
-}: {
-  controlsTitle?: string;
-  identity?: ToolcraftAppIdentitySchema;
-  legacyAppId?: string;
-}): ResolvedToolcraftAppIdentity {
-  const idSource = identity?.id ?? legacyAppId ?? controlsTitle;
-  const id = slugifyToolcraftAppId(idSource);
-  const title = identity?.title?.trim() || controlsTitle?.trim() || "Toolcraft App";
-
+export function resolveRequiredToolcraftAppIdentity(
+  identity: ToolcraftAppIdentitySchema,
+): ResolvedToolcraftAppIdentity {
+  const id = slugifyToolcraftAppId(identity.id);
+  if (id === "") {
+    throw new Error(
+      "Toolcraft product base.identity.id does not contain a canonical ASCII id.",
+    );
+  }
+  const title = identity.title.trim();
+  if (title === "") {
+    throw new Error(
+      "Toolcraft product base.identity.title must contain non-whitespace text.",
+    );
+  }
   return Object.freeze({ id, title });
 }

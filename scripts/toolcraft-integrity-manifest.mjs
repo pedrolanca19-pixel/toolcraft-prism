@@ -43,6 +43,7 @@ export function hasValidToolcraftIntegrityManifestSignature(manifest) {
   }
 
   const payload = JSON.stringify({
+    ...(manifest.domain === undefined ? {} : { domain: manifest.domain }),
     files: sortManifestFileRecord(manifest.files),
     packageScripts: sortManifestFileRecord(manifest.packageScripts),
     protectedFiles: sortManifestFileRecord(manifest.protectedFiles),
@@ -59,6 +60,10 @@ export function hasValidToolcraftIntegrityManifestSignature(manifest) {
   } catch {
     return false;
   }
+}
+
+export function isToolcraftStarterPreflightManifest(manifest) {
+  return hasValidToolcraftIntegrityManifestSignature(manifest) && manifest.domain === "starter";
 }
 
 function resolveRelativePathWithin(rootDir, relativePath) {

@@ -1,10 +1,11 @@
 import {
+  getToolcraftFiniteArtboardRect,
   outwardRoundToolcraftSceneRect,
-  type ToolcraftSceneBoundsResult,
+  resolveToolcraftSceneBounds,
+  type ToolcraftRuntimeSceneVisibility,
   type ToolcraftSceneRect,
 } from "../scene";
-import { getToolcraftCanvasFrame } from "../state/canvas-frame";
-import type { ToolcraftState } from "../state/types";
+import type { ReadonlyToolcraftState } from "../state/readonly-state";
 
 export const TOOLCRAFT_MAX_EXPORT_EDGE_PX = 8192;
 export const TOOLCRAFT_MAX_EXPORT_PIXELS =
@@ -21,58 +22,29 @@ export type ToolcraftSceneExportFailure = Readonly<{
   ok: false;
 }>;
 
-export type ToolcraftExportFrameResult =
-  | Readonly<{ frame: ToolcraftExportFrame; ok: true }>
-  | ToolcraftSceneExportFailure;
-
 export type ToolcraftArtifactSize = Readonly<{
   height: number;
   width: number;
 }>;
 
-const emptySceneExportFailure: ToolcraftSceneExportFailure = Object.freeze({
-  code: "empty-scene",
-  message: "The scene has no visible exportable elements.",
-  ok: false,
-});
-
-function isSceneBoundsResult(
-  value: ToolcraftSceneBoundsResult | ToolcraftSceneRect,
-): value is ToolcraftSceneBoundsResult {
-  return "ok" in value;
+/** Saved artboard fallback and fixed video boundary. */
+export function resolveToolcraftExportFrame(
+  state: ReadonlyToolcraftState,
+): ToolcraftExportFrame {
+  return getToolcraftFiniteArtboardRect(state.canvas.size);
 }
 
-export function resolveToolcraftExportFrame(
-  state: ToolcraftState,
-  sceneBounds: ToolcraftSceneBoundsResult | ToolcraftSceneRect | null,
-): ToolcraftExportFrameResult {
-  const canvas = getToolcraftCanvasFrame(state.canvas);
-  if (canvas.kind === "finite") {
-    return {
-      frame: {
-        height: canvas.size.height,
-        width: canvas.size.width,
-        x: 0,
-        y: 0,
-      },
-      ok: true,
-    };
-  }
-
-  if (!sceneBounds) {
-    return emptySceneExportFailure;
-  }
-  if (isSceneBoundsResult(sceneBounds)) {
-    if (!sceneBounds.ok) {
-      return sceneBounds;
-    }
-    sceneBounds = sceneBounds.bounds;
-  }
-
-  const frame = outwardRoundToolcraftSceneRect(sceneBounds);
-  return frame.width > 0 && frame.height > 0
-    ? { frame, ok: true }
-    : emptySceneExportFailure;
+export function resolveToolcraftStillExportFrame(
+  state: ReadonlyToolcraftState,
+  productRects: readonly ToolcraftSceneRect[],
+  visibility?: ToolcraftRuntimeSceneVisibility,
+): ToolcraftExportFrame {
+  if (state.canvas.mode !== "infinite") return resolveToolcraftExportFrame(state);
+  const result = resolveToolcraftSceneBounds(state, productRects, visibility);
+  if (result.ok) return outwardRoundToolcraftSceneRect(result.bounds);
+  // Empty compositions retain the existing background-only export behavior.
+  if (result.code === "empty-scene") return resolveToolcraftExportFrame(state);
+  throw new ToolcraftSceneExportError(result);
 }
 
 export function validateToolcraftArtifactSize(

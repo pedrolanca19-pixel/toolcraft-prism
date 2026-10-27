@@ -262,6 +262,8 @@ test("generated proof constructs and shares one inventory and one graph", async 
       ?.length,
     1,
   );
+  assert.match(generatedCheckSource, /fullEvidenceEntryPaths/u);
+  assert.match(generatedCheckSource, /sourceRecordMode: "imports-only"/u);
   assert.equal(
     generatedCheckSource.match(/\binventory,\n\s+localDependencyGraph,/gu)
       ?.length,
@@ -297,6 +299,18 @@ test("generated proof constructs and shares one inventory and one graph", async 
   );
 });
 
+test("standalone code health builds only the import evidence it consumes", async () => {
+  const source = await fs.readFile(
+    path.join(import.meta.dirname, "toolcraft-code-health-core.mjs"),
+    "utf8",
+  );
+
+  assert.match(
+    source,
+    /createToolcraftLocalDependencyGraph\(\{[\s\S]*?sourceRecordMode: "imports-only"/u,
+  );
+});
+
 test("legacy graph and private product-boundary resolver are removed", async () => {
   const scriptsDir = import.meta.dirname;
   const legacyGraphName = ["toolcraft-product", "dependency-graph.mjs"].join(
@@ -319,6 +333,7 @@ test("legacy graph and private product-boundary resolver are removed", async () 
   const graph = await createToolcraftLocalDependencyGraph({
     entries: inventory.entries,
     rootDir,
+    sourceRecordMode: "imports-only",
   });
   const legacyImporters = graph.moduleImports
     .filter(

@@ -156,6 +156,7 @@ export async function evaluateCodeHealth({
       aliases: dependencyCycleAliases,
       entries: inventory.entries,
       rootDir,
+      sourceRecordMode: "imports-only",
     }));
   const dependencyCycleAnalysisDeferred =
     !isToolcraftTypeScriptCompilerAvailable();

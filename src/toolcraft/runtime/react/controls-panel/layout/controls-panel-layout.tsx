@@ -9,15 +9,18 @@ import type {
 } from "../../../schema/types";
 import {
   getToolcraftCanvasSizeTargetDimension,
-  isToolcraftRuntimeOwnedTarget,
 } from "../../../schema/runtime-targets";
+import {
+  getToolcraftSliderStepPositionCount,
+  getToolcraftVisualDiscreteSliderMarkerIssue,
+} from "../../../schema/slider-marker-policy";
 import { getToolcraftControlRendererKind } from "../renderers/controls-panel-renderer-registry";
 
 export type ControlEntry = [string, ResolvedToolcraftControlSchema];
 
 export type ControlRenderGroup =
   | { entries: readonly ControlEntry[]; kind: "colorGroup" }
-  | { entry: ControlEntry; kind: "control" };
+  | { entry: ControlEntry; kind: "control"; plainColorFullWidth?: boolean };
 
 export type RenderedControlRenderGroup = {
   ids: readonly string[];
@@ -25,7 +28,7 @@ export type RenderedControlRenderGroup = {
 };
 
 export function isControlsPanelRenderableControl(
-  control: ToolcraftControlSchema,
+  control: Pick<ToolcraftControlSchema, "type">,
 ): boolean {
   return getToolcraftControlRendererKind(control.type) !== "canvas-handle";
 }
@@ -95,6 +98,7 @@ export function getControlsRecord(
 
 export function getControlRenderGroups(
   entries: readonly ControlEntry[],
+  sectionHasOnlyColorFields: boolean,
 ): ControlRenderGroup[] {
   const groups: ControlRenderGroup[] = [];
   let index = 0;
@@ -107,15 +111,26 @@ export function getControlRenderGroups(
       continue;
     }
 
-    if (entry[1].type !== "color") {
-      groups.push({ entry, kind: "control" });
+    const colorBankKey = getColorBankKey(
+      entry[1],
+      sectionHasOnlyColorFields,
+    );
+
+    if (!colorBankKey) {
+      groups.push({ entry, kind: "control", plainColorFullWidth: entry[1].type === "color" });
       index += 1;
       continue;
     }
 
     const colorEntries: ControlEntry[] = [];
 
-    while (entries[index]?.[1].type === "color") {
+    while (
+      entries[index] &&
+      getColorBankKey(
+        entries[index][1],
+        sectionHasOnlyColorFields,
+      ) === colorBankKey
+    ) {
       const colorEntry = entries[index];
 
       if (colorEntry) {
@@ -125,23 +140,43 @@ export function getControlRenderGroups(
       index += 1;
     }
 
-    for (
-      let colorIndex = 0;
-      colorIndex < colorEntries.length;
-      colorIndex += 2
-    ) {
+    const hasOpacity = colorEntries.some(([, control]) => control.type === "colorOpacity");
+    for (let colorIndex = 0; colorIndex < colorEntries.length;) {
       const firstEntry = colorEntries[colorIndex];
       const secondEntry = colorEntries[colorIndex + 1];
 
-      if (firstEntry && secondEntry) {
+      if (firstEntry?.[1].type === "color" && secondEntry?.[1].type === "color") {
         groups.push({ entries: [firstEntry, secondEntry], kind: "colorGroup" });
+        colorIndex += 2;
       } else if (firstEntry) {
-        groups.push({ entry: firstEntry, kind: "control" });
+        groups.push({
+          entry: firstEntry,
+          kind: "control",
+          plainColorFullWidth: firstEntry[1].type === "color" && (hasOpacity || colorEntries.length === 1),
+        });
+        colorIndex += 1;
       }
     }
   }
 
   return groups;
+}
+
+function getColorBankKey(
+  control: ToolcraftControlSchema,
+  sectionHasOnlyColorFields: boolean,
+): string | null {
+  if (!isColorFieldControl(control)) {
+    return null;
+  }
+
+  if (sectionHasOnlyColorFields) {
+    return "color-only-section";
+  }
+
+  const semanticGroup = control.semanticGroup?.trim();
+
+  return semanticGroup ? `semantic:${semanticGroup}` : null;
 }
 
 export function getControlRenderGroupIds(
@@ -193,19 +228,6 @@ export function getRenderedControlsSectionTitle(
   return isStickyFooterActionSection(section) ? undefined : section.title;
 }
 
-export function isRuntimeSetupSection({
-  entries,
-  section,
-}: {
-  entries: readonly ControlEntry[];
-  section: ResolvedToolcraftControlSectionSchema;
-}): boolean {
-  return (
-    section.title === "Setup" &&
-    entries.some(([, control]) => isToolcraftRuntimeOwnedTarget(control.target))
-  );
-}
-
 function isStickyFooterActionSection(
   section: ResolvedToolcraftControlSectionSchema,
 ): boolean {
@@ -224,23 +246,24 @@ export function shouldShowColorFieldLabel({
   control: ToolcraftControlSchema;
   sectionHasOnlyColorFields: boolean;
 }): boolean {
-  return control.label !== false && !sectionHasOnlyColorFields;
+  return (
+    control.label !== false &&
+    (control.label !== undefined || !sectionHasOnlyColorFields)
+  );
 }
 
 export function getControlMarkerCount(
   control: ToolcraftControlSchema,
-  markerLimit?: number,
 ): number | undefined {
-  const markerCount = control.markerCount;
-
   if (
-    markerLimit &&
     control.variant === "discrete" &&
-    typeof markerCount === "number" &&
-    markerCount > markerLimit
+    getToolcraftVisualDiscreteSliderMarkerIssue(control) !== null
   ) {
     return hiddenDiscreteMarkerCount;
   }
 
-  return markerCount;
+  return control.variant === "discrete"
+    ? (getToolcraftSliderStepPositionCount(control) ??
+        hiddenDiscreteMarkerCount)
+    : control.markerCount;
 }

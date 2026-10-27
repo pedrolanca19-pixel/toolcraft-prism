@@ -32,7 +32,7 @@ import {
   passedResultWithEvidence,
 } from "./browser-runtime-evidence-reporter-test-fixtures";
 import ToolcraftBrowserRuntimeEvidenceReporter from "./browser-runtime-evidence-reporter";
-import { getToolcraftPerformancePathTestName } from "./performance-path-helpers";
+import { getToolcraftPerformancePathTestName } from "./performance-path-adapter-matrix";
 import {
   TOOLCRAFT_PERFORMANCE_ENVIRONMENT_ATTACHMENT_NAME,
   TOOLCRAFT_PERFORMANCE_ENVIRONMENT_CONTENT_TYPE,
@@ -56,28 +56,34 @@ test.afterEach(() => {
 });
 
 const performanceSchema = defineToolcraft({
-  canvas: { enabled: true, sizing: { mode: "editable-output" } },
-  panels: {
-    controls: {
-      sections: [
-        {
-          controls: {
-            opacity: {
-              defaultValue: 0.5,
-              label: "Opacity",
-              max: 1,
-              min: 0,
-              performanceRole: "responsiveness",
-              target: "appearance.opacity",
-              type: "slider",
+  base: {
+    identity: { id: "contract-fixture", title: "Contract fixture" },
+    canvas: { enabled: true, sizing: { mode: "editable-output" } },
+    panels: {
+      controls: {
+        sections: [
+          {
+            id: "test-section-1",
+            controls: {
+              opacity: {
+                applicability: { mode: "always" as const },
+                defaultValue: 0.5,
+                label: "Opacity",
+                max: 1,
+                min: 0,
+                performanceRole: "responsiveness",
+                target: "appearance.opacity",
+                type: "slider",
+              },
             },
+            title: "Appearance",
           },
-          title: "Appearance",
-        },
-      ],
-      title: "Controls",
+        ],
+        title: "Controls",
+      },
     },
   },
+  modules: [],
 });
 
 type ReporterPipelinePasses = {
@@ -232,7 +238,7 @@ function environmentAttachment() {
   };
 }
 
-test("custom renderer reports require rich phases in addition to runtime registration evidence", () => {
+test("custom renderer reports require rich phases in addition to runtime registration evidence", async () => {
   const booleanRequirement: ToolcraftBrowserRuntimeRequirement = {
     evidenceType: "performance-budget",
     requirementId: "reporter-pipeline",
@@ -270,7 +276,9 @@ test("custom renderer reports require rich phases in addition to runtime registr
   });
 
   reporter.onBegin?.({} as never, fakeSuite([marker, scenarioTest]));
-  expect(reporter.onEnd?.({ status: "passed" } as never)).toBeUndefined();
+  await expect(
+    reporter.onEnd?.({ status: "passed" } as never),
+  ).resolves.toBeUndefined();
   expect(reports).toHaveLength(1);
 
   const missingPhaseReporter = new ToolcraftBrowserRuntimeEvidenceReporter({
@@ -300,12 +308,12 @@ test("custom renderer reports require rich phases in addition to runtime registr
     {} as never,
     fakeSuite([marker, missingPhaseTest]),
   );
-  expect(missingPhaseReporter.onEnd?.({ status: "passed" } as never)).toEqual({
-    status: "failed",
-  });
+  await expect(
+    missingPhaseReporter.onEnd?.({ status: "passed" } as never),
+  ).resolves.toEqual({ status: "failed" });
 });
 
-test("protected checkpoint reporter writes only a complete independently validated report", () => {
+test("protected checkpoint reporter writes only a complete independently validated report", async () => {
   const booleanRequirement: ToolcraftBrowserRuntimeRequirement = {
     evidenceType: "performance-budget",
     requirementId: "reporter-pipeline",
@@ -349,7 +357,6 @@ test("protected checkpoint reporter writes only a complete independently validat
     checkpointReport: {
       nonce: "checkpoint-nonce",
       path: reportPath,
-      requestAuthorityHash: "b".repeat(64),
       sourceHash: "a".repeat(64),
     },
     performanceConfig,
@@ -361,14 +368,16 @@ test("protected checkpoint reporter writes only a complete independently validat
     {} as never,
     fakeSuite([marker, environmentTest, scenarioTest]),
   );
-  expect(reporter.onEnd?.({ status: "passed" } as never)).toBeUndefined();
+  await expect(
+    reporter.onEnd?.({ status: "passed" } as never),
+  ).resolves.toBeUndefined();
   const report = JSON.parse(readFileSync(reportPath, "utf8"));
   expect(report.nonce).toBe("checkpoint-nonce");
   expect(report.measurements).toHaveLength(3);
   expect(report.pipelineSummaries).toHaveLength(3);
 });
 
-test("targeted reporter writes only exact impacted canonical path evidence", () => {
+test("targeted reporter writes only exact impacted canonical path evidence", async () => {
   const targetedTestName = getToolcraftPerformancePathTestName(
     reporterPerformancePath!,
   );
@@ -415,7 +424,9 @@ test("targeted reporter writes only exact impacted canonical path evidence", () 
   });
 
   reporter.onBegin?.({} as never, fakeSuite([scenarioTest]));
-  expect(reporter.onEnd?.({ status: "passed" } as never)).toBeUndefined();
+  await expect(
+    reporter.onEnd?.({ status: "passed" } as never),
+  ).resolves.toBeUndefined();
   expect(JSON.parse(readFileSync(reportPath, "utf8"))).toMatchObject({
     fixtureResolutionMode: "strict-development",
     fixtureSelector: "development",
@@ -449,8 +460,8 @@ test("targeted reporter writes only exact impacted canonical path evidence", () 
     {} as never,
     fakeSuite([fakeTestCase({ title: "browser perf: unrelated workload" })]),
   );
-  expect(unrelatedReporter.onEnd?.({ status: "passed" } as never)).toEqual({
-    status: "failed",
-  });
+  await expect(
+    unrelatedReporter.onEnd?.({ status: "passed" } as never),
+  ).resolves.toEqual({ status: "failed" });
   expect(existsSync(unrelatedReportPath)).toBe(false);
 });

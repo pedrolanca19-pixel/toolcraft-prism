@@ -7,9 +7,11 @@ import {
 import type { ToolcraftArtifactExportRequest } from "./artifact-export-request";
 import { resolveToolcraftVideoExportSettings } from "./artifact-export-settings";
 import { renderToolcraftArtifactFrame } from "./artifact-frame-renderer";
-import { resolveToolcraftVideoArtifactFrame } from "./artifact-scene-frame";
-import { createToolcraftVideoArtifactFramePlan } from "./artifact-frame-state";
+import { resolveToolcraftArtifactProductFrame } from "./artifact-scene-frame";
+import { createToolcraftArtifactFrameState } from "./artifact-frame-state";
+import { yieldToolcraftArtifactExport } from "./artifact-export-yield";
 import {
+  resolveToolcraftExportFrame,
   ToolcraftSceneExportError,
   validateToolcraftArtifactSize,
 } from "./export-frame";
@@ -46,33 +48,16 @@ export type ToolcraftVideoArtifactExportRequest = ToolcraftArtifactExportRequest
     yieldToBrowser?: () => Promise<void>;
   }>;
 
-async function yieldToBrowser(): Promise<void> {
-  const scheduler = (globalThis as typeof globalThis & {
-    scheduler?: { yield?: () => Promise<void> };
-  }).scheduler;
-  if (scheduler?.yield) {
-    await scheduler.yield();
-    return;
-  }
-
-  await new Promise<void>((resolve) => globalThis.setTimeout(resolve, 0));
-}
-
 export async function exportToolcraftVideoArtifact(
   request: ToolcraftVideoArtifactExportRequest,
 ): Promise<ToolcraftVideoArtifactExportResult> {
+  request.signal.throwIfAborted();
   const settings = resolveToolcraftVideoExportSettings(request.state);
   const durationSeconds = request.state.timeline.durationSeconds;
   const schedule = createToolcraftVideoFrameSchedule(durationSeconds);
-  const framePlan = createToolcraftVideoArtifactFramePlan(request.state, schedule);
-  const frame = resolveToolcraftVideoArtifactFrame({
-    boundsProvider: request.boundsProvider,
-    framePlan,
-    productSceneRequired: request.productSceneRequired,
-    visibility: request.visibility,
-  });
+  const outputFrame = resolveToolcraftExportFrame(request.state);
   const size = getToolcraftVideoExportSize({
-    frame,
+    frame: outputFrame,
     resolution: settings.resolution,
     state: request.state,
   });
@@ -80,6 +65,10 @@ export async function exportToolcraftVideoArtifact(
   if (!sizeValidation.ok) {
     throw new ToolcraftSceneExportError(sizeValidation);
   }
+
+  // Let the UI paint/cancel before allocating the encoder and export backing.
+  await (request.yieldToBrowser ?? yieldToolcraftArtifactExport)();
+  request.signal.throwIfAborted();
 
   const canvas = (request.canvasFactory ?? (() => document.createElement("canvas")))();
   let backend: ToolcraftVideoEncoderBackend | null = null;
@@ -94,35 +83,49 @@ export async function exportToolcraftVideoArtifact(
       durationSeconds,
       height: size.height,
       requestedFormat: settings.format,
+      signal: request.signal,
       width: size.width,
     });
-    for (const entry of framePlan) {
+    for (const entry of schedule) {
+      request.signal.throwIfAborted();
+      const state = createToolcraftArtifactFrameState(request.state, entry.timeSeconds);
+      const productFrame = resolveToolcraftArtifactProductFrame(state, {
+        boundsProvider: request.boundsProvider,
+        productSceneRequired: request.exportRenderer !== undefined,
+      });
       await renderToolcraftArtifactFrame({
         backgroundColor:
-          getToolcraftRuntimeBackgroundColor(entry.state) ?? "#000000",
+          getToolcraftRuntimeBackgroundColor(state) ?? "#000000",
         canvas,
-        frame,
         includeBackground: true,
+        outputFrame,
         pixelRatio: size.pixelRatio,
+        productFrame,
         renderProductFrame: request.exportRenderer?.renderFrame ?? null,
         renderRuntimeScene: request.renderRuntimeScene,
         rendererPipeline: request.rendererPipeline,
-        state: entry.state,
+        signal: request.signal,
+        state,
       });
+      request.signal.throwIfAborted();
       await backend.addFrame(
-        entry.scheduleEntry.timeSeconds,
-        entry.scheduleEntry.durationSeconds,
-        entry.scheduleEntry.index === 0 || entry.scheduleEntry.index % 60 === 0,
+        entry.timeSeconds,
+        entry.durationSeconds,
+        entry.index === 0 || entry.index % 60 === 0,
       );
+      request.signal.throwIfAborted();
       request.reportProgress(
-        ((entry.scheduleEntry.index + 1) / framePlan.length) * 0.95,
+        ((entry.index + 1) / schedule.length) * 0.95,
       );
-      await (request.yieldToBrowser ?? yieldToBrowser)();
+      await (request.yieldToBrowser ?? yieldToolcraftArtifactExport)();
+      request.signal.throwIfAborted();
     }
 
     request.reportProgress(0.98);
+    request.signal.throwIfAborted();
     const blob = await backend.finalize();
     finalized = true;
+    request.signal.throwIfAborted();
     if (blob.size > TOOLCRAFT_MAX_VIDEO_ARTIFACT_BYTES) {
       throw new ToolcraftArtifactExportError({
         code: "video-artifact-too-large",
@@ -140,7 +143,7 @@ export async function exportToolcraftVideoArtifact(
       byteLength: blob.size,
       durationSeconds,
       extension: backend.extension,
-      frameCount: framePlan.length,
+      frameCount: schedule.length,
       height: size.height,
       mediaType: backend.mediaType,
       width: size.width,
@@ -149,10 +152,11 @@ export async function exportToolcraftVideoArtifact(
     if (!finalized && backend) {
       try {
         await backend.cancel();
-      } catch {
-        // Preserve the actionable render/encode error.
+      } catch (cleanupError) {
+        throw new AggregateError([error, cleanupError], "Video export and cleanup failed.", { cause: error });
       }
     }
+    if (request.signal.aborted && error === request.signal.reason) throw error;
     throw normalizeToolcraftExportError(error, {
       code: "video-encode-failed",
       message: "Toolcraft could not encode the video export.",

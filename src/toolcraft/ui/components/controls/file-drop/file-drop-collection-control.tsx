@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import type { ReactNode } from "react";
 
 import { cn } from "../../../lib/utils";
 import {
@@ -16,38 +17,29 @@ import type {
   FileDropPresentationItem,
 } from "./file-drop-types";
 
-type FileDropCollectionSlotControl = (
-  props: Readonly<{
-    collectionSlot: true;
-    onFilesSelect: (files: File[]) => void;
-    presentation: FileDropPresentation<string, unknown, unknown>;
-  }>,
-) => React.JSX.Element;
-
 type FileDropCollectionControlProps = {
   actions: FileDropCollectionActions;
   canRemoveAttachedItem: boolean;
   entries: readonly FileDropPresentationEntry[];
-  onFilesSelect?: (files: File[]) => void;
   onRemoveAttachedItem: (item: FileDropPresentationItem, index: number) => void;
   presentation: FileDropPresentation<string, unknown, unknown>;
-  SlotControl: FileDropCollectionSlotControl;
+  renderSlotControl: (
+    presentation: FileDropPresentation<string, unknown, unknown>,
+  ) => ReactNode;
 };
 
 export function FileDropCollectionControl({
   actions,
   canRemoveAttachedItem,
   entries,
-  onFilesSelect,
   onRemoveAttachedItem,
   presentation,
-  SlotControl,
+  renderSlotControl,
 }: FileDropCollectionControlProps): React.JSX.Element {
   const pendingBaseCountRef = React.useRef(entries.length);
   const [hasPendingSlot, setHasPendingSlot] = React.useState(
     () => entries.length === 0,
   );
-  const itemLabel = actions.itemLabel ?? "file";
 
   React.useEffect(() => {
     if (entries.length === 0 && !hasPendingSlot) {
@@ -69,27 +61,23 @@ export function FileDropCollectionControl({
     key: React.Key,
   ): React.JSX.Element {
     const itemContent = item ? actions.renderItemContent?.(item, index) : null;
-
+    const slotPresentation = {
+      ...presentation,
+      allowsFileBatch: false,
+      allowsFolderSelection: false,
+      emptyTitle: `Upload ${actions.itemLabel ?? "file"} ${index + 1}`,
+      feedback: undefined,
+      items: item ? [item] : [],
+      secondaryActions: [],
+      status: undefined,
+    };
     return (
       <div
         className={cn("min-w-0", itemContent && "space-y-4")}
         data-slot="file-drop-collection-slot"
         key={key}
       >
-        <SlotControl
-          collectionSlot
-          onFilesSelect={(files) => onFilesSelect?.(files.slice(0, 1))}
-          presentation={{
-            ...presentation,
-            allowsFileBatch: false,
-            allowsFolderSelection: false,
-            emptyTitle: `Upload ${itemLabel} ${index + 1}`,
-            feedback: undefined,
-            items: item ? [item] : [],
-            secondaryActions: [],
-            status: undefined,
-          }}
-        />
+        {renderSlotControl(slotPresentation)}
         {itemContent}
       </div>
     );

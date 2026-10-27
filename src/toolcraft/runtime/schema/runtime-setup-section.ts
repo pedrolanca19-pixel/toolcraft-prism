@@ -1,30 +1,37 @@
+import { createWorkspaceBackgroundControl } from "./workspace-background-control";
 import {
   getToolcraftCanvasAspectRatioPreset,
   getToolcraftCanvasAspectRatioPresetBySize,
 } from "./canvas-aspect-ratio-presets";
 import { normalizeToolcraftAdditionalValueTargets } from "./additional-value-targets";
+import { assertToolcraftProductTargetNamespace } from "./collection-actions";
 import { registerToolcraftInternalControlSection } from "./controls-panel-section-id";
 import { toolcraftRuntimeSetupSectionTitle } from "./runtime-section-titles";
 import {
   toolcraftCanvasInfinityTarget,
+  toolcraftCanvasRotationLockedTarget,
   toolcraftTimelinePanelExtendedTarget,
 } from "./runtime-targets";
 import {
   toolcraftOutputBackgroundToggleTarget,
   type ToolcraftRuntimeSetupBackgroundControls,
 } from "./runtime-setup-background";
+import {
+  getToolcraftSliderStepPositionCount,
+  getToolcraftVisualDiscreteSliderMarkerIssue,
+} from "./slider-marker-policy";
 import type {
   ResolvedToolcraftAppIdentity,
-  ResolvedToolcraftAppSchema,
   ResolvedToolcraftSettingsTransferSchema,
   ResolvedToolcraftTimelinePanelSchema,
-  ToolcraftAppSchema,
+  ToolcraftControlsPanelSchema,
   ToolcraftCanvasSize,
   ToolcraftControlLayoutGroupSchema,
   ToolcraftControlSchema,
   ToolcraftControlSectionSchema,
   ToolcraftSettingsTransferSchema,
 } from "./types";
+import type { ResolvedToolcraftAppSchema } from "./resolved-app-schema";
 import { getToolcraftDefaultCanvasMode } from "../state/canvas-frame";
 
 const canvasSizeControlTargets = {
@@ -33,7 +40,6 @@ const canvasSizeControlTargets = {
 } as const;
 const canvasAspectRatioTarget = "canvas.aspectRatio";
 const canvasRenderScaleTarget = "canvas.renderScale";
-const settingsTransferTarget = "runtime.settingsTransfer";
 const finiteCanvasCondition = Object.freeze({
   equals: false,
   target: toolcraftCanvasInfinityTarget,
@@ -77,30 +83,36 @@ function getSettingsTransferFileName({
   const explicitFileName = getSettingsTransferObject(settingsTransfer)?.fileName?.trim();
 
   if (explicitFileName) {
-    return explicitFileName.endsWith(".json")
-      ? explicitFileName
-      : `${explicitFileName}.json`;
+    return explicitFileName.endsWith(".json") ? explicitFileName : `${explicitFileName}.json`;
   }
 
   return `${appId}-settings.json`;
 }
 
 export function resolveToolcraftSettingsTransfer({
+  collectionSelectionTargets = [],
   controls,
   identity,
   settingsTransfer,
 }: {
-  controls: ToolcraftAppSchema["panels"]["controls"];
+  collectionSelectionTargets?: readonly string[];
+  controls: ToolcraftControlsPanelSchema | undefined;
   identity: ResolvedToolcraftAppIdentity;
   settingsTransfer: ToolcraftSettingsTransferSchema | undefined;
 }): ResolvedToolcraftSettingsTransferSchema {
   const mode = getSettingsTransferMode(settingsTransfer);
   const appId = identity.id;
 
+  const additionalValueTargets = normalizeToolcraftAdditionalValueTargets([
+    ...(getSettingsTransferObject(settingsTransfer)?.additionalValueTargets ?? []),
+    ...collectionSelectionTargets,
+  ]);
+  for (const target of additionalValueTargets) {
+    assertToolcraftProductTargetNamespace(target, `settings additional value target "${target}"`);
+  }
+
   return {
-    additionalValueTargets: normalizeToolcraftAdditionalValueTargets(
-      getSettingsTransferObject(settingsTransfer)?.additionalValueTargets,
-    ),
+    additionalValueTargets,
     appId,
     enabled: Boolean(controls),
     fileName: getSettingsTransferFileName({ appId, settingsTransfer }),
@@ -132,8 +144,7 @@ function getCanvasAspectRatioDefaultValue(size: ToolcraftCanvasSize): {
   const height = Math.max(1, Math.round(size.height / divisor));
   const value = `${width}:${height}`;
   const preset =
-    getToolcraftCanvasAspectRatioPreset(value) ??
-    getToolcraftCanvasAspectRatioPresetBySize(size);
+    getToolcraftCanvasAspectRatioPreset(value) ?? getToolcraftCanvasAspectRatioPresetBySize(size);
 
   return {
     height: preset?.ratioHeight ?? height,
@@ -150,26 +161,39 @@ function createRenderScaleControl(
     return undefined;
   }
 
-  return {
+  const control = {
     applicability: alwaysApplicable,
     defaultValue: canvas.renderScale.defaultValue,
     description:
       "Increases raster canvas backing resolution without changing the visible output size.",
     label: "Resolution scale",
-    markerCount:
-      Math.floor(
-        (canvas.renderScale.max - canvas.renderScale.min) / canvas.renderScale.step,
-      ) + 1,
     max: canvas.renderScale.max,
     min: canvas.renderScale.min,
-    performanceReason:
-      "Resolution scale changes raster, Canvas, WebGL, or WebGPU backing pixels.",
+    performanceReason: "Resolution scale changes raster, Canvas, WebGL, or WebGPU backing pixels.",
     performanceRole: "workload",
     step: canvas.renderScale.step,
     target: canvasRenderScaleTarget,
     type: "slider",
-    variant: "discrete",
+  } satisfies ToolcraftControlSchema;
+  const visualDiscreteControl = {
+    ...control,
+    variant: "discrete" as const,
   };
+  const markerCount = getToolcraftSliderStepPositionCount(control);
+  const markerIssue = getToolcraftVisualDiscreteSliderMarkerIssue(visualDiscreteControl);
+
+  if (markerCount === undefined || markerIssue !== null) {
+    return {
+      ...control,
+      variant: "continuous",
+    } satisfies ToolcraftControlSchema;
+  }
+
+  return {
+    ...control,
+    markerCount,
+    variant: "discrete",
+  } satisfies ToolcraftControlSchema;
 }
 
 function createInfinityCanvasControl(
@@ -183,7 +207,7 @@ function createInfinityCanvasControl(
   return {
     applicability: alwaysApplicable,
     defaultValue: getToolcraftDefaultCanvasMode(canvas) === "infinite",
-    ...(background
+    ...(background && canvas.infinityBackgroundPolicy !== "optional"
       ? {
           disabledWhen: {
             equals: false,
@@ -216,11 +240,13 @@ function createTimelineExtendedControl(
 
 function createRuntimeSetupBackgroundControls({
   background,
-  infinityCanvasControl,
+  canvas,
 }: {
   background: ToolcraftRuntimeSetupBackgroundControls | undefined;
-  infinityCanvasControl: ToolcraftControlSchema | undefined;
+  canvas: ResolvedToolcraftAppSchema["canvas"];
 }): RuntimeSetupControlGroup {
+  const infinityCanvasControl = createInfinityCanvasControl(canvas, background);
+  const workspaceBackground = canvas.enabled ? createWorkspaceBackgroundControl() : undefined;
   const includeBackgroundControl = background
     ? {
         ...background.include,
@@ -245,9 +271,7 @@ function createRuntimeSetupBackgroundControls({
             },
           }
         : {}),
-      ...(infinityCanvasControl
-        ? { infinityCanvas: infinityCanvasControl }
-        : {}),
+      ...(infinityCanvasControl ? { infinityCanvas: infinityCanvasControl } : {}),
       ...(backgroundColorControl
         ? {
             background: {
@@ -256,21 +280,32 @@ function createRuntimeSetupBackgroundControls({
             },
           }
         : {}),
+      ...(workspaceBackground ? { workspaceBackground } : {}),
     },
-    layoutGroups:
-      includeBackgroundControl && infinityCanvasControl
+    layoutGroups: [
+      ...(includeBackgroundControl && infinityCanvasControl
         ? [
             {
-              columns: 2,
+              columns: 2 as const,
               controls: ["includeBackground", "infinityCanvas"],
-              layout: "inline",
+              layout: "inline" as const,
             },
           ]
-        : [],
+        : []),
+      ...(backgroundColorControl && workspaceBackground
+        ? [
+            {
+              columns: 2 as const,
+              controls: ["background", "workspaceBackground"],
+              layout: "inline" as const,
+            },
+          ]
+        : []),
+    ],
   };
 }
 
-function createFiniteCanvasControls(
+function createCanvasControls(
   canvas: ResolvedToolcraftAppSchema["canvas"],
 ): RuntimeSetupControlGroup {
   if (!canvas.enabled || canvas.sizing.mode !== "editable-output") {
@@ -323,41 +358,57 @@ function createFiniteCanvasControls(
 export function createToolcraftRuntimeSetupSection({
   background,
   canvas,
-  settingsTransfer,
+  hasOrientationGizmo,
   timeline,
 }: {
   background: ToolcraftRuntimeSetupBackgroundControls | undefined;
   canvas: ResolvedToolcraftAppSchema["canvas"];
+  hasOrientationGizmo: boolean;
   settingsTransfer: ResolvedToolcraftSettingsTransferSchema;
   timeline: ResolvedToolcraftTimelinePanelSchema | undefined;
 }): ToolcraftControlSectionSchema {
-  const infinityCanvasControl = createInfinityCanvasControl(canvas, background);
   const backgroundControls = createRuntimeSetupBackgroundControls({
     background,
-    infinityCanvasControl,
+    canvas,
   });
-  const finiteCanvas = createFiniteCanvasControls(canvas);
+  const canvasControls = createCanvasControls(canvas);
   const renderScaleControl = createRenderScaleControl(canvas);
   const timelineExtendedControl = createTimelineExtendedControl(timeline);
 
   const section: ToolcraftControlSectionSchema & { id: string } = {
     controls: {
-      settingsTransfer: {
-        applicability: alwaysApplicable,
-        label: false,
-        target: settingsTransferTarget,
-        type: "settingsTransfer",
-      },
       ...backgroundControls.controls,
-      ...finiteCanvas.controls,
+      ...canvasControls.controls,
       ...(renderScaleControl ? { canvasRenderScale: renderScaleControl } : {}),
       ...(timelineExtendedControl ? { timelineExtended: timelineExtendedControl } : {}),
+      ...(hasOrientationGizmo && canvas.enabled
+        ? {
+            rotationLocked: {
+              applicability: alwaysApplicable,
+              defaultValue: false,
+              description:
+                "Prevents rotation with the gizmo or by dragging the model. Pan and zoom remain available.",
+              label: "Lock rotation",
+              target: toolcraftCanvasRotationLockedTarget,
+              type: "switch" as const,
+            },
+          }
+        : {}),
     },
     id: "runtime.setup",
     layout: "standalone",
     layoutGroups: [
       ...backgroundControls.layoutGroups,
-      ...finiteCanvas.layoutGroups,
+      ...canvasControls.layoutGroups,
+      ...(timelineExtendedControl && hasOrientationGizmo && canvas.enabled
+        ? [
+            {
+              columns: 2 as const,
+              controls: ["timelineExtended", "rotationLocked"],
+              layout: "inline" as const,
+            },
+          ]
+        : []),
     ],
     title: toolcraftRuntimeSetupSectionTitle,
   };

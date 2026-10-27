@@ -1,13 +1,5 @@
 import type { Page } from "@playwright/test";
 import {
-  defineToolcraft,
-  defineToolcraftPerformance,
-  deriveToolcraftPerformancePaths,
-  registerToolcraftRendererPipeline,
-  type ToolcraftRendererPipelinePassContract,
-} from "@/toolcraft/runtime";
-
-import {
   TOOLCRAFT_BROWSER_PERFORMANCE_EVIDENCE_ATTACHMENT_NAME,
   TOOLCRAFT_BROWSER_PERFORMANCE_EVIDENCE_CONTENT_TYPE,
   serializeToolcraftBrowserPerformanceEvidence,
@@ -16,153 +8,18 @@ import {
   type ToolcraftPerformancePipelineSnapshot,
 } from "../src/app/test-evidence/browser-performance-contract";
 import { evaluateToolcraftBrowserPerformanceEvidence } from "./browser-performance-report";
-
-export const pipelineEvidenceSchema = defineToolcraft({
-  canvas: { enabled: true, sizing: { mode: "editable-output" } },
-  panels: {
-    controls: {
-      sections: [
-        {
-          controls: {
-            strength: {
-              defaultValue: 0.5,
-              label: "Strength",
-              max: 1,
-              min: 0,
-              performanceRole: "responsiveness",
-              target: "effect.strength",
-              type: "slider",
-            },
-            mode: {
-              defaultValue: "soft",
-              label: "Mode",
-              options: [
-                { label: "Soft", value: "soft" },
-                { label: "Hard", value: "hard" },
-              ],
-              performanceRole: "responsiveness",
-              target: "effect.mode",
-              type: "segmented",
-            },
-          },
-          title: "Effect",
-        },
-      ],
-      title: "Controls",
-    },
-  },
-});
-
-type PipelinePasses = {
-  composite: ToolcraftRendererPipelinePassContract<void>;
-  decode: ToolcraftRendererPipelinePassContract<void>;
-};
-
-export const pipelineEvidenceRegistration =
-  registerToolcraftRendererPipeline<PipelinePasses>()({
-    interactionInvalidation: [
-      {
-        interaction: "initial-render",
-        invalidates: ["composite"],
-        mustNotInvalidate: ["decode"],
-        targets: ["canvas.initial-render"],
-      },
-      {
-        interaction: "animation-frame",
-        invalidates: ["composite"],
-        mustNotInvalidate: ["decode"],
-        targets: ["runtime.animation-frame"],
-      },
-      {
-        interaction: "control-drag",
-        invalidates: ["composite"],
-        mustNotInvalidate: ["decode"],
-        targets: ["effect.strength"],
-      },
-      {
-        interaction: "media-import",
-        invalidates: ["decode"],
-        mustNotInvalidate: ["composite"],
-        targets: ["source.id"],
-      },
-      {
-        interaction: "control-change",
-        invalidates: ["decode"],
-        mustNotInvalidate: ["composite"],
-        targets: ["effect.mode"],
-      },
-      {
-        interaction: "viewport-zoom",
-        invalidates: [],
-        mustNotInvalidate: ["decode", "composite"],
-        targets: ["canvas.viewport"],
-      },
-    ],
-    passes: [
-      {
-        cacheKey: ["source.id"],
-        cost: {
-          dimensions: [],
-          frequency: "once",
-          relationship: "constant",
-        },
-        id: "decode",
-        inputs: ["source.id"],
-        invalidatedBy: ["source.id"],
-        kind: "decode",
-        lifecycle: { cache: "retained-resource", resourceScope: "source" },
-        output: "source",
-        quality: "full",
-        runsOn: "worker",
-      },
-      {
-        cost: {
-          dimensions: [],
-          frequency: "interaction",
-          relationship: "constant",
-        },
-        id: "composite",
-        inputs: ["decode", "effect.strength", "runtime.animation-frame"],
-        invalidatedBy: ["effect.strength", "runtime.animation-frame"],
-        kind: "composite",
-        output: "preview",
-        quality: "full",
-        runsOn: "main",
-      },
-    ],
-    runtimeId: "pipeline-evidence-test-v1",
-  });
-
-export const pipelineEvidencePerformance = defineToolcraftPerformance({
-  rendererPipeline: pipelineEvidenceRegistration,
-  rendererStrategy: "webgl",
-  scenarios: [],
-  usesCustomRenderer: true,
-  workloadEnvelope: { dimensions: [] },
-});
-
-const performancePaths = deriveToolcraftPerformancePaths(
-  pipelineEvidenceSchema,
+import {
+  activePipelinePath,
+  cachedPipelinePath,
+  fieldDisablePipelinePath,
+  initialPipelinePath,
   pipelineEvidencePerformance,
-);
-export const activePipelinePath = performancePaths.find(
-  (path) => path.interaction === "control-drag",
-)!;
-export const animationPipelinePath = performancePaths.find(
-  (path) => path.interaction === "animation-frame",
-)!;
-export const initialPipelinePath = performancePaths.find(
-  (path) => path.interaction === "initial-render",
-)!;
-export const cachedPipelinePath = performancePaths.find(
-  (path) => path.interaction === "media-import",
-)!;
-export const stableCachedPipelinePath = performancePaths.find(
-  (path) => path.interaction === "control-change",
-)!;
-export const unchangedPipelinePath = performancePaths.find(
-  (path) => path.interaction === "viewport-zoom",
-)!;
+  pipelineEvidenceRegistration,
+  pipelineEvidenceSchema,
+  retainedAccessPipelinePath,
+  stableCachedPipelinePath,
+  unchangedPipelinePath,
+} from "./performance-pipeline-evidence-test-contract";
 
 export const zeroPipelinePassCounters = () => ({
   activeResources: 0,
@@ -179,14 +36,14 @@ export const zeroPipelinePassCounters = () => ({
 export function pipelineSnapshot(
   overrides: Partial<
     Record<
-      "composite" | "decode",
+      "composite" | "decode" | "simulate",
       Partial<ReturnType<typeof zeroPipelinePassCounters>>
     >
   > = {},
 ): ToolcraftPerformancePipelineSnapshot {
   return {
     disposed: false,
-    passes: (["decode", "composite"] as const).map((passId) => ({
+    passes: (["decode", "simulate", "composite"] as const).map((passId) => ({
       passId,
       ...zeroPipelinePassCounters(),
       ...overrides[passId],
@@ -274,6 +131,59 @@ export function activePipelineAttachments() {
   );
 }
 
+function preparedSimulationSnapshot(
+  compositeExecutions: number,
+  simulationExecutions: number,
+  resourceLifecycles: number,
+  resourceActive: boolean,
+) {
+  return pipelineSnapshot({
+    composite: {
+      cacheMisses: compositeExecutions,
+      durationMax: compositeExecutions === 0 ? 0 : 1,
+      durationTotal: compositeExecutions,
+      executions: compositeExecutions,
+    },
+    simulate: {
+      cacheMisses: simulationExecutions,
+      durationMax: simulationExecutions === 0 ? 0 : 1,
+      durationTotal: simulationExecutions,
+      executions: simulationExecutions,
+    },
+    decode: {
+      activeResources: resourceActive ? 1 : 0,
+      cacheMisses: resourceLifecycles,
+      durationMax: resourceLifecycles === 0 ? 0 : 1,
+      durationTotal: resourceLifecycles,
+      executions: resourceLifecycles,
+      resourceCreations: resourceLifecycles,
+      resourceDisposals: resourceLifecycles - (resourceActive ? 1 : 0),
+    },
+  });
+}
+
+export function preparationPipelineAttachments(
+  measuredPreparationMutation = false,
+) {
+  return (["cold", "warm", "sustained"] as const).map((phase, index) => {
+    const before = preparedSimulationSnapshot(
+      index,
+      index + 1,
+      index + 1,
+      true,
+    );
+    const after = preparedSimulationSnapshot(
+      index + 1,
+      index + 1 + (measuredPreparationMutation && index === 0 ? 1 : 0),
+      index + 1,
+      false,
+    );
+    return pipelineEvidenceAttachment(
+      pipelineEvidence(phase, before, after, fieldDisablePipelinePath),
+    );
+  });
+}
+
 export function cachedPipelineAttachments() {
   const snapshots = [0, 1, 2, 3].map((misses) =>
     cachedActivitySnapshot({ hits: 0, misses }),
@@ -326,6 +236,48 @@ export function unchangedPipelineAttachments() {
   );
 }
 
+export function retainedAccessPipelineAttachments() {
+  return (["cold", "warm", "sustained"] as const).map((phase, index) => {
+    const before = pipelineSnapshot({
+      composite: {
+        cacheMisses: index,
+        durationMax: index === 0 ? 0 : 1,
+        durationTotal: index,
+        executions: index,
+      },
+      decode: {
+        activeResources: 1,
+        cacheHits: index,
+        cacheMisses: 1,
+        durationMax: 1,
+        durationTotal: 1,
+        executions: 1,
+        resourceCreations: 1,
+      },
+    });
+    const after = pipelineSnapshot({
+      composite: {
+        cacheMisses: index + 1,
+        durationMax: 1,
+        durationTotal: index + 1,
+        executions: index + 1,
+      },
+      decode: {
+        activeResources: 1,
+        cacheHits: index + 1,
+        cacheMisses: 1,
+        durationMax: 1,
+        durationTotal: 1,
+        executions: 1,
+        resourceCreations: 1,
+      },
+    });
+    return pipelineEvidenceAttachment(
+      pipelineEvidence(phase, before, after, retainedAccessPipelinePath),
+    );
+  });
+}
+
 export function initialPipelineAttachments() {
   return (["cold", "warm", "sustained"] as const).map((phase) =>
     pipelineEvidenceAttachment(
@@ -359,14 +311,16 @@ export async function installPipelineEvidenceBridge(page: Page): Promise<void> {
       actionCount: 0,
       snapshot: {
         disposed: false,
-        passes: { composite: counters(), decode: counters() },
+        passes: {
+          composite: counters(),
+          decode: counters(),
+          simulate: counters(),
+        },
         runtimeId,
       },
     };
     Reflect.set(globalThis, "__toolcraftPipelineEvidenceTestState", state);
-    const bridge = document.querySelector(
-      "[data-toolcraft-pipeline-evidence]",
-    );
+    const bridge = document.querySelector("[data-toolcraft-pipeline-evidence]");
     Object.defineProperty(
       bridge,
       Symbol.for("toolcraft.renderer-pipeline-evidence.snapshot"),
@@ -397,7 +351,7 @@ export async function navigateToFreshInitialPipelineBridge(
       const state = {
         snapshot: {
           disposed: false,
-          passes: { composite: counters(), decode: counters() },
+          passes: { composite: counters(), decode: counters(), simulate: counters() },
           runtimeId: ${JSON.stringify(runtimeId)},
         },
       };

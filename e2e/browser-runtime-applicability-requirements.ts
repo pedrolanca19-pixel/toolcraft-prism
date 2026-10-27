@@ -10,8 +10,8 @@ import {
 
 type ApplicabilityAcceptanceSource = Pick<
   ToolcraftComponentAcceptance,
-  "browserTestName" | "id" | "kind" | "target"
->;
+  "browser" | "id" | "target"
+> & Partial<Pick<ToolcraftComponentAcceptance, "kind">>;
 
 const layoutOnlyEvidenceTypes = new Set<
   ToolcraftBrowserRuntimeRequirement["evidenceType"]
@@ -47,6 +47,11 @@ export function expandToolcraftControlApplicabilityRequirements({
   );
 
   return cases.flatMap((applicabilityCase) => {
+    if (entry.browser === false) {
+      throw new Error(
+        `Applicability acceptance row "${entry.id}" has no browser proof.`,
+      );
+    }
     const visibilityRequirement = {
       evidenceType:
         applicabilityCase.expectation === "hidden"
@@ -57,7 +62,7 @@ export function expandToolcraftControlApplicabilityRequirements({
         applicabilityCase,
       ),
       target: entry.target,
-      testName: entry.browserTestName,
+      testName: entry.browser.testName,
     };
 
     if (applicabilityCase.expectation === "hidden") {

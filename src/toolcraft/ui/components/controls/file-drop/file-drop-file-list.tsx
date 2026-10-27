@@ -1,5 +1,6 @@
 "use client";
 
+import { sanitizeInteractionHostProps } from "../../primitives/sanitize-composed-host-props";
 import * as React from "react";
 import {
   closestCenter,
@@ -65,7 +66,6 @@ function SortableFileRow({
     "flex h-full min-w-0 flex-1 items-center gap-2 border-0 bg-transparent pl-[7px] text-left text-sm text-[color:color-mix(in_oklab,var(--foreground)_86%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-inset",
     isSortable && "cursor-grab touch-none select-none active:cursor-grabbing",
   );
-
   return (
     <div
       className={cn(
@@ -84,9 +84,12 @@ function SortableFileRow({
           aria-label={isSortable ? `Reorder ${fileName}` : `Replace ${fileName}`}
           className={contentClassName}
           onClick={onItemActivate}
+          {...sanitizeInteractionHostProps(
+            isSortable ? { ...attributes, ...listeners } : {},
+          )}
           type="button"
-          {...(isSortable ? attributes : {})}
-          {...(isSortable ? listeners : {})}
+          data-slot="file-upload-file-action"
+          role={undefined}
         >
           {content}
         </button>
@@ -165,19 +168,20 @@ export function FileDropFileList({
         </SortableContext>
       </DndContext>
       {onAddFile ? (
-        <button
+        <Button
           aria-label="Add a new file"
-          className="mx-1 box-border flex h-8 w-[calc(100%-0.5rem)] min-w-0 shrink-0 items-center justify-center gap-1.5 px-1 text-xs text-[color:color-mix(in_oklab,var(--foreground)_65%,transparent)] transition-[background-color,color] duration-150 ease-out hover:bg-[color:color-mix(in_oklab,var(--foreground)_3%,transparent)] hover:text-[color:var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-          data-slot="file-upload-add-file"
+          className="mx-1 w-[calc(100%-0.5rem)]"
           onClick={(event) => {
             event.stopPropagation();
             onAddFile();
           }}
+          size="default"
           type="button"
+          variant="ghost"
         >
           <FileDropPlusGlyph className="size-3.5" />
           <span className="font-medium">Add a new file</span>
-        </button>
+        </Button>
       ) : null}
     </div>
   );

@@ -3,9 +3,10 @@ import test from "node:test";
 
 import {
   validateToolcraftDeliveryCatalog,
-} from "./playwright-test-title-selection.mjs";
+} from "./toolcraft-delivery-catalog-validation.mjs";
 
 function encodeSignature(signature) {
+  assert.equal(signature.length, 7);
   return `performance-path:${encodeURIComponent(JSON.stringify(signature))}`;
 }
 
@@ -32,6 +33,8 @@ test("catalog accepts exact canonical passless and pass-bearing paths", () => {
       "interactive-discrete",
       "control-change",
       invalidates,
+      [],
+      [],
       runsOn,
       ["pixel-count"],
     ]);
@@ -47,13 +50,15 @@ test("catalog accepts exact canonical passless and pass-bearing paths", () => {
 
 test("catalog rejects noncanonical performance path domains and arrays", () => {
   const signatures = [
-    ["unknown-profile", "control-change", [], ["main"], []],
-    ["interactive-discrete", "unknown-interaction", [], ["main"], []],
-    ["interactive-discrete", "control-change", [], ["satellite"], []],
+    ["unknown-profile", "control-change", [], [], [], ["main"], []],
+    ["interactive-discrete", "unknown-interaction", [], [], [], ["main"], []],
+    ["interactive-discrete", "control-change", [], [], [], ["satellite"], []],
     [
       "interactive-discrete",
       "control-change",
       ["composite", "composite"],
+      [],
+      [],
       ["main"],
       [],
     ],
@@ -61,12 +66,16 @@ test("catalog rejects noncanonical performance path domains and arrays", () => {
       "interactive-discrete",
       "control-change",
       [],
+      [],
+      [],
       ["main", "main"],
       [],
     ],
     [
       "interactive-discrete",
       "control-change",
+      [],
+      [],
       [],
       ["main"],
       ["pixel-count", "pixel-count"],
@@ -95,6 +104,8 @@ test("catalog rejects malformed paths and mismatched invalidated passes", () => 
     "interactive-discrete",
     "control-change",
     ["composite"],
+    [],
+    [],
     ["main"],
     [],
   ]);
@@ -110,6 +121,8 @@ test("catalog rejects symbol fields on performance rows", () => {
   const pathId = encodeSignature([
     "interactive-discrete",
     "control-change",
+    [],
+    [],
     [],
     ["main"],
     [],

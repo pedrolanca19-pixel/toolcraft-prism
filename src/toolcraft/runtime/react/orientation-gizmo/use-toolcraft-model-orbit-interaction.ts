@@ -168,11 +168,9 @@ export function useToolcraftModelOrbitInteraction<
         return;
       }
 
-      event.preventDefault();
-      event.stopPropagation();
       window.cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = 0;
-      let interaction: ToolcraftOrientationInteractionLease;
+      let interaction: ToolcraftOrientationInteractionLease | null;
       interaction = beginToolcraftOrientationInteraction({
         onCancel: () => {
           const gesture = gestureRef.current;
@@ -189,6 +187,11 @@ export function useToolcraftModelOrbitInteraction<
         store,
         target,
       });
+      if (!interaction) {
+        return;
+      }
+      event.preventDefault();
+      event.stopPropagation();
       gestureRef.current = {
         element: event.currentTarget,
         historyGroup: createControlHistoryGroupId("model-orbit"),

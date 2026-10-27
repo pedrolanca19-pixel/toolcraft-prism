@@ -24,6 +24,7 @@ function makeSection({
   return {
     entity,
     entityId,
+    finiteSelectors: [],
     groupingReason: `The ${id} controls edit one coherent part of the entity.`,
     id,
     splitReason,
@@ -37,7 +38,7 @@ function makeSection({
 }
 
 describe("Toolcraft control section entity cohesion", () => {
-  it.each([1, 7, 8, 10])(
+  it.each([1, 7, 8, 10, 11, 12, 25])(
     "accepts one entity in one section with %s controls",
     (count) => {
       expect(
@@ -48,98 +49,43 @@ describe("Toolcraft control section entity cohesion", () => {
     },
   );
 
-  it("rejects splitting an entity that fits in one section", () => {
-    const errors = getToolcraftControlSectionEntityCohesionErrors([
-      makeSection({ count: 3, id: "object-source" }),
-      makeSection({ count: 4, id: "object-style" }),
-    ]);
-
-    expect(errors).toContain(
-      'Control Section Inventory entity "renderable-object" owns 7 controls across 2 sections (object-source, object-style). Entities with 10 or fewer controls must stay in one section.',
-    );
-  });
-
-  it("rejects an entity above the hard maximum left in one section", () => {
-    expect(
-      getToolcraftControlSectionEntityCohesionErrors([
-        makeSection({ count: 11 }),
-      ]),
-    ).toContain(
-      'Control Section Inventory entity "renderable-object" owns 11 controls in section object. Split entities above 10 controls into explicit workflow stages.',
-    );
-  });
-
-  it("accepts a balanced large-entity workflow split", () => {
-    expect(
-      getToolcraftControlSectionEntityCohesionErrors([
-        makeSection({
-          count: 5,
-          id: "object-structure",
-          splitReason: "Structure is authored before the finishing workflow.",
-          workflowStage: "structure",
-        }),
-        makeSection({
-          count: 6,
-          id: "object-finish",
-          splitReason: "Finish is authored after the structural workflow.",
-          workflowStage: "finish",
-        }),
-      ]),
-    ).toEqual([]);
-  });
-
-  it("rejects a one-control tail in a split entity", () => {
-    expect(
-      getToolcraftControlSectionEntityCohesionErrors([
-        makeSection({
-          count: 10,
-          id: "object-primary",
-          splitReason: "Primary editing precedes the final workflow stage.",
-          workflowStage: "primary",
-        }),
-        makeSection({
-          count: 1,
-          id: "object-final",
-          splitReason: "The final workflow follows primary editing.",
-          workflowStage: "final",
-        }),
-      ]),
-    ).toContain(
-      'Control Section Inventory entity "renderable-object" section object-final owns 1 control. Every section in a split entity must own between 2 and 10 controls.',
-    );
-  });
-
-  it("rejects a split section above the per-section maximum", () => {
-    expect(
-      getToolcraftControlSectionEntityCohesionErrors([
-        makeSection({
-          count: 11,
-          id: "object-primary",
-          splitReason: "Primary editing precedes the final workflow stage.",
-          workflowStage: "primary",
-        }),
-        makeSection({
-          count: 2,
-          id: "object-final",
-          splitReason: "The final workflow follows primary editing.",
-          workflowStage: "final",
-        }),
-      ]),
-    ).toContain(
-      'Control Section Inventory entity "renderable-object" section object-primary owns 11 controls. Every section in a split entity must own between 2 and 10 controls.',
-    );
-  });
+  it.each([
+    [3, 4],
+    [5, 6],
+    [11, 2],
+    [12, 1],
+  ])(
+    "accepts justified workflow stages with %s and %s controls",
+    (firstCount, secondCount) => {
+      expect(
+        getToolcraftControlSectionEntityCohesionErrors([
+          makeSection({
+            count: firstCount,
+            id: "object-structure",
+            splitReason: "Structure is authored before the finishing workflow.",
+            workflowStage: "structure",
+          }),
+          makeSection({
+            count: secondCount,
+            id: "object-finish",
+            splitReason: "Finish is authored after the structural workflow.",
+            workflowStage: "finish",
+          }),
+        ]),
+      ).toEqual([]);
+    },
+  );
 
   it("requires a workflow stage on every section of a split entity", () => {
     expect(
       getToolcraftControlSectionEntityCohesionErrors([
         makeSection({
-          count: 6,
+          count: 1,
           id: "object-primary",
           splitReason: "Primary editing precedes the final workflow stage.",
         }),
         makeSection({
-          count: 6,
+          count: 2,
           id: "object-final",
           splitReason: "The final workflow follows primary editing.",
           workflowStage: "final",

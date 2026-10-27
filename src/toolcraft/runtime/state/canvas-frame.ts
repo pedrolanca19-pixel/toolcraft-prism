@@ -1,8 +1,8 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
+import type { ReadonlyToolcraftState } from "./readonly-state";
 import type {
   ToolcraftCanvasState,
   ToolcraftHistoryPatch,
-  ToolcraftState,
 } from "./types";
 import { toolcraftCanvasInfinityTarget } from "../schema/runtime-targets";
 import { tagToolcraftCanvasStateHistoryPatch } from "./history-patch-metadata";
@@ -19,7 +19,9 @@ export type ToolcraftCanvasRuntimeTargetRead =
   | Readonly<{ handled: false }>
   | Readonly<{ handled: true; value: boolean }>;
 
-export function normalizeToolcraftCanvasMode(value: unknown): ToolcraftCanvasMode {
+export function normalizeToolcraftCanvasMode(
+  value: unknown,
+): ToolcraftCanvasMode {
   return value === "infinite" ? "infinite" : "finite";
 }
 
@@ -41,7 +43,7 @@ export function getToolcraftCanvasFrame(
 }
 
 export function readToolcraftCanvasRuntimeTarget(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   target: string,
 ): ToolcraftCanvasRuntimeTargetRead {
   return target === toolcraftCanvasInfinityTarget
@@ -66,14 +68,8 @@ export function createToolcraftCanvasModePatch(
   }
 
   return tagToolcraftCanvasStateHistoryPatch({
-    after: {
-      "canvas.mode": "finite",
-      "canvas.offset": { x: 0, y: 0 },
-    },
-    before: {
-      "canvas.mode": "infinite",
-      "canvas.offset": canvas.offset,
-    },
+    after: { "canvas.mode": "finite" },
+    before: { "canvas.mode": "infinite" },
     label: "Disable Infinity canvas",
   });
 }

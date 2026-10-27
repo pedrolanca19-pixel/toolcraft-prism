@@ -1,23 +1,33 @@
 import { describe, expect, it } from "vitest";
-
 import {
-  getToolcraftOutputExportErrors,
-  schemaHasVideoExportPanelAction,
-} from "./acceptance/output-export";
-import { defineContractSchemaFixture, validateContractAcceptance } from "./app-acceptance.contract-fixtures";
+  isToolcraftBuiltInControlSchema,
+  timelineModule,
+  videoExportModule,
+} from "@/toolcraft/runtime";
+import { exportRequestFixture } from "./app-acceptance.export-request-test-fixtures";
+
+import { schemaHasVideoExportPanelAction } from "./acceptance/output-export";
+import {
+  defineContractSchemaFixture,
+  validateContractAcceptance,
+} from "./app-acceptance.contract-fixtures";
+import {
+  defineExportModuleSchemaFixture,
+  forgeResolvedExportSections,
+  makeExportSettingsProductReadiness,
+} from "./app-acceptance.export-test-utils";
 
 describe("Toolcraft output export synthetic rules", () => {
   it("requires video proof only when the product explicitly exposes video export", () => {
     const playbackSchema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: { sections: [], title: "Controls" },
-        timeline: {
-          defaultDurationSeconds: 8,
-          enabled: true,
-          mode: "playback",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: { sections: [], title: "Controls" },
         },
       },
+      modules: [timelineModule({ mode: "playback" })],
     });
 
     expect(schemaHasVideoExportPanelAction(playbackSchema)).toBe(false);
@@ -25,82 +35,79 @@ describe("Toolcraft output export synthetic rules", () => {
 
   it("does not let a video-only schema bypass artifact coverage", () => {
     const videoOnlySchema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      label: "Export Video",
-                      role: "export-video",
-                      value: "export.video",
-                    },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-            },
-          ],
-          title: "Controls",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: { sections: [], title: "Controls" },
         },
       },
+      modules: [videoExportModule()],
     });
 
     expect(
-      getToolcraftOutputExportErrors({
+      validateContractAcceptance({
         acceptance: [],
-        controls: [],
-        productReadiness: {
-          mode: "starter",
-          reason: "The synthetic starter verifies stray export-action coverage.",
-        },
+        productReadiness: makeExportSettingsProductReadiness({
+          image: {
+            evidence: exportRequestFixture(
+              "Remove image export; enable video export only.",
+            ),
+            mode: "user-removed",
+          },
+          svg: { mode: "not-requested" },
+          video: {
+            evidence: exportRequestFixture("Enable video export only."),
+            mode: "user-requested",
+          },
+        }),
         schema: videoOnlySchema,
       }),
-    ).toEqual([
-      expect.stringContaining("all-required-video-export-behavior"),
-    ]);
+    ).toEqual(
+      expect.arrayContaining([
+        "artifact.video-export requires exported-bytes acceptance with automated and browser proof.",
+      ]),
+    );
   });
 
   it("rejects reset actions in sticky footer panelActions", () => {
-    const schemaWithFooterReset = defineContractSchemaFixture({
-      canvas: {
-        enabled: true,
-        sizing: { mode: "editable-output" },
-      },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      command: "controls.reset",
-                      icon: "rotate-ccw",
-                      label: "Reset",
-                      value: "reset",
-                    },
-                    {
-                      icon: "upload-simple",
-                      label: "Export PNG",
-                      role: "export-image",
-                      value: "export.png",
-                    },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-            },
-          ],
-          title: "Controls",
-        },
-      },
-    });
+    const schemaWithFooterReset = forgeResolvedExportSections(
+      defineExportModuleSchemaFixture({ image: true }),
+      (sections) =>
+        sections.map((section) =>
+          Object.values(section.controls).some(
+            (control) => control.type === "panelActions",
+          )
+            ? Object.freeze({
+                ...section,
+                controls: Object.freeze(
+                  Object.fromEntries(
+                    Object.entries(section.controls).map(
+                      ([controlId, control]) => [
+                        controlId,
+                        isToolcraftBuiltInControlSchema(control) &&
+                        control.type === "panelActions"
+                          ? Object.freeze({
+                              ...control,
+                              actions: Object.freeze([
+                                Object.freeze({
+                                  command: "controls.reset" as const,
+                                  icon: "rotate-ccw" as const,
+                                  label: "Reset",
+                                  value: "reset",
+                                }),
+                                ...(control.actions ?? []),
+                              ]),
+                            })
+                          : control,
+                      ],
+                    ),
+                  ),
+                ),
+              })
+            : section,
+        ),
+    );
 
     expect(
       validateContractAcceptance({
@@ -109,11 +116,15 @@ describe("Toolcraft output export synthetic rules", () => {
             actionCoverage: ["reset", "export.png"],
             automated: true,
             automatedTestName: "footer actions reset and export output",
-            browser: true,
-            browserTestName: "browser: footer actions reset and export output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: footer actions reset and export output",
+            },
             componentType: "panelActions",
             evidence: "exported-bytes",
-            expectedObservable: "Footer actions reset controls and export output.",
+            expectedObservable:
+              "Footer actions reset controls and export output.",
             fixture: "footer actions fixture",
             id: "actions.output",
             kind: "control",
@@ -125,7 +136,9 @@ describe("Toolcraft output export synthetic rules", () => {
       }),
     ).toEqual(
       expect.arrayContaining([
-        expect.stringContaining("must not include Reset footer actions (reset)"),
+        expect.stringContaining(
+          "must not include Reset footer actions (reset)",
+        ),
       ]),
     );
   });

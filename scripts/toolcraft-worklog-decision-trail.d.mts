@@ -12,3 +12,6 @@ export declare function parseToolcraftDecisionTrail(source: string): Readonly<{
   errors: readonly string[];
   iterations: readonly ToolcraftDecisionTrailIteration[];
 }>;
+
+export declare function getToolcraftWorklogEntries(source: string): Array<ToolcraftDecisionTrailIteration & { startLine: number; endLine: number }>;
+export declare function selectToolcraftDecisionTrailIteration(source: string): ToolcraftDecisionTrailIteration;

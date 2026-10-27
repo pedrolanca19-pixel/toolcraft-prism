@@ -1,4 +1,4 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import { isToolcraftRuntimeOwnedTarget } from "../schema/runtime-targets";
 import type {
   ToolcraftPerformanceSensitiveControl,

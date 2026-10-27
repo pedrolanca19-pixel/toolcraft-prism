@@ -1,11 +1,10 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import {
   assessParsedToolcraftEnvelopeRenderPlan,
   type ToolcraftRenderPlanBenchmarkRequirement,
 } from "./performance-render-plan-assessment";
 import type { ToolcraftEnvelopeValidationContext } from "./performance-envelope-validation-context";
 import {
-  parseToolcraftRendererPipeline,
   type ToolcraftRendererPipelineParseResult,
 } from "./performance-renderer-pipeline-parser";
 import type {
@@ -18,9 +17,7 @@ import type {
   ToolcraftRenderPassRunLocation,
   ToolcraftRendererPipeline,
 } from "./performance-types";
-import type {
-  ToolcraftPerformanceCoverageValidationPolicy,
-} from "./performance-coverage-policy";
+import type { ToolcraftPerformanceCoverageValidationPolicy } from "./performance-coverage-policy";
 
 const renderPassKinds = new Set<ToolcraftRenderPassKind>([
   "decode",
@@ -84,14 +81,16 @@ const cacheRequiredRenderPassKinds = new Set<ToolcraftRenderPassKind>([
   "composite",
 ]);
 
-const highFrequencyViewportInteractions = new Set<ToolcraftPipelineInteraction>([
-  "animation-frame",
-  "mask-drag",
-  "timeline-playback",
-  "timeline-scrub",
-  "viewport-drag",
-  "viewport-zoom",
-]);
+const highFrequencyViewportInteractions = new Set<ToolcraftPipelineInteraction>(
+  [
+    "animation-frame",
+    "mask-drag",
+    "timeline-playback",
+    "timeline-scrub",
+    "viewport-drag",
+    "viewport-zoom",
+  ],
+);
 
 const vaguePipelineReferencePattern =
   /^(?:all|all values|everything|props|runtime|settings|state|values)$/i;
@@ -103,7 +102,9 @@ function getPassById(
 }
 
 function hasPipelineReference(value: string): boolean {
-  return value.trim().length > 0 && !vaguePipelineReferencePattern.test(value.trim());
+  return (
+    value.trim().length > 0 && !vaguePipelineReferencePattern.test(value.trim())
+  );
 }
 
 function isRetinaViewportZoomRaster(
@@ -181,15 +182,14 @@ function getRendererPipelineErrorsFromParsedPipeline(
   const { config, parsedPipeline } = context;
   const errors: string[] = [];
   const rawPipeline = config.rendererPipeline as unknown;
-  const envelopeRenderPlanErrors =
-    context.evaluateRenderPlan
-      ? getEnvelopeRenderPlanErrors(
-          schema,
-          context.config,
-          parsedPipeline,
-          context.policy,
-        )
-      : [];
+  const envelopeRenderPlanErrors = context.evaluateRenderPlan
+    ? getEnvelopeRenderPlanErrors(
+        schema,
+        context.config,
+        parsedPipeline,
+        context.policy,
+      )
+    : [];
 
   if (config.usesCustomRenderer && rawPipeline === undefined) {
     return [
@@ -210,7 +210,9 @@ function getRendererPipelineErrorsFromParsedPipeline(
   }
 
   if (!parsedPipeline.pipeline) {
-    return [...new Set([...parsedPipeline.errors, ...envelopeRenderPlanErrors])];
+    return [
+      ...new Set([...parsedPipeline.errors, ...envelopeRenderPlanErrors]),
+    ];
   }
   const pipeline = parsedPipeline.pipeline;
 
@@ -238,12 +240,25 @@ function getRendererPipelineErrorsFromParsedPipeline(
     }
 
     if (!renderPassKinds.has(pass.kind)) {
-      errors.push(`rendererPipeline pass "${pass.id}" kind "${pass.kind}" is not supported.`);
+      errors.push(
+        `rendererPipeline pass "${pass.id}" kind "${pass.kind}" is not supported.`,
+      );
     }
 
     if (!renderPassRunLocations.has(pass.runsOn)) {
       errors.push(
         `rendererPipeline pass "${pass.id}" runsOn "${pass.runsOn}" is not supported.`,
+      );
+    }
+
+    const requiresGpu = pass.runsOn === "gpu" || pass.runsOn === "worker-or-gpu";
+    if (requiresGpu && pass.gpu === undefined) {
+      errors.push(
+        `rendererPipeline pass "${pass.id}" runs on ${pass.runsOn} and must declare gpu execution semantics.`,
+      );
+    } else if (!requiresGpu && pass.gpu !== undefined) {
+      errors.push(
+        `rendererPipeline pass "${pass.id}" runs on ${pass.runsOn} and must omit gpu execution semantics.`,
       );
     }
 
@@ -260,10 +275,18 @@ function getRendererPipelineErrorsFromParsedPipeline(
     }
 
     errors.push(...getPipelineReferenceErrors(pass.id, "inputs", pass.inputs));
-    errors.push(...getPipelineReferenceErrors(pass.id, "invalidatedBy", pass.invalidatedBy));
+    errors.push(
+      ...getPipelineReferenceErrors(
+        pass.id,
+        "invalidatedBy",
+        pass.invalidatedBy,
+      ),
+    );
 
     if (pass.cacheKey) {
-      errors.push(...getPipelineReferenceErrors(pass.id, "cacheKey", pass.cacheKey));
+      errors.push(
+        ...getPipelineReferenceErrors(pass.id, "cacheKey", pass.cacheKey),
+      );
     }
 
     if (
@@ -307,6 +330,7 @@ function getRendererPipelineErrorsFromParsedPipeline(
     );
 
     const mustNotInvalidate = new Set(invalidation.mustNotInvalidate ?? []);
+    const invalidatedPassIds = new Set(invalidation.invalidates);
 
     for (const passId of invalidation.invalidates) {
       if (!passId.trim()) {
@@ -350,6 +374,42 @@ function getRendererPipelineErrorsFromParsedPipeline(
       } else if (!passesById.has(passId)) {
         errors.push(
           `rendererPipeline ${invalidation.interaction} mustNotInvalidate unknown pass "${passId}".`,
+        );
+      }
+    }
+
+    for (const passId of invalidation.preparationInvalidates ?? []) {
+      if (!passId.trim()) {
+        errors.push(
+          `rendererPipeline ${invalidation.interaction} preparationInvalidates contains an empty pass id.`,
+        );
+      } else if (!passesById.has(passId)) {
+        errors.push(
+          `rendererPipeline ${invalidation.interaction} preparationInvalidates unknown pass "${passId}".`,
+        );
+      }
+    }
+
+    for (const passId of invalidation.retainedAccesses ?? []) {
+      if (!passId.trim()) {
+        errors.push(
+          `rendererPipeline ${invalidation.interaction} retainedAccesses contains an empty pass id.`,
+        );
+        continue;
+      }
+      const pass = passesById.get(passId);
+      if (!pass) {
+        errors.push(
+          `rendererPipeline ${invalidation.interaction} retainedAccesses unknown pass "${passId}".`,
+        );
+      } else if (pass.lifecycle?.cache !== "retained-resource") {
+        errors.push(
+          `rendererPipeline ${invalidation.interaction} retainedAccesses pass "${passId}" must use retained-resource lifecycle.`,
+        );
+      }
+      if (invalidatedPassIds.has(passId)) {
+        errors.push(
+          `rendererPipeline ${invalidation.interaction} cannot both invalidate and retain-access pass "${passId}".`,
         );
       }
     }

@@ -76,7 +76,9 @@ export async function digestModelSourceBytesAsync(
 ): Promise<string> {
   const subtle = globalThis.crypto?.subtle;
   if (!subtle) {
-    throw new Error("WebCrypto SHA-256 is unavailable for model source import.");
+    throw new Error(
+      "WebCrypto SHA-256 is unavailable for model source import.",
+    );
   }
   const result = await subtle.digest("SHA-256", asWebCryptoInput(bytes));
   return `sha256:${bytesToHex(new Uint8Array(result))}`;
@@ -129,7 +131,8 @@ export function digestModelSourceTransfer(
     bundle === null ||
     !Array.isArray(bundle.sourceFiles) ||
     bundle.sourceFiles.length === 0 ||
-    bundle.sourceFiles.length > TOOLCRAFT_MODEL_IMPORT_LIMIT_CEILINGS.maxBundleFiles
+    bundle.sourceFiles.length >
+      TOOLCRAFT_MODEL_IMPORT_LIMIT_CEILINGS.maxBundleFiles
   ) {
     return transferFailure(
       "source-transfer-invalid",
@@ -140,12 +143,14 @@ export function digestModelSourceTransfer(
   let metadataCodeUnits = checkedMetadataTotal(0, bundle.rootPath);
   let totalBytes = 0;
   const paths = new Set<string>();
-  const records: Array<Readonly<{
-    actualDigest: string;
-    byteLength: number;
-    mimeType: string;
-    path: string;
-  }>> = [];
+  const records: Array<
+    Readonly<{
+      actualDigest: string;
+      byteLength: number;
+      mimeType: string;
+      path: string;
+    }>
+  > = [];
   for (let index = 0; index < bundle.sourceFiles.length; index += 1) {
     if (!Object.prototype.hasOwnProperty.call(bundle.sourceFiles, index)) {
       return transferFailure(
@@ -167,7 +172,8 @@ export function digestModelSourceTransfer(
     if (
       !Number.isSafeInteger(byteLength) ||
       byteLength < 0 ||
-      totalBytes > TOOLCRAFT_MODEL_IMPORT_LIMIT_CEILINGS.maxSourceBytes - byteLength
+      totalBytes >
+        TOOLCRAFT_MODEL_IMPORT_LIMIT_CEILINGS.maxSourceBytes - byteLength
     ) {
       return transferFailure(
         "source-transfer-invalid",
@@ -186,12 +192,14 @@ export function digestModelSourceTransfer(
         "A model source file digest does not match its transferred bytes.",
       );
     }
-    records.push(Object.freeze({
-      actualDigest,
-      byteLength,
-      mimeType: file.mimeType,
-      path: file.path,
-    }));
+    records.push(
+      Object.freeze({
+        actualDigest,
+        byteLength,
+        mimeType: file.mimeType,
+        path: file.path,
+      }),
+    );
   }
   if (!paths.has(bundle.rootPath)) {
     return transferFailure(
@@ -201,7 +209,7 @@ export function digestModelSourceTransfer(
   }
 
   records.sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
   const fields = [
     "toolcraft-model-source-transfer-v1",
@@ -239,7 +247,7 @@ export function digestModelSourceBundle(
   sourceFiles: readonly ToolcraftModelSourceFile[],
 ): string {
   const orderedFiles = [...sourceFiles].sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
   const fields = [
     "toolcraft-model-source-bundle-v2",
@@ -256,32 +264,6 @@ export function digestModelSourceBundle(
       file.mimeType,
       String(file.byteLength),
       file.contentDigest,
-    );
-  }
-  return digest(encodeFrames(fields));
-}
-
-export function digestLegacyModelSourceBundle(
-  adapter: ToolcraftModelSourceBundle["adapter"],
-  rootPath: string,
-  sourceFiles: readonly ToolcraftModelSourceFile[],
-): string {
-  const fields = [
-    "toolcraft-model-source-bundle-v1",
-    adapter.format,
-    adapter.adapterVersion,
-    adapter.rootExtension,
-    rootPath,
-    String(sourceFiles.length),
-  ];
-  for (const file of sourceFiles) {
-    fields.push(
-      file.path,
-      file.displayName,
-      file.mimeType,
-      String(file.byteLength),
-      file.contentDigest,
-      file.resourceRef,
     );
   }
   return digest(encodeFrames(fields));

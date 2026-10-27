@@ -6,6 +6,7 @@ import {
   evaluateToolcraftTimelineValue,
   evaluateToolcraftTimelineValues,
 } from "../../state/keyframe-evaluation";
+import { decodeToolcraftCollectionItemControlAddress } from "../../state/collection-control-address";
 import type { ToolcraftStoreDependency } from "../../state/toolcraft-external-store-dependencies";
 import type {
   ToolcraftCommand,
@@ -17,7 +18,7 @@ import { ToolcraftContext } from "./toolcraft-root";
 import { useToolcraftStore } from "./toolcraft-store-context";
 
 type EvaluatedValueSelection = {
-  group: ToolcraftTimelineKeyframeGroup | undefined;
+  groups: readonly ToolcraftTimelineKeyframeGroup[];
   state: ToolcraftState;
   target: string;
   timeSeconds: number;
@@ -103,7 +104,7 @@ function evaluatedValueSelectionsEqual(
     previous.target === next.target &&
     Object.is(previous.value, next.value) &&
     Object.is(previous.timeSeconds, next.timeSeconds) &&
-    keyframeGroupsEqual(previous.group, next.group)
+    keyframeGroupListsEqual(previous.groups, next.groups)
   );
 }
 
@@ -184,15 +185,25 @@ export function useToolcraftEvaluatedValues(timeSeconds?: number): Record<string
 
 export function useToolcraftEvaluatedValue(target: string, timeSeconds?: number): unknown {
   const selector = React.useCallback(
-    (state: ToolcraftState): EvaluatedValueSelection => ({
-      group: state.timeline.keyframeGroups.find(
-        (group) => group.controlId === target,
-      ),
-      state,
-      target,
-      timeSeconds: timeSeconds ?? state.timeline.currentTimeSeconds,
-      value: state.values[target],
-    }),
+    (state: ToolcraftState): EvaluatedValueSelection => {
+      const groups = state.timeline.keyframeGroups.filter((group) => {
+        if (group.controlId === target) return true;
+        return (
+          decodeToolcraftCollectionItemControlAddress(group.controlId)
+            ?.collectionTarget === target
+        );
+      });
+
+      return {
+        groups,
+        state,
+        target,
+        timeSeconds:
+          timeSeconds ??
+          (groups.length > 0 ? state.timeline.currentTimeSeconds : 0),
+        value: state.values[target],
+      };
+    },
     [target, timeSeconds],
   );
   const usesPlayback = timeSeconds === undefined;

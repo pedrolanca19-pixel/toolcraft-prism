@@ -4,10 +4,17 @@ export type ToolcraftArtifactExportFailure = Readonly<{
   code:
     | "artifact-download-failed"
     | "canvas-context-unavailable"
+    | "export-owner-disposed"
+    | "export-snapshot-invalid"
     | "image-encode-failed"
     | "invalid-export-setting"
     | "product-frame-render-failed"
     | "runtime-scene-render-failed"
+    | "svg-content-empty"
+    | "svg-content-invalid"
+    | "svg-document-invalid"
+    | "svg-render-failed"
+    | "svg-serialization-failed"
     | "video-artifact-too-large"
     | "video-encode-failed"
     | "video-encoder-unavailable";

@@ -4,7 +4,6 @@ import type {
   ToolcraftControlSectionSchema,
 } from "./types";
 
-const legacySectionIdPrefix = "legacy.";
 const runtimeSectionIdPrefix = "runtime.";
 const splitSectionIdMarker = ".part-";
 const internalToolcraftSectionIds = new WeakMap<object, string>();
@@ -62,7 +61,8 @@ function getSectionIdentityLabel(
         rightControl.target.trim() || rightId,
       ),
   )[0] ?? ["", undefined];
-  const authoredIdentity = firstControl?.target || firstControlId || fallbackTitle || "section";
+  const authoredIdentity =
+    firstControl?.target || firstControlId || fallbackTitle || "section";
 
   return normalizeSectionIdPart(authoredIdentity);
 }
@@ -89,7 +89,7 @@ function getReservedSectionIdNamespace(id: string): string | null {
     return "runtime";
   }
 
-  if (isSectionIdNamespace(id, legacySectionIdPrefix)) {
+  if (isSectionIdNamespace(id, "legacy.")) {
     return "legacy";
   }
 
@@ -123,10 +123,7 @@ export function registerToolcraftInternalControlSection<
 
 export function preserveToolcraftInternalControlSectionRegistration<
   TSection extends object,
->(
-  source: object,
-  section: TSection,
-): TSection {
+>(source: object, section: TSection): TSection {
   const sourceId = (source as { id?: unknown }).id;
   const sectionId = (section as { id?: unknown }).id;
 
@@ -141,23 +138,13 @@ export function preserveToolcraftInternalControlSectionRegistration<
   return section;
 }
 
-export function deriveLegacyToolcraftControlSectionId(
-  section: Pick<ToolcraftControlSectionSchema, "controls" | "title">,
-): string {
-  const entries = Object.entries(section.controls);
-  const controlSeed = getControlIdentitySeed(entries);
-  const fallbackSeed = section.title?.trim() || "section";
-  const seed = controlSeed || fallbackSeed;
-  const label = getSectionIdentityLabel(entries, section.title);
-
-  return `${legacySectionIdPrefix}${label}.${hashSectionIdentity(seed)}`;
-}
-
 export function resolveToolcraftControlSectionId(
   section: ToolcraftControlSectionSchema,
 ): string {
   if (section.id === undefined) {
-    return deriveLegacyToolcraftControlSectionId(section);
+    throw new Error(
+      "Toolcraft product-authored control sections require an explicit stable id.",
+    );
   }
 
   if (!isStableSectionId(section.id)) {
@@ -201,8 +188,4 @@ export function assertUniqueToolcraftControlSectionIds(
 
     seenIds.add(section.id);
   }
-}
-
-export function isLegacyToolcraftControlSectionId(id: string): boolean {
-  return id.startsWith(legacySectionIdPrefix);
 }

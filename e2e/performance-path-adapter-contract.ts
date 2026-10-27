@@ -24,6 +24,13 @@ type ToolcraftPerformancePathAdapterBase = Readonly<{
   ) => Promise<unknown> | unknown;
   pathId: string;
   prepare: (page: Page) => Promise<void>;
+  preparationRenderScale?: number;
+  preparePhase?: (
+    context: ToolcraftPerformancePathActionContext,
+  ) => Promise<void> | void;
+  settlePhase?: (
+    context: ToolcraftPerformancePathActionContext,
+  ) => Promise<void> | void;
   verifyOutcome?: (
     context: ToolcraftPerformancePathActionContext,
   ) => Promise<void> | void;

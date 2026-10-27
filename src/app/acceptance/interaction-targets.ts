@@ -6,6 +6,10 @@ const toolcraftInteractionCommandTargets = new Set([
   "canvas.zoomIn",
   "canvas.zoomOut",
   "controls.setValue",
+  "controls.addCollectionItem",
+  "controls.removeCollectionItem",
+  "controls.selectCollectionItem",
+  "controls.setCollectionItemField",
   "history.redo",
   "history.undo",
 ]);

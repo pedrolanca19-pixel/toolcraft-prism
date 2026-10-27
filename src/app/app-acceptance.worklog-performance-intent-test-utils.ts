@@ -16,7 +16,7 @@ export const clearPerformanceSignalError =
   'agent-worklog.md Decision Trail iteration "Delivery 1 - Product build" contains a clear user performance signal and must use performance-iteration.';
 
 export const fixturePerformancePathId =
-  "performance-path:%5B%22interactive-discrete%22%2C%22control-change%22%2C%5B%22composite%22%5D%2C%5B%22main%22%5D%2C%5B%5D%5D";
+  "performance-path:%5B%22interactive-discrete%22%2C%22control-change%22%2C%5B%22composite%22%5D%2C%5B%5D%2C%5B%5D%2C%5B%22main%22%5D%2C%5B%5D%5D";
 
 type PerformanceIterationFixtureOptions = AgentWorklogFixtureOptions & {
   evidence?: string;

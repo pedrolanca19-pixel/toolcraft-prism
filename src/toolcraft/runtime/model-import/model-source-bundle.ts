@@ -340,7 +340,7 @@ export async function createToolcraftModelSourceBundleSnapshotFromExtractedPacka
     return Object.freeze({ bytes, entry, path });
   });
   const snapshots = Object.freeze(
-    ownedEntries.map(({ bytes, entry, path }) =>
+    ownedEntries.map(({ bytes, path }) =>
       Object.freeze({
         displayName: path.slice(path.lastIndexOf("/") + 1),
         extension: sourceExtension(path),

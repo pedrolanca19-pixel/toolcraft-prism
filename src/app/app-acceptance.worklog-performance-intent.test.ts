@@ -48,7 +48,7 @@ describe("starter acceptance worklog performance intent", () => {
     expect(getAgentWorklogValidationErrors(normalizedUnicode)).not.toEqual([]);
   });
 
-  it("requires exactly one performance intent in every Decision Trail iteration", () => {
+  it("defaults missing intent to ordinary and rejects duplicate intent", () => {
     const missing = createAgentWorklogFixture({
       omitDecisionTrailFields: ["Performance intent"],
     });
@@ -57,9 +57,7 @@ describe("starter acceptance worklog performance intent", () => {
       "- Performance intent: ordinary-product-work\n- Performance intent: ordinary-product-work",
     );
 
-    expect(getAgentWorklogValidationErrors(missing)).toContain(
-      'agent-worklog.md Decision Trail iteration "Delivery 1 - Product build" must include exactly one "Performance intent:".',
-    );
+    expect(getAgentWorklogValidationErrors(missing)).toEqual([]);
     expect(getAgentWorklogValidationErrors(duplicate)).toContain(
       'agent-worklog.md Decision Trail iteration "Delivery 1 - Product build" must include exactly one "Performance intent:".',
     );
@@ -121,15 +119,15 @@ describe("starter acceptance worklog performance intent", () => {
   it.each([
     [
       "unknown profile",
-      ["unknown-profile", "control-change", ["composite"], ["main"], []],
+      ["unknown-profile", "control-change", ["composite"], [], [], ["main"], []],
     ],
     [
       "unknown interaction",
-      ["interactive-discrete", "unknown-interaction", ["composite"], ["main"], []],
+      ["interactive-discrete", "unknown-interaction", ["composite"], [], [], ["main"], []],
     ],
     [
       "mismatched profile",
-      ["interactive-continuous", "control-change", ["composite"], ["main"], []],
+      ["interactive-continuous", "control-change", ["composite"], [], [], ["main"], []],
     ],
     [
       "duplicate signature members",
@@ -137,6 +135,8 @@ describe("starter acceptance worklog performance intent", () => {
         "interactive-discrete",
         "control-change",
         ["composite", "composite"],
+        [],
+        [],
         ["main"],
         [],
       ],
@@ -147,11 +147,14 @@ describe("starter acceptance worklog performance intent", () => {
         "interactive-discrete",
         "control-change",
         ["source", "composite"],
+        [],
+        [],
         ["main"],
         [],
       ],
     ],
   ])("rejects %s in canonical path signatures", (_case, signature) => {
+    expect(signature).toHaveLength(7);
     const pathId = `performance-path:${encodeURIComponent(
       JSON.stringify(signature),
     )}`;

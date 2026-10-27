@@ -5,7 +5,7 @@ import {
   throwIfThreeStaticGeometryAborted,
   type ThreeStaticGeometryFormat,
   validateThreeStaticGeometryLimits,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 
 export type ThreeStaticGeometrySourceFile = Readonly<{
   bytes: Uint8Array<ArrayBuffer>;

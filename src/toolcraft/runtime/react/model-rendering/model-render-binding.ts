@@ -90,6 +90,7 @@ export type ToolcraftModelExportContext = Readonly<{
   height: number;
   onRendered?: (canvas: HTMLCanvasElement) => Promise<void> | void;
   pixelRatio: number;
+  signal: AbortSignal;
   width: number;
 }>;
 
@@ -171,6 +172,8 @@ export type ToolcraftModelRenderHost = {
   hitTest(key: string, point: ToolcraftModelHitTestPoint): boolean;
   prepare(context: ToolcraftModelPreviewPreparationContext): Promise<void>;
   release(key: string): void;
+  /** @internal Keeps final renderer resources alive through export settlement. */
+  retain(): () => void;
   renderExport(
     request: ToolcraftModelPresentationRequest,
     context: ToolcraftModelExportContext,

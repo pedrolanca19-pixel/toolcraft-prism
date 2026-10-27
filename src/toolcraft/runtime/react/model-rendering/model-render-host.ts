@@ -16,6 +16,7 @@ import { createToolcraftModelPresentationResourceManager } from "./model-present
 import type { ToolcraftModelRenderRegistry } from "./model-render-registry";
 
 type ModelRenderSlot = {
+  activeMutations: number;
   binding: ToolcraftModelRenderBinding<unknown>;
   controller: AbortController;
   generation: number;
@@ -24,8 +25,6 @@ type ModelRenderSlot = {
 };
 
 type ExportResource = {
-  binding: ToolcraftModelRenderBinding<unknown>;
-  controller: AbortController;
   resource?: unknown;
 };
 
@@ -68,6 +67,10 @@ export function createToolcraftModelRenderHost(
     ...(retainResourceRef ? { retainResourceRef } : {}),
   });
   let disposed = false;
+  let finalized = false;
+  let hostLeases = 0;
+  let pendingPreviews = 0;
+  const disposalController = new AbortController();
   let generation = 0;
   let completedPreparationCount = 0;
   let failedPreparationCount = 0;
@@ -75,6 +78,21 @@ export function createToolcraftModelRenderHost(
   let preparationStatus: ToolcraftModelRenderPreparationStatus = "idle";
   const preparationListeners = new Set<() => void>();
   const preparations = new Map<string, PreviewPreparationEntry>();
+
+  const finalizeDisposal = (): void => {
+    if (!disposed || finalized || hostLeases > 0 || exportResources.size > 0 ||
+      pendingPreviews > 0 || pendingPreparationCount > 0) return;
+    finalized = true;
+    let failure: { error: unknown } | undefined;
+    const cleanups = [...new Set([
+      registry.standardBinding, ...Object.values(registry.bindings),
+    ])].map((binding) => () => binding.disposePreparedPreview?.());
+    cleanups.push(() => presentationManager.dispose());
+    for (const cleanup of cleanups) {
+      try { cleanup(); } catch (error) { failure ??= { error }; }
+    }
+    if (failure) throw failure.error;
+  };
 
   const publishPreparationStatus = (
     status: ToolcraftModelRenderPreparationStatus,
@@ -119,7 +137,9 @@ export function createToolcraftModelRenderHost(
     refreshPreparationStatus();
     let entry: PreviewPreparationEntry;
     const promise = (current?.promise.catch(() => undefined) ?? Promise.resolve())
-      .then(() => registry.resolve(context.target).preparePreview?.(context))
+      .then(() => {
+        if (!disposed) return registry.resolve(context.target).preparePreview?.(context);
+      })
       .then(() => {
         pendingPreparationCount -= 1;
         if (!disposed && preparations.get(context.target) === entry) {
@@ -134,7 +154,7 @@ export function createToolcraftModelRenderHost(
         }
         refreshPreparationStatus();
         throw error;
-      });
+      }).finally(finalizeDisposal);
     entry = Object.freeze({ context: { ...context }, promise });
     preparations.set(context.target, entry);
     return promise;
@@ -142,6 +162,7 @@ export function createToolcraftModelRenderHost(
 
   const retireSlot = (slot: ModelRenderSlot): void => {
     slot.controller.abort();
+    if (slot.activeMutations > 0) return;
     if (slot.resource !== undefined) {
       slot.binding.dispose(slot.resource);
       slot.resource = undefined;
@@ -179,10 +200,16 @@ export function createToolcraftModelRenderHost(
       const mutate = slot.mutationQueue.then(async () => {
         if (!isCurrentSlotRequest(key, slot, requestGeneration)) return;
         const presentation = presentationFor(request, "preview");
-        await slot.binding.update(slot.resource, presentation, {
-          acquirePresentation: presentationManager.acquirePresentation,
-          signal: slot.controller.signal,
-        });
+        slot.activeMutations += 1;
+        try {
+          await slot.binding.update(slot.resource, presentation, {
+            acquirePresentation: presentationManager.acquirePresentation,
+            signal: slot.controller.signal,
+          });
+        } finally {
+          slot.activeMutations -= 1;
+          if (slot.controller.signal.aborted) retireSlot(slot);
+        }
         if (!isCurrentSlotRequest(key, slot, requestGeneration)) return;
         slot.binding.renderPreview(slot.resource, context);
         feedbackBoundary.clear(request.target);
@@ -202,7 +229,7 @@ export function createToolcraftModelRenderHost(
     }
   };
 
-  const renderPreview = async (
+  const renderPreviewOperation = async (
     key: string,
     request: ToolcraftModelPresentationRequest,
     context: ToolcraftModelPreviewContext,
@@ -222,6 +249,7 @@ export function createToolcraftModelRenderHost(
     if (current) release(key);
     const controller = new AbortController();
     const slot: ModelRenderSlot = {
+      activeMutations: 0,
       binding,
       controller,
       generation: ++generation,
@@ -257,68 +285,91 @@ export function createToolcraftModelRenderHost(
     }
   };
 
+  const renderPreview: ToolcraftModelRenderHost["renderPreview"] = async (...args) => {
+    if (disposed) return;
+    pendingPreviews += 1;
+    try { await renderPreviewOperation(...args); }
+    finally { pendingPreviews -= 1; finalizeDisposal(); }
+  };
+
   const renderExport = async (
     request: ToolcraftModelPresentationRequest,
     context: ToolcraftModelExportContext,
   ): Promise<void> => {
-    if (disposed) return;
+    context.signal.throwIfAborted();
+    disposalController.signal.throwIfAborted();
     const binding = registry.resolve(request.target);
     const controller = new AbortController();
-    const exportResource: ExportResource = { binding, controller };
+    const exportResource: ExportResource = {};
     exportResources.add(exportResource);
+    const cancel = () => controller.abort(context.signal.reason);
+    const disposeExport = () => controller.abort(disposalController.signal.reason);
+    context.signal.addEventListener("abort", cancel, { once: true });
+    disposalController.signal.addEventListener("abort", disposeExport, { once: true });
+    const signal = controller.signal;
+    const onRendered = context.onRendered;
+    let failure: { error: unknown } | undefined;
 
     try {
       const presentation = presentationFor(request, "export");
       const resource = await binding.create(presentation, {
         acquirePresentation: presentationManager.acquirePresentation,
-        signal: controller.signal,
+        signal,
       });
       exportResource.resource = resource;
-      if (disposed || controller.signal.aborted) return;
-      await binding.renderExport(resource, context);
+      signal.throwIfAborted();
+      await binding.renderExport(resource, {
+        ...context,
+        signal,
+        ...(onRendered ? {
+          onRendered: async (canvas: HTMLCanvasElement) => {
+            signal.throwIfAborted();
+            await onRendered(canvas);
+            signal.throwIfAborted();
+          },
+        } : {}),
+      });
+      signal.throwIfAborted();
       feedbackBoundary.clear(request.target);
     } catch (error) {
+      failure = { error };
       if (!controller.signal.aborted) {
         feedbackBoundary.report(
           request.target,
           TOOLCRAFT_MODEL_PRESENTATION_UNAVAILABLE_FEEDBACK,
         );
       }
-      throw error;
     } finally {
-      exportResources.delete(exportResource);
-      controller.abort();
-      if (exportResource.resource !== undefined) {
-        binding.dispose(exportResource.resource);
-        exportResource.resource = undefined;
+      context.signal.removeEventListener("abort", cancel);
+      disposalController.signal.removeEventListener("abort", disposeExport);
+      // The binding has settled. Only now may its resource/presentation be released.
+      try {
+        if (exportResource.resource !== undefined) binding.dispose(exportResource.resource);
+      } catch (error) {
+        failure ??= { error };
+      } finally {
+        exportResources.delete(exportResource);
+        try { finalizeDisposal(); } catch (error) { failure ??= { error }; }
       }
     }
+    if (failure) throw failure.error;
   };
 
   return {
-    acquirePresentation: presentationManager.acquirePresentation,
+    acquirePresentation: async (ref, options) => {
+      options.signal.throwIfAborted();
+      disposalController.signal.throwIfAborted();
+      return presentationManager.acquirePresentation(ref, options);
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;
+      disposalController.abort(new DOMException("Model render host was disposed.", "AbortError"));
       for (const slot of slots.values()) retireSlot(slot);
       slots.clear();
-      for (const activeExport of exportResources) {
-        activeExport.controller.abort();
-        if (activeExport.resource !== undefined) {
-          activeExport.binding.dispose(activeExport.resource);
-          activeExport.resource = undefined;
-        }
-      }
-      exportResources.clear();
       preparationListeners.clear();
       preparations.clear();
-      for (const binding of new Set([
-        registry.standardBinding,
-        ...Object.values(registry.bindings),
-      ])) {
-        binding.disposePreparedPreview?.();
-      }
-      presentationManager.dispose();
+      finalizeDisposal();
     },
     getPreparationStatus: () => preparationStatus,
     hitTest: (key: string, point: ToolcraftModelHitTestPoint) => {
@@ -329,6 +380,17 @@ export function createToolcraftModelRenderHost(
     },
     prepare,
     release,
+    retain: () => {
+      disposalController.signal.throwIfAborted();
+      hostLeases += 1;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        hostLeases -= 1;
+        finalizeDisposal();
+      };
+    },
     renderExport,
     renderPreview,
     subscribePreparation: (listener: () => void) => {

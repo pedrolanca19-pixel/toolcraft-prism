@@ -22,15 +22,6 @@ import { EMPTY_TOOLCRAFT_DELIVERY_LIFECYCLE_STATE } from "./toolcraft-delivery-l
 import { installToolcraftPlaywrightTestShim } from "./playwright-test-shim-fixture.mjs";
 
 const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
-const receiptFixtureCatalog = {
-  acceptance: [{
-    acceptanceId: "persistence.reload",
-    file: "app-controls.spec.ts",
-    testName: "browser: focused acceptance",
-  }],
-  performance: [],
-  version: 1,
-};
 
 function deepFreeze(value) {
   if (value && typeof value === "object" && !Object.isFrozen(value)) {
@@ -39,22 +30,8 @@ function deepFreeze(value) {
   }
   return value;
 }
-export const receiptPerformanceFixtureCatalog = {
-  ...receiptFixtureCatalog,
-  performance: [{
-    passIds: ["composite"],
-    pathId:
-      "performance-path:%5B%22interactive-discrete%22%2C%22control-change%22%2C%5B%22composite%22%5D%2C%5B%22main%22%5D%2C%5B%5D%5D",
-    testName:
-      "browser perf: toolcraft path performance-path:%5B%22interactive-discrete%22%2C%22control-change%22%2C%5B%22composite%22%5D%2C%5B%22main%22%5D%2C%5B%5D%5D",
-  }],
-};
 
-export function installReceiptFixtureCatalog(
-  rootDir,
-  deliveryCatalog = receiptFixtureCatalog,
-) {
-  const playwrightBin = path.join(rootDir, "node_modules", ".bin", "playwright");
+function installReceiptPlaywrightShim(rootDir) {
   mkdirSync(path.join(rootDir, "node_modules"), { recursive: true });
   if (!existsSync(path.join(rootDir, "node_modules", "cross-spawn"))) {
     symlinkSync(
@@ -64,15 +41,13 @@ export function installReceiptFixtureCatalog(
     );
   }
   installToolcraftPlaywrightTestShim({
-    deliveryCatalog,
     rootDir,
   });
-  return playwrightBin;
 }
 
-function ensureReceiptFixtureCatalog(rootDir) {
+function ensureReceiptPlaywrightShim(rootDir) {
   const playwrightBin = path.join(rootDir, "node_modules", ".bin", "playwright");
-  if (!existsSync(playwrightBin)) installReceiptFixtureCatalog(rootDir);
+  if (!existsSync(playwrightBin)) installReceiptPlaywrightShim(rootDir);
 }
 
 export async function createReceiptFixture() {
@@ -86,23 +61,6 @@ export async function createReceiptFixture() {
     'export const schema = { mode: "initial" };\n',
   );
   await fs.writeFile(
-    path.join(rootDir, "src", "app", "app-verification-impact.json"),
-    `${JSON.stringify(
-      {
-        owners: [
-          {
-            acceptanceIds: ["persistence.reload"],
-            kind: "functional",
-            path: "src/app/app-schema.ts",
-          },
-        ],
-        version: 2,
-      },
-      null,
-      2,
-    )}\n`,
-  );
-  await fs.writeFile(
     path.join(rootDir, "e2e", "app-performance.spec.ts"),
     'export const scenario = "heavy";\n',
   );
@@ -110,7 +68,7 @@ export async function createReceiptFixture() {
     path.join(rootDir, "package.json"),
     JSON.stringify({ name: "receipt-fixture", private: true }),
   );
-  installReceiptFixtureCatalog(rootDir);
+  installReceiptPlaywrightShim(rootDir);
   return rootDir;
 }
 
@@ -166,7 +124,7 @@ export async function writePassedCheckpointFixture(
     writeBaseline = true,
   } = {},
 ) {
-  ensureReceiptFixtureCatalog(rootDir);
+  ensureReceiptPlaywrightShim(rootDir);
   const inventory = await collectToolcraftVerificationInputs(rootDir);
   const receipt = {
     completedAt: new Date().toISOString(),
@@ -184,19 +142,11 @@ export async function writePassedCheckpointFixture(
         acceptanceId: "persistence.reload",
         contractHash: "c".repeat(64),
         domainId: "persistence",
-        file: "app-controls.spec.ts",
+        file: "e2e/app-controls.spec.ts",
         testName: "browser: focused acceptance",
       }],
       performance: [],
       version: 2,
-    },
-    inventory: {
-      owners: [{
-        acceptanceIds: ["persistence.reload"],
-        kind: "functional",
-        path: "src/app/app-schema.ts",
-      }],
-      version: 3,
     },
   });
   const plan = deepFreeze({
@@ -210,7 +160,11 @@ export async function writePassedCheckpointFixture(
     steps: [
       { kind: "docs" },
       { kind: "code-health" },
-      { files: ["src/app/app-schema.test.ts"], kind: "product-tests" },
+      {
+        acceptanceIds: null,
+        files: ["src/app/app-schema.test.ts"],
+        kind: "product-tests",
+      },
       { kind: "build" },
       {
         kind: "browser-functional",

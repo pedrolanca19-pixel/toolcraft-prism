@@ -232,6 +232,26 @@ test("reports command basename, exit code, and captured output", async () => {
 });
 
 test(
+  "terminates a hanging proof process group at its wall deadline",
+  { skip: process.platform === "win32" },
+  async () => {
+    const startedAt = Date.now();
+    await assert.rejects(
+      captureToolcraftProofProcess(
+        process.execPath,
+        ["-e", 'require("node:child_process").spawn(process.execPath,["-e","process.on(\\"SIGTERM\\",()=>{}); setInterval(()=>{},1000)"],{stdio:"ignore"}); setInterval(()=>{},1000)'],
+        { deadlineMs: 150, terminationGraceMs: 50 },
+      ),
+      (error) => {
+        assert.equal(error.code, "TOOLCRAFT_PROOF_PROCESS_DEADLINE");
+        assert.match(error.message, /150ms wall deadline/iu);
+        return true;
+      },
+    );
+    assert.ok(Date.now() - startedAt < 2_000);
+  },
+);
+test(
   "reports a terminating signal",
   { skip: process.platform === "win32" },
   async () => {
@@ -379,9 +399,21 @@ test("installs missing Chromium through the canonical proof process", async () =
     [
       getToolcraftBinaryPath("/fixture/project", "playwright"),
       ["install", "chromium"],
-      { cwd: "/fixture/project" },
+      { cwd: "/fixture/project", deadlineMs: 120_000 },
     ],
   ]);
+});
+
+test("bounds missing Chromium installation with the proof-process tree deadline", async () => {
+  await assert.rejects(ensureToolcraftChromium({
+    accessFile: async () => { throw createMissingExecutableError(); },
+    playwright: { chromium: { executablePath: () => "/fixture/missing-chromium" } },
+    projectDir: "/fixture/deadline-project",
+    runProcess: async (_command, _arguments, options) => {
+      assert.equal(options.deadlineMs, 120_000);
+      throw new Error("Toolcraft proof process exceeded its 120000ms deadline and terminated its process tree.");
+    },
+  }), /deadline.*process tree/iu);
 });
 
 test("coalesces concurrent Chromium installation for one project and browser", async () => {

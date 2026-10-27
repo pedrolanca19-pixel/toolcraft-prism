@@ -3,7 +3,7 @@ import {
   checkedThreeStaticGeometryTotal,
   threeStaticGeometryFailure,
   throwIfThreeStaticGeometryAborted,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 import {
   isFbxNullRecord,
   parseFbxBinaryProperty,

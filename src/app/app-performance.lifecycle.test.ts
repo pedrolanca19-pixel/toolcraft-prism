@@ -7,13 +7,18 @@ import {
   TOOLCRAFT_FULL_PERFORMANCE_VERIFICATION_COMMAND,
 } from "../../scripts/toolcraft-performance-authority-policy.mjs";
 import { requiredPackageScriptNames } from "../../scripts/toolcraft-integrity-policy.mjs";
+import { isToolcraftFrameworkOwnedPath } from "../../scripts/toolcraft-source-ownership.mjs";
 
 import { projectDir } from "./app-performance-test-utils";
+import {
+  createAgentWorklogFixture,
+  getAgentWorklogValidationErrors,
+} from "./app-acceptance.worklog-test-utils";
 
 const expectedRequiredPackageScriptNames = [
   "ai:check", "build", "dev", "dev:restart", "docs:check", "preview",
-  "preview:restart", "test", "test:browser", "typecheck", "verify:delivery",
-  "verify:kernel", "verify:perf", "verify:receipt",
+  "preview:restart", "reference:study", "test", "test:browser", "test:feature", "typecheck",
+  "verify:delivery", "verify:kernel", "verify:perf", "verify:receipt",
 ] as const;
 
 describe("Toolcraft starter performance lifecycle", () => {
@@ -59,6 +64,55 @@ describe("Toolcraft starter performance lifecycle", () => {
       'playwright install chromium && playwright test --grep-invert "browser perf:|toolcraft kernel:"',
     );
     expect(packageJson.scripts?.["test:browser:perf"]).toBeUndefined();
+    expect(packageJson.scripts?.["test:feature"]).toBe(
+      "node scripts/run-feature-verification.mjs",
+    );
+    const featureRunner = readFileSync(
+      join(projectDir, "scripts/run-feature-verification.mjs"),
+      "utf8",
+    );
+    const playwrightConfig = readFileSync(
+      join(projectDir, "playwright.config.ts"),
+      "utf8",
+    );
+    const productTestFacade = readFileSync(
+      join(projectDir, "e2e/toolcraft-product-test.ts"),
+      "utf8",
+    );
+    expect(playwrightConfig).toContain(
+      "toolcraft-feature-verification-reporter.ts",
+    );
+    expect(featureRunner).toContain(
+      "loadToolcraftFeatureVerificationPlanInIsolatedProcess",
+    );
+    expect(featureRunner).toMatch(
+      /new Set\(\s*featurePlan\.scenarios\.map\(\(\{ file \}\) => file\)\s*\)/u,
+    );
+    expect(featureRunner).toMatch(/"test",\s*\.\.\.fileFilters/u);
+    expect(featureRunner).toMatch(
+      /path\s*\.resolve\(projectDir, file\)[\s\S]*return `\/\^\$\{escapedAbsoluteFile\}\$\/`/u,
+    );
+    expect(featureRunner).not.toMatch(
+      /createToolcraftFeatureBrowserSelection|toolcraft-feature-browser-selection|\.\.\.selection\.files/u,
+    );
+    expect(featureRunner).not.toContain("grepTitle");
+    expect(featureRunner).toContain("--workers=1");
+    expect(featureRunner).toContain("TOOLCRAFT_BROWSER_PROOF_TIMEOUT_MS");
+    expect(featureRunner.match(/dependencies\.runProcess\(/gu)).toHaveLength(1);
+    expect(featureRunner).not.toMatch(
+      /Promise\.all|--list|resolveToolcraftPlaywrightTestTitles|captureToolcraftProofProcess|runToolcraftProofPackageScript|verify:delivery|verify:perf|test:browser|run-delivery|run-browser-performance|receipt/iu,
+    );
+    expect(productTestFacade).toMatch(
+      /const selectedProductTestBudgets\s*=[\s\S]*new Map\([\s\S]*\.scenarios\.map\(\(\{ budget, testName \}\)/u,
+    );
+    expect(productTestFacade).toContain(
+      "selectedProductTestBudgets?.get(title)",
+    );
+    expect(productTestFacade).toContain("TOOLCRAFT_BROWSER_PROOF_TIMEOUT_MS");
+    expect(productTestFacade).toContain(
+      "testInfo.setTimeout(TOOLCRAFT_BROWSER_PROOF_TIMEOUT_MS[budget])",
+    );
+    expect(productTestFacade).not.toContain("registerProductTest.setTimeout");
     const performanceRunner = readFileSync(
       join(projectDir, "scripts/run-browser-performance.mjs"),
       "utf8",
@@ -143,7 +197,7 @@ describe("Toolcraft starter performance lifecycle", () => {
     expect(packageJson.scripts?.["verify:receipt"]).toContain("validate");
   });
 
-  it("documents adaptive delivery routing without command-shaped authority", () => {
+  function readDeliveryRoutingDocs() {
     const routedDocs = [
       "AGENTS.md",
       "docs/toolcraft/README.md",
@@ -154,19 +208,26 @@ describe("Toolcraft starter performance lifecycle", () => {
       "docs/toolcraft/performance.md",
       "docs/toolcraft/workflow.md",
     ];
-    const docSources = routedDocs.map((relativePath) => ({
+    return routedDocs.map((relativePath) => ({
       relativePath,
       source: readFileSync(join(projectDir, relativePath), "utf8"),
     }));
+  }
 
+  function expectDeliveryRoutingDocs(
+    sources: readonly { relativePath: string; source: string }[],
+  ) {
+    const docSources = sources.filter(({ relativePath }) =>
+      isToolcraftFrameworkOwnedPath(relativePath),
+    );
     for (const { relativePath, source } of docSources) {
       expect(source, relativePath).toMatch(/first (?:product )?delivery/i);
-      expect(source, relativePath).toMatch(/later[^\n]{0,40}delivery/i);
+      expect(source, relativePath).toMatch(/later[^\n]{0,60}(?:edits|feature work)/i);
       expect(source, relativePath).toMatch(
         /(?:performance complaint|localized complaint)/i,
       );
       expect(source, relativePath).toMatch(
-        /(?:full audit|complete (?:performance )?(?:audit|review))/i,
+        /(?:full[- ]audit|complete (?:performance )?(?:audit|review))/i,
       );
       expect(source, relativePath).toContain(
         TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND,
@@ -196,6 +257,52 @@ describe("Toolcraft starter performance lifecycle", () => {
     );
     expect(allRoutedDocs).not.toMatch(/matching (?:executed )?`?Run\b`?/i);
     expect(allRoutedDocs).not.toContain("app-performance-impact.json");
+  }
+
+  it("documents adaptive delivery routing without command-shaped authority", () => {
+    expectDeliveryRoutingDocs(readDeliveryRoutingDocs());
+  });
+
+  it("allows a valid product worklog to record its required first-delivery tier", () => {
+    const source = createAgentWorklogFixture({
+      verificationLines: [
+        "Verification tier: Tier 4",
+        "Reason: First generated product delivery with renderer and image export.",
+        "Run: pnpm verify:delivery",
+        "Skip: Measured performance; no performance work was requested.",
+      ],
+    });
+    expect(getAgentWorklogValidationErrors(source)).toEqual([]);
+    expectDeliveryRoutingDocs(
+      readDeliveryRoutingDocs().map((doc) =>
+        doc.relativePath === "docs/toolcraft/agent-worklog.md"
+          ? { ...doc, source }
+          : doc,
+      ),
+    );
+  });
+
+  it("does not treat product workflow observations as framework routing policy", () => {
+    expectDeliveryRoutingDocs([
+      ...readDeliveryRoutingDocs(),
+      {
+        relativePath: "docs/toolcraft/workflow-observation.md",
+        source: "# Workflow observation\n\nInitial Tier 4 functional proof passed.",
+      },
+    ]);
+  });
+
+  it.each([
+    "Run pnpm verify:quick before delivery.",
+    "Run pnpm verify:delivery --tier=4.",
+    "Verification tier: Tier 4",
+  ])("still rejects obsolete framework routing guidance: %s", (obsolete) => {
+    const docs = readDeliveryRoutingDocs().map((doc) =>
+      doc.relativePath === "docs/toolcraft/workflow.md"
+        ? { ...doc, source: `${doc.source}\n${obsolete}` }
+        : doc,
+    );
+    expect(() => expectDeliveryRoutingDocs(docs)).toThrow();
   });
 
   it("keeps workload guidance structural instead of prescribing domain constants", () => {
@@ -241,14 +348,16 @@ describe("Toolcraft starter performance lifecycle", () => {
     expect(documentation).toMatch(
       /first product delivery[^\n]*full functional acceptance[^\n]*no measured performance/i,
     );
-    expect(documentation).toMatch(/later delivery[^\n]*functional-targeted/i);
+    expect(documentation).toMatch(
+      /later(?: ordinary)? edits[^\n]*(?:focused|directly relevant|feature-focused)/i,
+    );
     expect(documentation).toMatch(
       /complaint[^\n]*one-authority-targeted-performance-iteration/i,
     );
     expect(documentation).toMatch(/full-performance/i);
     expect(documentation).toMatch(/needs-agent-judgment/i);
     expect(documentation).toMatch(
-      /later[^\n]{0,40}delivery[^\n]*(?:same )?bare command[^\n]*exact ownership/i,
+      /repeated bare command[^\n]*protected no-op/i,
     );
     expect(documentation).not.toMatch(
       /first stable[^\n]*(?:full performance|full checkpoint|baseline)/i,

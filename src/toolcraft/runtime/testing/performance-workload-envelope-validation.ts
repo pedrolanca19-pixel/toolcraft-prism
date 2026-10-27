@@ -1,8 +1,11 @@
 import { isToolcraftRuntimeOwnedTarget } from "../schema/runtime-targets";
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import type { ToolcraftEnvelopeValidationContext } from "./performance-envelope-validation-context";
 import { collectToolcraftWorkloadControls } from "./performance-control-classification";
-import { getSchemaBoundErrors, groupControlsByTarget } from "./performance-workload-envelope-schema-validation";
+import {
+  getSchemaBoundErrors,
+  groupControlsByTarget,
+} from "./performance-workload-envelope-schema-validation";
 import {
   formatUnknownValue,
   getDimensionLabel,
@@ -33,7 +36,9 @@ export function getToolcraftWorkloadEnvelopeErrors(
 
   const dimensions = envelope.dimensions;
   const errors: string[] = [];
-  const schemaControlsByTarget = groupControlsByTarget(getAllSchemaControls(schema));
+  const schemaControlsByTarget = groupControlsByTarget(
+    getAllSchemaControls(schema),
+  );
   const workloadControls = collectToolcraftWorkloadControls(schema);
   const workloadControlsByTarget = groupControlsByTarget(
     workloadControls.map(({ control }) => control),
@@ -107,12 +112,16 @@ export function getToolcraftWorkloadEnvelopeErrors(
     switch (source.kind) {
       case "runtime-state":
         if (!isTrimmedNonEmptyString(source.path)) {
-          errors.push(`${label} runtime-state path must be trimmed and non-empty.`);
+          errors.push(
+            `${label} runtime-state path must be trimmed and non-empty.`,
+          );
         }
         break;
       case "external-input":
         if (!isTrimmedNonEmptyString(source.id)) {
-          errors.push(`${label} external-input id must be trimmed and non-empty.`);
+          errors.push(
+            `${label} external-input id must be trimmed and non-empty.`,
+          );
         }
         break;
       case "derived": {
@@ -133,7 +142,9 @@ export function getToolcraftWorkloadEnvelopeErrors(
           } else if (input === dimension.id) {
             errors.push(`${label} cannot reference itself as a derived input.`);
           } else if (!knownDimensionIds.has(input)) {
-            errors.push(`${label} references unknown derived input "${input}".`);
+            errors.push(
+              `${label} references unknown derived input "${input}".`,
+            );
           }
         }
         break;
@@ -142,7 +153,9 @@ export function getToolcraftWorkloadEnvelopeErrors(
         const target = source.target;
 
         if (!isTrimmedNonEmptyString(target)) {
-          errors.push(`${label} schema-target target must be trimmed and non-empty.`);
+          errors.push(
+            `${label} schema-target target must be trimmed and non-empty.`,
+          );
           break;
         }
 
@@ -165,7 +178,8 @@ export function getToolcraftWorkloadEnvelopeErrors(
           break;
         }
 
-        const explicitWorkloadControls = workloadControlsByTarget.get(target) ?? [];
+        const explicitWorkloadControls =
+          workloadControlsByTarget.get(target) ?? [];
         if (explicitWorkloadControls.length !== 1) {
           errors.push(
             `${label} schema target "${target}" must reference exactly one explicit workload control.`,

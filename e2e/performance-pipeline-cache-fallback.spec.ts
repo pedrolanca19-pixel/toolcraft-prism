@@ -14,11 +14,13 @@ import {
   noCacheActivitySnapshot,
   pipelineEvidence,
   pipelineEvidenceAttachment,
-  pipelineEvidenceRegistration,
-  pipelineEvidenceSchema,
   pipelineSnapshot,
   zeroPipelinePassCounters,
 } from "./performance-pipeline-evidence-test-fixtures";
+import {
+  pipelineEvidenceRegistration,
+  pipelineEvidenceSchema,
+} from "./performance-pipeline-evidence-test-contract";
 
 const phases = ["cold", "warm", "sustained"] as const;
 

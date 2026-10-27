@@ -32,6 +32,7 @@ export function FileDropSinglePreview({
       <button
         aria-label={`Replace ${item.alt ?? item.fileName}`}
         className="absolute inset-0 block size-full border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-inset"
+        data-slot="file-upload-single-preview"
         onClick={onActivate}
         type="button"
       >

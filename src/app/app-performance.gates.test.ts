@@ -21,9 +21,6 @@ import {
   validateToolcraftPerformanceCoverage,
 } from "@/toolcraft/runtime";
 import {
-  validateToolcraftCurrentPerformanceImpactInventory,
-} from "../../scripts/toolcraft-verification-receipt.mjs";
-import {
   createToolcraftScriptLineBudgetPolicy,
   getToolcraftScriptProductionEntryPaths,
   toolcraftScriptSourceExtensions,
@@ -82,7 +79,7 @@ function collectPerformanceSpecFacts(source: string, fileName: string) {
 
   const compilerCalls = analysis.importedCalls.filter(
     ({ target }) =>
-      target.specifier === "./performance-path-helpers" &&
+      target.specifier === "./performance-path-adapter-matrix" &&
       target.importedName ===
         "compileToolcraftPerformancePathAdapterMatrix" &&
       target.memberPath === "",
@@ -146,6 +143,9 @@ function collectPerformanceSpecFacts(source: string, fileName: string) {
   });
 }
 
+// Hang-only ceiling: functional gate duration is never product performance evidence.
+const TOOLCRAFT_FUNCTIONAL_GATE_TIMEOUT_MS = 60_000;
+
 describe("Toolcraft starter performance gates", () => {
   it(
     "keeps generated verification scripts within shared recursive budgets",
@@ -153,7 +153,7 @@ describe("Toolcraft starter performance gates", () => {
       const result = await evaluateGeneratedScriptBudgets(projectDir);
       expect(result.lineBudgetViolations).toEqual([]);
     },
-    15_000,
+    TOOLCRAFT_FUNCTIONAL_GATE_TIMEOUT_MS,
   );
 
   it("classifies every script extension and production-looking test by reachability", async () => {
@@ -208,7 +208,7 @@ describe("Toolcraft starter performance gates", () => {
     expect(source).not.toContain("TOOLCRAFT_PERF_CHECK");
     for (const expected of [
       ["@/toolcraft/runtime", "deriveToolcraftPerformancePaths"],
-      ["./performance-path-helpers", "getToolcraftPerformancePathTestName"],
+      ["./performance-path-adapter-matrix", "getToolcraftPerformancePathTestName"],
       ["./performance-path-helpers", "runToolcraftPerformancePath"],
     ] as const) {
       expect(
@@ -256,7 +256,7 @@ describe("Toolcraft starter performance gates", () => {
         } from "./app-performance-path-adapters";
         import {
           compileToolcraftPerformancePathAdapterMatrix as compile,
-        } from "./performance-path-helpers";
+        } from "./performance-path-adapter-matrix";
 
         const paths = [];
         const path = paths[0];
@@ -300,7 +300,7 @@ describe("Toolcraft starter performance gates", () => {
         } from "./app-performance-path-adapters";
         import {
           compileToolcraftPerformancePathAdapterMatrix as compile,
-        } from "./performance-path-helpers";
+        } from "./performance-path-adapter-matrix";
 
         const paths = [];
         compile({ adapters, paths, schema });
@@ -327,7 +327,7 @@ describe("Toolcraft starter performance gates", () => {
         } from "./app-performance-path-adapters";
         import {
           compileToolcraftPerformancePathAdapterMatrix as compile,
-        } from "./performance-path-helpers";
+        } from "./performance-path-adapter-matrix";
 
         const paths = [];
         function ignoredShadow(compile) {
@@ -355,13 +355,54 @@ describe("Toolcraft starter performance gates", () => {
     expect(playwrightConfigForbidsFocusedTests()).toBe(true);
   });
 
+  it("keeps later feature verification product-only and outside proof authority", () => {
+    const source = readFileSync(
+      join(projectDir, "scripts/run-feature-verification.mjs"),
+      "utf8",
+    );
+    const productTestFacade = readFileSync(
+      join(projectDir, "e2e/toolcraft-product-test.ts"),
+      "utf8",
+    );
+
+    expect(source).toContain("loadToolcraftFeatureVerificationPlanInIsolatedProcess");
+    expect(source).toMatch(
+      /new Set\(\s*featurePlan\.scenarios\.map\(\(\{ file \}\) => file\)\s*\)/u,
+    );
+    expect(source).toMatch(/"test",\s*\.\.\.fileFilters/u);
+    expect(source).toMatch(
+      /path\s*\.resolve\(projectDir, file\)[\s\S]*return `\/\^\$\{escapedAbsoluteFile\}\$\/`/u,
+    );
+    expect(source).not.toMatch(
+      /createToolcraftFeatureBrowserSelection|toolcraft-feature-browser-selection|\.\.\.selection\.files/u,
+    );
+    expect(source).not.toContain("grepTitle");
+    expect(source).toContain("TOOLCRAFT_BROWSER_PROOF_TIMEOUT_MS");
+    expect(source).toContain("--workers=1");
+    expect(source.match(/dependencies\.runProcess\(/gu)).toHaveLength(1);
+    expect(source).toContain("TOOLCRAFT_BROWSER_SERVER_MODE: \"dev\"");
+    expect(source).not.toMatch(
+      /Promise\.all|--list|resolveToolcraftPlaywrightTestTitles|captureToolcraftProofProcess|executeToolcraftDeliveryLifecycle|measureToolcraftPerformanceCheckpoint|collectToolcraftVerificationInputs|run-delivery|run-browser-performance|receipt/iu,
+    );
+    expect(productTestFacade).toMatch(
+      /const selectedProductTestBudgets\s*=[\s\S]*new Map\([\s\S]*\.scenarios\.map\(\(\{ budget, testName \}\)/u,
+    );
+    expect(productTestFacade).toContain(
+      "selectedProductTestBudgets?.get(title)",
+    );
+    expect(productTestFacade).toContain(
+      "testInfo.setTimeout(TOOLCRAFT_BROWSER_PROOF_TIMEOUT_MS[budget])",
+    );
+    expect(productTestFacade).not.toContain("registerProductTest.setTimeout");
+  });
+
   it("keeps verification lifecycle authority in the runtime contract", () => {
     expect(appPerformance).not.toHaveProperty("browserCheckPolicy");
     expect(TOOLCRAFT_PERFORMANCE_VERIFICATION_LIFECYCLE).toEqual({
       delivery: {
         command: "verify:delivery",
-        modes: ["functional", "performance-iteration"],
-        selectors: "automatic",
+        modes: ["initial-functional", "performance-iteration"],
+        selectors: "initial-complete-or-authority-exact",
       },
       fullPerformance: {
         command: "verify:perf",
@@ -378,18 +419,6 @@ describe("Toolcraft starter performance gates", () => {
         TOOLCRAFT_FUNCTIONAL_PERFORMANCE_COVERAGE_POLICY,
       ),
     ).toEqual([]);
-  });
-
-  it("maps every product production module to current renderer pass ownership", async () => {
-    const knownPassIds = (appPerformance.rendererPipeline?.passes ?? []).map(
-      ({ id }) => id,
-    );
-    await expect(
-      validateToolcraftCurrentPerformanceImpactInventory({
-        knownPassIds,
-        rootDir: projectDir,
-      }),
-    ).resolves.toBeDefined();
   });
 
   it("keeps unresolved kernel decisions pending during functional delivery", () => {

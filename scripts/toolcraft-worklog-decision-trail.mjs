@@ -69,6 +69,17 @@ function getSanitizedLines(scan, start, end) {
     );
 }
 
+/** Text recovery includes misplaced entries; authority parsing below rejects them. */
+export function getToolcraftWorklogEntries(source) {
+  const scan = scanMarkdown(source);
+  return scan.headings.filter(({ level }) => level === 3).flatMap((heading) => {
+    const end = Math.min(getSectionEnd(scan.headings, heading), scan.lines.length);
+    const body = getSanitizedLines(scan, heading.line + 1, end).join("\n").trim();
+    if (!/^(?:Iteration|Delivery|Diagnostic)\b/iu.test(heading.text) && !/^-[ \t]*Request:/imu.test(body)) return [];
+    return [{ body, heading: heading.text, startLine: heading.line + 1, endLine: end }];
+  });
+}
+
 export function getToolcraftMarkdownSectionBodies(source, sectionName) {
   const scan = scanMarkdown(source);
   return scan.headings
@@ -108,6 +119,11 @@ export function parseToolcraftDecisionTrail(source) {
     getSectionEnd(scan.headings, section),
     scan.lines.length,
   );
+  for (const entry of getToolcraftWorklogEntries(source)) {
+    if (entry.startLine <= section.line + 1 || entry.startLine > sectionEnd) {
+      errors.push(`Worklog entry "${entry.heading}" at line ${entry.startLine} is outside Decision Trail; import the history or move the entry into that section.`);
+    }
+  }
   if (
     scan.unclosedFenceLine !== undefined &&
     scan.unclosedFenceLine > section.line &&
@@ -167,4 +183,36 @@ export function parseToolcraftDecisionTrail(source) {
     errors: Object.freeze(errors),
     iterations: Object.freeze(iterations),
   });
+}
+
+export function selectToolcraftDecisionTrailIteration(source) {
+  const trail = parseToolcraftDecisionTrail(source);
+  if (trail.errors.length) throw new Error(trail.errors[0]);
+  const activeIds = getSanitizedLines(scanMarkdown(source), 0, Number.POSITIVE_INFINITY)
+    .flatMap((line) => {
+      const match = /^(?:-[ \t]*)?Active change:[ \t]*(.*)$/iu.exec(line);
+      if (!match) return [];
+      const id = match[1].trim();
+      if (!/^[a-z0-9._-]+$/iu.test(id)) throw new Error("Active change must contain one stable ID.");
+      return [id];
+    });
+  const identified = new Map();
+  for (const iteration of trail.iterations) {
+    const ids = [...iteration.body.matchAll(/^-[ \t]*Change ID:[ \t]*(.*)$/gimu)].map((match) => match[1].trim());
+    if (ids.some((id) => !/^[a-z0-9._-]+$/iu.test(id))) throw new Error("Change ID must contain one stable ID.");
+    if (ids.length > 1 || (ids[0] && identified.has(ids[0]))) throw new Error("Decision Trail has duplicate Change ID values.");
+    if (ids[0]) identified.set(ids[0], iteration);
+  }
+  if (activeIds.length) {
+    if (activeIds.length !== 1 || !identified.has(activeIds[0])) throw new Error("Active change must identify exactly one Decision Trail Change ID.");
+    return identified.get(activeIds[0]);
+  }
+  if (trail.iterations.length === 1) return trail.iterations[0];
+  const numbers = trail.iterations.map(({ heading }) => /^(?:Iteration|Delivery)[ \t]+(\d+)\b/iu.exec(heading)?.[1]).map(Number);
+  const steps = numbers.slice(1).map((value, index) => Math.sign(value - numbers[index]));
+  if (identified.size || numbers.some((value) => !Number.isSafeInteger(value)) ||
+    !steps.length || (!steps.every((step) => step === 1) && !steps.every((step) => step === -1))) {
+    throw new Error("Decision Trail order is ambiguous; declare unique Change ID values and an explicit Active change.");
+  }
+  return steps[0] === 1 ? trail.iterations.at(-1) : trail.iterations[0];
 }

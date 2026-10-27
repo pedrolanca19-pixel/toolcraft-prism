@@ -1,4 +1,4 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import { areToolcraftFixtureValuesEqual } from "./performance-fixture-numeric";
 import { getAllSchemaControls } from "./performance-schema-queries";
 import { parseToolcraftPerformanceFixtureRegistry } from "./performance-fixture-registry-validation";
@@ -28,7 +28,10 @@ function createDiscreteAdapter<
     const entry = definition.entries.find((candidate) =>
       areToolcraftFixtureValuesEqual(candidate.value, value),
     );
-    if (!entry) throw new Error(`Discrete workload value ${value} is not in the exhaustive domain.`);
+    if (!entry)
+      throw new Error(
+        `Discrete workload value ${value} is not in the exhaustive domain.`,
+      );
     return entry;
   };
   const requireByAppliedValue = (appliedValue: AppliedValue) => {
@@ -109,42 +112,42 @@ export function getToolcraftSchemaDiscreteSnapshotErrors(
   const parsed = parseToolcraftPerformanceFixtureRegistry(config, false);
   if (!parsed.registry) return [];
   return parsed.workloadDimensions.flatMap((dimension) => {
-      if (dimension.source.kind !== "schema-target") return [];
-      const sourceTarget = dimension.source.target;
-      const finiteControls = controls.filter(
-        (control) =>
-          control.target === sourceTarget &&
-          (control.type === "select" ||
-            control.type === "segmented" ||
-            control.type === "tabs"),
-      );
-      if (finiteControls.length === 0) return [];
-      const dimensionId = dimension.id;
-      const adapter = parsed.registry!.dimensions[dimensionId];
-      if (!adapter) return [];
-      if (!isToolcraftDiscreteFixtureAdapter(adapter)) {
-        return [
-          `workload dimension "${dimensionId}" targets finite schema control "${sourceTarget}" and must use an exhaustive-discrete schema-options adapter.`,
-        ];
-      }
-      if (adapter.domain.kind !== "schema-options") {
-        return [
-          `workload dimension "${dimensionId}" targets finite schema control "${sourceTarget}" and must use an exhaustive-discrete schema-options adapter.`,
-        ];
-      }
-      const domain = adapter.domain;
-      const actual = finiteControls.flatMap((control) =>
-          control.type === "select" ||
+    if (dimension.source.kind !== "schema-target") return [];
+    const sourceTarget = dimension.source.target;
+    const finiteControls = controls.filter(
+      (control) =>
+        control.target === sourceTarget &&
+        (control.type === "select" ||
           control.type === "segmented" ||
-          control.type === "tabs"
-            ? (control.options ?? []).map(({ value }) => value)
-            : [],
-        );
-      return actual.length === domain.optionValues.length &&
-        actual.every((value, index) => value === domain.optionValues[index])
-        ? []
-        : [
-            `fixtureAdapters.dimensions[${JSON.stringify(dimensionId)}].domain schema option snapshot must match every current select/segmented/tabs option for target "${domain.target}" in schema order.`,
-          ];
-    });
+          control.type === "tabs"),
+    );
+    if (finiteControls.length === 0) return [];
+    const dimensionId = dimension.id;
+    const adapter = parsed.registry!.dimensions[dimensionId];
+    if (!adapter) return [];
+    if (!isToolcraftDiscreteFixtureAdapter(adapter)) {
+      return [
+        `workload dimension "${dimensionId}" targets finite schema control "${sourceTarget}" and must use an exhaustive-discrete schema-options adapter.`,
+      ];
+    }
+    if (adapter.domain.kind !== "schema-options") {
+      return [
+        `workload dimension "${dimensionId}" targets finite schema control "${sourceTarget}" and must use an exhaustive-discrete schema-options adapter.`,
+      ];
+    }
+    const domain = adapter.domain;
+    const actual = finiteControls.flatMap((control) =>
+      control.type === "select" ||
+      control.type === "segmented" ||
+      control.type === "tabs"
+        ? (control.options ?? []).map(({ value }) => value)
+        : [],
+    );
+    return actual.length === domain.optionValues.length &&
+      actual.every((value, index) => value === domain.optionValues[index])
+      ? []
+      : [
+          `fixtureAdapters.dimensions[${JSON.stringify(dimensionId)}].domain schema option snapshot must match every current select/segmented/tabs option for target "${domain.target}" in schema order.`,
+        ];
+  });
 }

@@ -3,19 +3,21 @@ import path from "node:path";
 import test from "node:test";
 
 import {
-  createToolcraftDeliveryCatalog,
   validateToolcraftDeliveryCatalog,
-} from "./playwright-test-title-selection.mjs";
+} from "./toolcraft-delivery-catalog-validation.mjs";
+import { createToolcraftDeliveryCatalog } from "./toolcraft-delivery-catalog.mjs";
 
-const rootDir = path.join(path.parse(process.cwd()).root, "toolcraft-catalog", "e2e");
+const rootDir = path.join(path.parse(process.cwd()).root, "toolcraft-catalog");
 const completeAcceptance = {
   actionCoverage: ["shape", "smoothing"],
   automated: true,
   automatedTestName: "material shape changes output",
-  browser: true,
-  browserTestName: "browser: material shape changes rendered output",
+  browser: {
+    budget: "standard",
+    file: "e2e/product-material.spec.ts",
+    testName: "browser: material shape changes rendered output",
+  },
   canvasHandle: {
-    exportCleanTestName: "exports without handles",
     outputObservable: "Donut silhouette changes",
     testId: "shape-handle",
     writesTarget: "material.shape",
@@ -54,7 +56,7 @@ test("collector hashes the complete acceptance entry and changes only its semant
     createToolcraftDeliveryCatalog({
       acceptance: [entry],
       availableTests: [
-        availableTest("product-material.spec.ts", entry.browserTestName),
+        availableTest(entry.browser.file, entry.browser.testName),
       ],
       performancePaths: [],
       rootDir,
@@ -76,8 +78,8 @@ test("collector hashes the complete acceptance entry and changes only its semant
     acceptanceId: "material.donut.shape",
     contractHash: current.acceptance[0].contractHash,
     domainId: "material",
-    file: "product-material.spec.ts",
-    testName: completeAcceptance.browserTestName,
+    file: "e2e/product-material.spec.ts",
+    testName: completeAcceptance.browser.testName,
   });
   assert.match(current.acceptance[0].contractHash, /^[a-f0-9]{64}$/u);
   assert.notEqual(current.acceptance[0].contractHash, changed.acceptance[0].contractHash);
@@ -92,8 +94,8 @@ test("catalog v2 exact-key validation rejects legacy and malformed semantic rows
   const valid = catalogWith([
     catalogRow(
       "material.donut.shape",
-      "product-material.spec.ts",
-      completeAcceptance.browserTestName,
+      "e2e/product-material.spec.ts",
+      completeAcceptance.browser.testName,
     ),
   ]);
   assert.deepEqual(validateToolcraftDeliveryCatalog(valid).errors, []);
@@ -121,8 +123,8 @@ test("catalog v2 exact-key validation rejects legacy and malformed semantic rows
 
 test("a browser file owns one acceptance domain while same-domain rows may share it", () => {
   const materialRows = [
-    catalogRow("material.color", "product-output.spec.ts", "browser: material color"),
-    catalogRow("material.shape", "product-output.spec.ts", "browser: material shape"),
+    catalogRow("material.color", "e2e/product-output.spec.ts", "browser: material color"),
+    catalogRow("material.shape", "e2e/product-output.spec.ts", "browser: material shape"),
   ];
   assert.deepEqual(
     validateToolcraftDeliveryCatalog(catalogWith(materialRows)).errors,
@@ -131,7 +133,7 @@ test("a browser file owns one acceptance domain while same-domain rows may share
 
   const errors = validateToolcraftDeliveryCatalog(catalogWith([
     ...materialRows,
-    catalogRow("export.image.format", "product-output.spec.ts", "browser: image format"),
+    catalogRow("export.image.format", "e2e/product-output.spec.ts", "browser: image format"),
   ])).errors;
   assert.match(
     errors.join("\n"),
@@ -141,7 +143,7 @@ test("a browser file owns one acceptance domain while same-domain rows may share
 
 test("catalog exact-key validation rejects symbol fields on catalog and acceptance rows", () => {
   const valid = catalogWith([
-    catalogRow("material.shape", "product-material.spec.ts", "browser: material shape"),
+    catalogRow("material.shape", "e2e/product-material.spec.ts", "browser: material shape"),
   ]);
   const symbol = Symbol("unexpected");
   const catalogSymbol = { ...valid, [symbol]: true };

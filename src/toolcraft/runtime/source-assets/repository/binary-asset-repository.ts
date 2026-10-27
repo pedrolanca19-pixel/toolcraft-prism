@@ -12,6 +12,13 @@ export type ToolcraftBinaryAssetPutOptions = {
   durable: boolean;
 };
 
+/** Read at the deletion decision. null means durable ownership is unknown. */
+export type ToolcraftPersistedResourceRefsReader = () => ReadonlySet<string> | null;
+
+export type ToolcraftBinaryAssetCollectionOptions = Readonly<{
+  getPersistedResourceRefs?: ToolcraftPersistedResourceRefsReader;
+}>;
+
 export const TOOLCRAFT_BINARY_ASSET_MAX_DEPENDENCIES = 4_096;
 
 export type ToolcraftBinaryAssetLease = {

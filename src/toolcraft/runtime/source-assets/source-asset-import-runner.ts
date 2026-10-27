@@ -1,4 +1,5 @@
 import type { ToolcraftControlSchema } from "../schema/types";
+import { normalizeToolcraftMediaImportIngress } from "../state/media-import-ingress";
 import { createToolcraftMediaImportAllocation } from "../state/media-import-allocation";
 import type { ToolcraftCommand, ToolcraftState } from "../state/types";
 import {
@@ -45,6 +46,7 @@ export const DIRECT_CANVAS_OPERATION_TARGET = "toolcraft.canvas.image";
 
 export const DIRECT_CANVAS_SOURCE_ASSET_CONTROL: ToolcraftControlSchema =
   Object.freeze({
+    applicability: { mode: "always" as const },
     multiple: true,
     target: DIRECT_CANVAS_OPERATION_TARGET,
     type: "fileDrop",
@@ -187,7 +189,9 @@ export function createToolcraftSourceAssetImportRunner({
       let handler;
       let plan;
       try {
-        selection = selectToolcraftSourceAssetHandler(registry, batch, [requestedControl]);
+        selection = selectToolcraftSourceAssetHandler(registry, batch, [
+          requestedControl,
+        ]);
         if (selection.kind === "ambiguous") {
           operationStore.setOperation({
             feedback: selection.feedback,
@@ -210,7 +214,10 @@ export function createToolcraftSourceAssetImportRunner({
           return { feedback, kind: "rejected" };
         }
 
-        handler = getToolcraftSourceAssetHandler(registry, selection.claim.handlerKind);
+        handler = getToolcraftSourceAssetHandler(
+          registry,
+          selection.claim.handlerKind,
+        );
         if (!handler) {
           throw new Error(
             `No source asset handler is registered for "${selection.claim.handlerKind}".`,
@@ -259,7 +266,8 @@ export function createToolcraftSourceAssetImportRunner({
       }
 
       await cleanupManager.retryRollbacks();
-      if (!jobManager.isAdmissionCurrent(admission)) return { kind: "cancelled" };
+      if (!jobManager.isAdmissionCurrent(admission))
+        return { kind: "cancelled" };
 
       const job = jobManager.beginJob(
         admission,
@@ -331,7 +339,8 @@ export function createToolcraftSourceAssetImportRunner({
 
         if (
           !jobManager.isCurrent(job) ||
-          (defaultReplacement && !isDefaultReplacementCurrent(defaultReplacement))
+          (defaultReplacement &&
+            !isDefaultReplacementCurrent(defaultReplacement))
         ) {
           jobManager.removeJob(job);
           await cleanupManager.collect();
@@ -340,8 +349,8 @@ export function createToolcraftSourceAssetImportRunner({
 
         let assetIds: readonly string[];
         if (defaultReplacement) {
-          const draft = assets[0];
-          if (assets.length !== 1 || draft?.assetKind !== "model") {
+          const draft = prepared.assets[0];
+          if (prepared.assets.length !== 1 || draft?.assetKind !== "model") {
             throw new Error(
               "Default model import must prepare exactly one model asset.",
             );
@@ -370,17 +379,35 @@ export function createToolcraftSourceAssetImportRunner({
           }
           assetIds = Object.freeze([defaultReplacement.assetId]);
         } else {
-          const command = {
+          const state = getState();
+          const canonicalAssets = normalizeToolcraftMediaImportIngress(
             assets,
+            {
+              canvasMode: state.canvas.mode,
+              canvasSize: state.canvas.size,
+              sizingMode: state.schema.canvas.sizing.mode,
+            },
+          ).map((asset) => Object.freeze(asset));
+          const allocation = createToolcraftMediaImportAllocation(state, {
+            assets: canonicalAssets,
             replaceExisting: plan.replaceExisting,
-            type: "media.importBatch" as const,
-          };
-          assetIds = Object.freeze(
-            createToolcraftMediaImportAllocation(getState(), command).items.map(
-              (item) => item.mediaId,
+          });
+          const canonicalAllocation = Object.freeze({
+            baseLayers: Object.freeze([...allocation.baseLayers]),
+            baseMediaAssets: Object.freeze([...allocation.baseMediaAssets]),
+            items: Object.freeze(
+              allocation.items.map((item) => Object.freeze({ ...item })),
             ),
+          });
+          assetIds = Object.freeze(
+            canonicalAllocation.items.map((item) => item.mediaId),
           );
-          dispatch(command);
+          dispatch(
+            Object.freeze({
+              allocation: canonicalAllocation,
+              type: "media.commitCanonicalImportAllocation",
+            }),
+          );
         }
 
         finishOperation(job);
@@ -388,7 +415,10 @@ export function createToolcraftSourceAssetImportRunner({
         await cleanupManager.collect();
         return { assetIds, kind: "committed" };
       } catch (error) {
-        const feedback = getToolcraftSourceAssetFeedback(error, "import-failed");
+        const feedback = getToolcraftSourceAssetFeedback(
+          error,
+          "import-failed",
+        );
         let shouldReportFailure = false;
 
         if (committed) {
@@ -414,7 +444,8 @@ export function createToolcraftSourceAssetImportRunner({
     requestedControl,
   ) => {
     const batchSnapshot = snapshotToolcraftSourceAssetBatch(batch);
-    const controlSnapshot = snapshotToolcraftSourceAssetControl(requestedControl);
+    const controlSnapshot =
+      snapshotToolcraftSourceAssetControl(requestedControl);
     if (jobManager.isDisposed()) {
       return Promise.resolve({
         feedback: createToolcraftSourceAssetFeedback(
@@ -436,8 +467,11 @@ export function createToolcraftSourceAssetImportRunner({
     }
     const usesDirectCanvasFallback =
       controlSnapshot === undefined && batchSnapshot.origin === "canvas";
-    const control = controlSnapshot ??
-      (usesDirectCanvasFallback ? DIRECT_CANVAS_SOURCE_ASSET_CONTROL : undefined);
+    const control =
+      controlSnapshot ??
+      (usesDirectCanvasFallback
+        ? DIRECT_CANVAS_SOURCE_ASSET_CONTROL
+        : undefined);
 
     if (!control) {
       return Promise.resolve({

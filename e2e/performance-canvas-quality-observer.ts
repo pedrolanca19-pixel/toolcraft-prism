@@ -218,11 +218,10 @@ export async function installToolcraftPerformanceCanvasQualityObserver({
   ) => {
     if (records.length === 0) return;
     const previousMetrics = lastConnectedMetrics;
-    sendUsingLastVisibleSize("attribute", canvas);
     for (const record of records) {
       if (record.attributeName !== "width" && record.attributeName !== "height")
         continue;
-      const currentMetrics = lastConnectedMetrics;
+      const currentMetrics = readVisibleMetrics(canvas) ?? lastConnectedMetrics;
       if (!currentMetrics) continue;
       deliver(
         "attribute",
@@ -232,6 +231,7 @@ export async function installToolcraftPerformanceCanvasQualityObserver({
         ),
       );
     }
+    sendUsingLastVisibleSize("attribute", canvas);
   };
 
   const disconnectCanvasObservers = () => {

@@ -2,7 +2,7 @@ import type { ToolcraftModelDecodeContext } from "../model-import-types";
 import {
   checkedThreeStaticGeometryTotal,
   threeStaticGeometryFailure,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 
 const ARRAY_ELEMENT_BYTES = Object.freeze({
   b: 1,

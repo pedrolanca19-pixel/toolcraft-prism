@@ -1,7 +1,10 @@
 import { toolcraftTimelineKeyframeGroupListsEqual } from "./toolcraft-keyframe-equality";
 import {
+  getToolcraftHistoryPatchDomains,
   getToolcraftHistoryPatchSource,
+  tagToolcraftHistoryPatchDomains,
   tagToolcraftHistoryPatchSource,
+  isToolcraftWorkspaceResetHistoryPatch,
 } from "./history-patch-metadata";
 import type {
   ToolcraftHistoryPatch,
@@ -66,8 +69,12 @@ function selectStructuralTimeline(
 export function getToolcraftHistoryPatchHotFieldTouches(
   patch: ToolcraftHistoryPatch,
 ): ToolcraftHotFieldTouches {
-  const beforeTimeline = readStructuralTimeline(patch.before);
-  const afterTimeline = readStructuralTimeline(patch.after);
+  if (isToolcraftWorkspaceResetHistoryPatch(patch)) {
+    return { offsetTouched: true, playbackTouched: true, zoomTouched: true };
+  }
+  const statePatch = getToolcraftHistoryPatchDomains(patch)?.state ?? patch;
+  const beforeTimeline = readStructuralTimeline(statePatch.before);
+  const afterTimeline = readStructuralTimeline(statePatch.after);
 
   return {
     offsetTouched: false,
@@ -150,27 +157,41 @@ function mergeChangedHistoryPatch(
   if (!base) {
     return undefined;
   }
+  if (isToolcraftWorkspaceResetHistoryPatch(base)) return base;
 
-  const effectiveBefore = effective?.before ?? emptyPatchSide;
-  const effectiveAfter = effective?.after ?? emptyPatchSide;
-  const committedBefore = committed?.before ?? emptyPatchSide;
-  const committedAfter = committed?.after ?? emptyPatchSide;
+  const domains = getToolcraftHistoryPatchDomains(base);
+  const baseStatePatch = domains?.state ?? base;
+  const effectiveStatePatch = getToolcraftHistoryPatchDomains(effective)?.state ?? effective;
+  const committedStatePatch = getToolcraftHistoryPatchDomains(committed)?.state ?? committed;
+  const effectiveBefore = effectiveStatePatch?.before ?? emptyPatchSide;
+  const effectiveAfter = effectiveStatePatch?.after ?? emptyPatchSide;
+  const committedBefore = committedStatePatch?.before ?? emptyPatchSide;
+  const committedAfter = committedStatePatch?.after ?? emptyPatchSide;
   const source =
     getToolcraftHistoryPatchSource(effective) ??
     getToolcraftHistoryPatchSource(committed);
   const baseSource = getToolcraftHistoryPatchSource(base);
   const before = mergePatchSideTimeline(
-    base.before,
+    baseStatePatch.before,
     effectiveBefore,
     committedBefore,
     beforeState.timeline.currentTimeSeconds,
   );
   const after = mergePatchSideTimeline(
-    base.after,
+    baseStatePatch.after,
     effectiveAfter,
     committedAfter,
     afterState.timeline.currentTimeSeconds,
   );
+
+  if (domains) {
+    return before === domains.state.before && after === domains.state.after
+      ? base
+      : tagToolcraftHistoryPatchDomains(base, {
+          state: { before, after },
+          values: domains.values,
+        });
+  }
 
   return before === base.before && after === base.after && source === baseSource
     ? base

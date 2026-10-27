@@ -257,7 +257,7 @@ export function renderControlLayoutGroups({
       continue;
     }
 
-    if (groupedRenderedControls.length < 2) {
+    if (groupedRenderedControls.length < 2 && !layoutGroup.preserveColumns) {
       nodes.push(renderedGroup.node);
       continue;
     }

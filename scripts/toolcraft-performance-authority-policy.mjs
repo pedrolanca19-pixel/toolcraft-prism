@@ -13,13 +13,6 @@ export const TOOLCRAFT_FULL_PERFORMANCE_VERIFICATION_COMMAND =
 export const TOOLCRAFT_DELIVERY_VERIFICATION_NARRATIVE =
   `One bare \`${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}\` will derive and run the protected proof.`;
 
-const acceptedDeliveryVerification = new Set([
-  TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND,
-  `${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}.`,
-  `\`${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}\``,
-  `\`${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}\`.`,
-  TOOLCRAFT_DELIVERY_VERIFICATION_NARRATIVE,
-]);
 const forbiddenAuthorityFieldPattern =
   /^(?:command|performance command|verification command|run|tier|verification tier|test selectors?|unit test(?: selector)?|browser test(?: selector)?|performance test(?: selector)?)$/iu;
 
@@ -170,16 +163,8 @@ export function getToolcraftDecisionTrailVerificationErrors(iteration) {
     `agent-worklog.md Decision Trail iteration "${iteration.heading}" must include exactly one "Verification:".`,
   );
   if (field.error) return [field.error];
-  if (/\bverify:perf\b/iu.test(field.value)) {
-    return [
-      `agent-worklog.md Decision Trail iteration "${iteration.heading}" cannot use worklog evidence to authorize full performance certification.`,
-    ];
-  }
-  return acceptedDeliveryVerification.has(field.value)
-    ? []
-    : [
-        `agent-worklog.md Decision Trail iteration "${iteration.heading}" Verification must contain exactly one bare \`${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}\` command and no command-shaped authority.`,
-      ];
+  // Human results never select commands or confer execution authority.
+  return field.value ? [] : [`agent-worklog.md Decision Trail iteration "${iteration.heading}" Verification must describe the selected checks and their result.`];
 }
 
 export function validateToolcraftPerformanceAuthorityIteration(iteration) {
@@ -188,11 +173,11 @@ export function validateToolcraftPerformanceAuthorityIteration(iteration) {
     "Request",
     `agent-worklog.md Decision Trail iteration "${iteration.heading}" must include exactly one "Request:" before performance authority can be evaluated.`,
   );
-  const intentField = getSingleField(
-    iteration,
-    "Performance intent",
-    `agent-worklog.md Decision Trail iteration "${iteration.heading}" must include exactly one "Performance intent:".`,
-  );
+  const intentFields = getToolcraftDecisionTrailFieldMatches(iteration, "Performance intent");
+  const intentField = intentFields.length === 0
+    ? { value: "ordinary-product-work" }
+    : getSingleField(iteration, "Performance intent",
+      `agent-worklog.md Decision Trail iteration "${iteration.heading}" must include exactly one "Performance intent:".`);
   const errors = [
     ...(requestField.error ? [requestField.error] : []),
     ...(intentField.error ? [intentField.error] : []),

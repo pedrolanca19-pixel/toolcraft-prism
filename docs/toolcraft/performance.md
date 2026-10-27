@@ -1,6 +1,6 @@
 # Toolcraft Performance Contract
 
-<!-- toolcraft-performance-lifecycle: first-delivery=functional; later-delivery=functional-targeted; complaint=one-authority-targeted-performance-iteration; full-audit=explicit-only -->
+<!-- toolcraft-performance-lifecycle: first-delivery=functional-complete; later-edits=focused-only; complaint=one-authority-targeted-performance-iteration; full-audit=explicit-only -->
 <!-- toolcraft-performance-iteration: authority=exact-request-evidence+canonical-path-ids; fixture=reachable-development; after-pass=return-app-to-user+stop -->
 <!-- toolcraft-performance-full-authority: automatic=forbidden; recommendation=two-compatible-iterations-or-broad-unlocalizable-problem; command=pnpm verify:perf; authority=explicit-user-request-or-accepted-offer -->
 <!-- toolcraft-performance-routing: localized=agent-targeted; ambiguous=one-user-facing-choice; broad=offer-targeted-or-full; full=explicit-only -->
@@ -52,6 +52,8 @@ Declare only the profiles consumed by renderer passes. A schema control can chan
 
 Each explicit workload control maps to exactly one schema-backed dimension. The dimension boundary equals the value the schema or product runtime actually enforces. A scenario or browser test cannot lower that boundary. Interactive boundaries are fully guaranteed.
 
+For controls opting into `editableRange`, workload boundaries derive from `hardMin`/`hardMax`, which must both be finite for workload declarations. The initial and current visible scale never grant a larger workload limit.
+
 Numeric capability is structural. Sliders and range sliders use their effective numeric bounds. Any other control participates as a numeric schema source only when it declares finite `min`, `max`, and numeric `defaultValue`; a partial domain, inverted bounds, or a default outside the bounds is invalid. Control names and kinds do not manufacture numeric limits.
 
 The empty starter uses:
@@ -68,19 +70,31 @@ Custom renderers declare a stable `rendererPipeline.runtimeId`. Every pass decla
 
 `cost` names the dimensions that affect a pass, their relationship, and execution frequency. `lifecycle` says whether resources are uncached, memoized, or retained and whether their scope is a call, interaction, renderer, or source. A constant-cost pass uses an empty dimension list. A workload dimension appears only on passes whose cost changes with that magnitude.
 
-`interactionInvalidation` includes `initial-render` and every exact reachable interaction. Targets that produce the same invalidation path remain together. High-frequency viewport or playback paths declare work they must not invalidate when that work is retained upstream.
+`interactionInvalidation` includes `initial-render` and every exact reachable interaction. Targets that produce the same invalidation path remain together. High-frequency viewport or playback paths declare work they must not invalidate when that work is retained upstream. Use `retainedAccesses` when the measured interaction reads a retained pass without invalidating it; protected evidence then permits only a cache hit. Use `preparationInvalidates` only for passes that repeatable phase preparation advances before settle and the baseline snapshot. It may overlap measured invalidation or retained access, but does not itself authorize measured-action work. Prepared-boundary continuity adds that preparation set to the measured-invalidation and retained-access allowances and requires equality outside those sets.
+
+Normalized performance paths always carry both `preparationInvalidates` and `retainedAccesses`, including explicit empty arrays. The signed codec rejects an omitted field instead of silently upgrading an older shape. An invalidated retained-resource pass may report retirement-only activity: zero cache, execution, allocation, transfer, and mutation deltas; positive bounded disposal; and the exact matching active-resource decrease.
+
+For VGPU, read the canonical
+[`Opt-In VGPU Setup`](renderer-technique.md#opt-in-vgpu-setup). Every VGPU app
+declares its actual presentation and surface work. Only a feedback/storage app
+with asynchronous retained-resource lifecycle semantics declares the physical
+simulate/present profile: retained hits use `retainedAccesses`, repeatable
+pre-baseline work uses `preparationInvalidates`, and authoritative operation and
+retirement generations settle before the baseline. Simpler VGPU apps do not
+invent those passes or counters. Functional fixture proof stays bounded;
+ordinary VGPU edits do not authorize measured performance.
 
 ## 4. Assessment And Benchmarks
 
 Call `assessToolcraftRenderPlan(appSchema, model)` before implementing renderer code. Resolve all structural errors first. A returned benchmark requirement remains visible and pending during ordinary functional development and delivery.
 
-When assessment returns a kernel benchmark requirement, add its `kernelBenchmarkDecisions` entry and executable candidates in `e2e/app-kernel-benchmarks.ts` only inside an exact request-authorized performance iteration or explicit full audit. Then run `pnpm verify:kernel`; its protected Playwright runner owns timing, verifies equal deterministic output at the exact required workload, and writes a source-bound receipt. `app-performance.ts`, the harness, tests, and worklog must not contain authored timing evidence. High-frequency variable-cost `pixel-transform`, `rasterize`, and `composite` passes compare Canvas 2D and WebGL even when the proposed pass already declares GPU execution; WebGPU is added only when selected. Do not add a decision or harness when assessment does not require one.
+When assessment returns a kernel benchmark requirement, add its `kernelBenchmarkDecisions` entry and executable candidates in `e2e/app-kernel-benchmarks.ts` only inside an exact request-authorized performance iteration or explicit full audit. Then run `npm run verify:kernel`; its protected Playwright runner owns timing, verifies equal deterministic output at the exact required workload, and writes a source-bound receipt. `app-performance.ts`, the harness, tests, and worklog must not contain authored timing evidence. High-frequency variable-cost `pixel-transform`, `rasterize`, and `composite` passes compare Canvas 2D and WebGL even when the proposed pass already declares GPU execution; WebGPU is added only when selected. Do not add a decision or harness when assessment does not require one.
 
 Renderer source guards remain mandatory. Typed assessment does not permit resources to be created in React render, source-bound resources to be rebuilt by unrelated state, or scheduled animation work to escape cleanup.
 
 ## 5. Canonical Paths
 
-Call `deriveToolcraftPerformancePaths(appSchema, model)` after the pipeline is declared. Path ids are deterministic products of profile, interaction, invalidated passes, execution locations, and workload dimensions. Target membership is exact scenario coverage but does not churn the id when another equivalent control joins the path.
+Call `deriveToolcraftPerformancePaths(appSchema, model)` after the pipeline is declared. Path ids are deterministic products of profile, interaction, measured invalidated passes, preparation-only invalidated passes, retained accesses, execution locations, and workload dimensions. Target membership is exact scenario coverage but does not churn the id when another equivalent control joins the path.
 
 Declare exactly one scenario for every derived path. Each scenario declares:
 
@@ -94,15 +108,13 @@ Do not use an umbrella viewport scenario when a concrete viewport path exists. E
 
 Scenario interaction is the canonical pipeline interaction from its derived path, such as `control-drag`, `viewport-drag`, `viewport-zoom`, `initial-render`, or `export`. Do not introduce scenario-only aliases or umbrella interaction names.
 
-`src/app/app-verification-impact.json` maps every current product production module to `presentation`, `functional`, or `performance` impact and names its nearest acceptance ids. A performance entry is reserved for a module that can change a named pass's execution, invalidation, workload, resource lifecycle, or measured output, and names only those exact pass ids. The inventory contains no stale or missing module paths; blanket every-module acceptance or pass ownership is invalid. This mapping is the authority for verification scope after first delivery.
-
-Keep frequently edited product defaults and domain behavior in focused product modules whose ownership entries name only their nearest acceptance ids. `app-schema.ts` remains the public assembly boundary, but it should import those domain definitions instead of accumulating every mutable product decision in one file. A change made directly in a blanket schema owner correctly selects every acceptance id owned by that file; module boundaries are therefore part of later-delivery feedback speed, not cosmetic organization.
+Keep frequently edited product defaults and domain behavior in focused product modules so later feature tests can target the edited behavior without loading unrelated product areas. `app-schema.ts` remains the public assembly boundary, but it should import those domain definitions instead of accumulating every mutable product decision in one file. Module boundaries improve development feedback speed; they do not authorize aggregate or measured proof.
 
 Viewport drag and zoom normally stay in transforms or uniforms and must not invalidate expensive passes. A render-scale-enabled raster product may rerasterize on `viewport-zoom` only through an off-main `rasterize` pass with `quality: "retina"`; this is the narrow exception that preserves exact CSS × DPR × selected-scale backing as the visible zoom size changes. Main-thread, non-retina, drag-time, and unrelated expensive invalidations remain invalid.
 
 Each measured interaction phase performs one primary user operation. State-restoring inverse actions belong in a later phase or outside the measurement, never in the same action. Non-animation interaction probes collect at least 20 post-action frames so nearest-rank p95 remains a percentile rather than collapsing to the single maximum frame; animation keeps its dedicated 120-frame sample and export keeps completion-owned timing.
 
-A change isolated to product performance adapters or performance test support selects code-health and any directly affected unit proof for ordinary delivery, but it never infers a measured path. Exact request authority may consume the adapter's performance candidates in one targeted iteration, while explicit `npm run verify:perf` remains the only full-audit route.
+A change isolated to product performance adapters or performance test support runs only its directly affected unit proof during ordinary editing and never infers a measured path. Exact request authority may consume the adapter's performance candidates in one targeted iteration, while explicit `npm run verify:perf` remains the only full-audit route.
 
 ## 6. Fixture Adapters And Plans
 
@@ -138,9 +150,9 @@ Artifact dimensions, decoded quality, video duration, and exact 30 FPS packet ca
 
 ## 8. Demand-Only Performance Lifecycle
 
-During implementation, run targeted unit and functional browser checks for feedback without minting delivery evidence. At the coherent delivery boundary, the protected delivery runner diffs current sources against the immediately previous successful delivery and resolves changed modules through `app-verification-impact.json`. Every functional delivery requires only its ownership-derived functional proof, including changes to performance-owned modules. Performance ownership constrains an exact request-authorized iteration; it does not authorize measurements. A durable full-performance baseline, when one exists, remains historical evidence and is not reused as the functional-delivery diff anchor. Reports remain bound to their executed plan, nonce, and current source hash; product-authored JSON is not evidence.
+During implementation, run targeted unit and functional browser checks for feedback without minting delivery evidence. The protected runner creates complete functional evidence only for first product delivery. After that initial receipt exists, ordinary edits run only directly relevant focused checks; a repeated bare `verify:delivery` exits before inventory, build, tests, export, and performance work. A durable full-performance baseline, when one exists, remains independent historical evidence. Targeted and full performance reports remain bound to their executed plan, nonce, and current source hash; product-authored JSON is not evidence.
 
-First and later functional gates validate every structural envelope, pipeline, path, fixture, and adapter invariant with the runtime-owned deferred coverage policy. They may expose unresolved benchmark requirements but do not require `kernelBenchmarkDecisions`, run `verify:kernel`, or read a kernel receipt. Default strict coverage and authorized performance execution retain those requirements.
+The first functional gate validates every structural envelope, pipeline, path, fixture, and adapter invariant with the runtime-owned deferred coverage policy. It may expose unresolved benchmark requirements but does not require `kernelBenchmarkDecisions`, run `verify:kernel`, or read a kernel receipt. Later focused feature checks validate the structures they edit. Default strict coverage and authorized performance execution retain the full requirements.
 
 Ordinary changes and performance metadata cannot authorize measured performance. Only exact complaint/request authority can create one measured targeted performance iteration. Changed files, tier, ownership, passes, paths, pipeline, boundary, adapter, interaction, output, or subsystem never authorize it. Once authorized, run only the exact `browser perf:` paths named by the request authority; unrelated paths and the full suite remain outside the iteration.
 
@@ -149,9 +161,9 @@ The protected performance-iteration runner requests each path's compiled develop
 The conversational lifecycle is automatic:
 
 1. **First product delivery.** Bare `npm run verify:delivery` proves complete product contracts, performs one production build, and runs full functional acceptance with no measured performance. The receipt preserves any independent full-performance baseline and cannot claim targeted or full performance evidence.
-2. **Later functional-targeted delivery.** The same bare command derives exact ownership-required functional checks from the current inputs and immediately previous successful delivery. It preserves a baseline when present and cannot silently run measured performance or create one.
+2. **Later ordinary edits.** Run only the directly relevant product tests and browser checks. The same bare command is a protected no-op that preserves the initial receipt and any performance checkpoints without reading current inventory or launching aggregate proof.
 3. **Localized or clarified targeted work.** Only a localized complaint or a post-clarification targeted choice records an exact request quote and canonical affected path IDs in the latest Decision Trail. Classifier output establishes complaint authority only and never path localization. Any unresolved localization creates neither performance-iteration intent nor canonical path authority, whether classification returned high-confidence `performance-iteration` or `needs-agent-judgment`. One bare `npm run verify:delivery` then runs one targeted iteration against the reachable development fixture. The protected report stores independently validated `cold`, `warm`, and `sustained` measurements; compatible prior evidence produces diagnostic deltas, while absent or incompatible evidence records a non-comparable result. Current absolute budgets remain the pass/fail authority. Deliver the verified app, then stop and wait for user evaluation. Each later localized request may create one new bounded iteration.
-4. **Full audit.** Only an explicit operator request or accepted offer authorizes `npm run verify:perf`. It performs one fresh production build and the complete maximum-fixture performance matrix, updates only the performance checkpoints, and preserves the delivery anchor.
+4. **Full audit.** Only an explicit operator request or accepted offer authorizes `npm run verify:perf`. It performs one fresh production build and the complete maximum-fixture performance matrix, updates only the full-performance checkpoint, and preserves the initial delivery receipt and targeted-performance history.
 
 Use the runtime request classifier as a guard, not as a substitute for understanding the user. It returns high-confidence `performance-iteration`, high-confidence ordinary product work, or `needs-agent-judgment`. High-confidence ordinary product instructions stay ordinary. Classifier output establishes complaint authority only and never path localization. A localized complaint lets the agent select the affected canonical paths and run one targeted iteration without asking the user. For an ambiguous complaint, ask one user-facing question naming the visible operation and offering targeted diagnosis or a complete performance review; never ask the user to choose internal path IDs, and create neither performance-iteration intent nor canonical path authority before the answer. A broad or honestly unlocalizable problem may lead to that single targeted/full choice with a recommendation for complete performance review, but only the user's choice authorizes it. A direct complete-performance-review request runs `npm run verify:perf` without another clarification. Iteration mode requires `Performance intent: performance-iteration — Request evidence: "<verbatim exact Request quote>"` in the worklog before the command runs. The quote must be a nontrivial exact raw substring of the current Request, including identical whitespace and Unicode code units; invented, whitespace-collapsed, or NFKC-equivalent evidence is invalid.
 
@@ -165,7 +177,7 @@ Canonical classification examples:
 - wording such as “the controls feel sticky” or “something feels off” needs agent judgment from the full request; if localization remains unresolved, ask the one visible-operation targeted/full question and record no iteration or path authority before the answer;
 - classification is clause-local: an independent complaint may establish complaint authority even when another clause negates a different complaint or requests a product speed change, while localization is still resolved separately.
 
-Use bare `npm run verify:delivery` once for the coherent delivery batch. Complaint wording, repetition, filename, diagnostic classification, and touched subsystem never launch the complete matrix automatically. A targeted failure triggers targeted diagnosis, not an automatic full-suite run, and a passing iteration stops after returning the verified app for user evaluation.
+Use bare `npm run verify:delivery` once for first product delivery or one authority-backed targeted performance iteration. Do not use it as a later ordinary edit gate. Complaint wording, repetition, filename, diagnostic classification, and touched subsystem never launch the complete matrix automatically. A targeted failure triggers targeted diagnosis, not an automatic full-suite run, and a passing iteration stops after returning the verified app for user evaluation.
 
 After two consecutive compatible protected performance iterations, the runner emits a recommendation and the agent must offer a slower complete audit if the user remains unsatisfied. A demonstrably broad or unlocalizable cross-system problem may justify offering it earlier through semantic agent judgment; do not reduce that decision to the number of selected paths.
 
@@ -179,7 +191,7 @@ User-facing completion text must distinguish the levels. Functional delivery rep
 
 ## Performance Quality
 
-Preserve selected output quality, preview fidelity, backing resolution, source fidelity, product boundaries, and live interaction behavior. Raster products with Resolution scale declare functional `renderScaleCoverage` using `kind: "selected-backing-pixels"` and exact `interaction`/`steady` states, plus `playback` when timeline is enabled. Their product browser scenario uses `expectToolcraftCanvasRenderScaleEvidence`; `canvas-render-scale-backing` is emitted only after real backing dimensions satisfy the selected scale without changing visible CSS size. Every measured path in a render-scale-enabled raster product must prove actual `CSS size × devicePixelRatio × 2` backing after each measured phase.
+Preserve selected output quality, preview fidelity, backing resolution, source fidelity, product boundaries, and live interaction behavior. Raster products with Resolution scale declare functional `renderScaleCoverage` using `kind: "selected-backing-pixels"` and exact `interaction`/`steady` states, plus `playback` when timeline is enabled. Their product browser scenario uses `expectToolcraftCanvasRenderScaleEvidence`; `canvas-render-scale-backing` is emitted only after real backing dimensions satisfy the selected scale without changing visible CSS size. Every measured path in a render-scale-enabled raster product must prove actual `CSS size × devicePixelRatio × 2` backing after each measured phase. When a path declares a lower preparation scale, the allowance ends at the first committed required-scale observation; a later return to the preparation scale is a transient quality clamp even if the required scale is restored before the phase ends.
 
 A renderer that caps 2x output during interaction, playback, or steady state fails functional acceptance without measured performance. `performance-render-scale` remains limited to an explicitly authorized performance path and follows the same backing-pixel assertion; path metadata alone is not evidence. When a budget fails, inspect assessed pass cost, invalidation, resource lifecycle, scheduling, cancellation, and execution location before changing product scope.
 

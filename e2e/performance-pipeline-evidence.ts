@@ -3,7 +3,6 @@ import {
   deriveToolcraftPerformancePaths,
   isToolcraftRendererPipelineRegistration,
   type ToolcraftPerformanceConfig,
-  type ToolcraftRendererPipelineSnapshot,
 } from "@/toolcraft/runtime";
 
 import {
@@ -20,34 +19,12 @@ import { appSchema } from "../src/app/app-schema";
 import { attachToolcraftBrowserPerformanceEvidence } from "./browser-performance-evidence";
 import { evaluateToolcraftBrowserPerformanceEvidence } from "./browser-performance-report";
 import { createCanonicalZeroPipelineSnapshot } from "./performance-pipeline-invariants";
-
-const pipelineEvidenceSelector =
-  "output[hidden][data-toolcraft-pipeline-evidence]";
-const pipelineSnapshotSymbolKey =
-  "toolcraft.renderer-pipeline-evidence.snapshot";
+import { readToolcraftRendererPipelineSnapshot } from "./browser-pipeline-snapshot";
 
 async function readToolcraftPipelineSnapshot(
   page: Page,
 ): Promise<ReturnType<typeof createToolcraftPerformancePipelineSnapshot>> {
-  const bridges = page.locator(pipelineEvidenceSelector);
-  const bridgeCount = await bridges.count();
-  if (bridgeCount !== 1) {
-    throw new Error(
-      `Toolcraft pipeline evidence requires exactly one hidden runtime bridge; found ${bridgeCount}.`,
-    );
-  }
-
-  const snapshot = await bridges.first().evaluate((bridge, symbolKey) => {
-    const getter = Reflect.get(bridge, Symbol.for(symbolKey)) as unknown;
-    if (typeof getter !== "function") {
-      throw new Error(
-        "Toolcraft pipeline evidence bridge does not expose its protected snapshot getter.",
-      );
-    }
-    return getter() as ToolcraftRendererPipelineSnapshot;
-  }, pipelineSnapshotSymbolKey);
-
-  return createToolcraftPerformancePipelineSnapshot(snapshot);
+  return createToolcraftPerformancePipelineSnapshot(await readToolcraftRendererPipelineSnapshot(page));
 }
 
 async function readDocumentTimeOrigin(page: Page): Promise<number> {
@@ -57,6 +34,21 @@ async function readDocumentTimeOrigin(page: Page): Promise<number> {
 export type ToolcraftPipelineInvariantAction = (
   phase: ToolcraftPerformancePipelinePhase,
 ) => Promise<void>;
+
+export type ToolcraftPipelineInvariantLifecycle = Readonly<{
+  preparePhase?: ToolcraftPipelineInvariantAction;
+  runPhase: ToolcraftPipelineInvariantAction;
+  settlePreparedPhase?: ToolcraftPipelineInvariantAction;
+}>;
+
+async function settlePreparedPipelinePhase(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
 
 export async function expectToolcraftPipelinePassExecutions(
   page: Page,
@@ -69,21 +61,22 @@ export async function expectToolcraftPipelinePassExecutions(
       "Toolcraft pipeline execution expectation must be a non-negative safe integer.",
     );
   }
-  if (!isToolcraftRendererPipelineRegistration(appPerformance.rendererPipeline)) {
+  const rendererPipeline = appPerformance.rendererPipeline;
+  if (!isToolcraftRendererPipelineRegistration(rendererPipeline)) {
     throw new Error(
       "Toolcraft pipeline execution assertion requires the canonical executable renderer pipeline registration.",
     );
   }
-  if (!appPerformance.rendererPipeline.passes.some((pass) => pass.id === passId)) {
+  if (!rendererPipeline.passes.some((pass) => pass.id === passId)) {
     throw new Error(`Unknown canonical Toolcraft renderer pass "${passId}".`);
   }
 
   await expect
     .poll(async () => {
       const snapshot = await readToolcraftPipelineSnapshot(page);
-      if (snapshot.runtimeId !== appPerformance.rendererPipeline.runtimeId) {
+      if (snapshot.runtimeId !== rendererPipeline.runtimeId) {
         throw new Error(
-          `Toolcraft pipeline runtimeId "${snapshot.runtimeId}" does not match executable registration runtimeId "${appPerformance.rendererPipeline.runtimeId}".`,
+          `Toolcraft pipeline runtimeId "${snapshot.runtimeId}" does not match executable registration runtimeId "${rendererPipeline.runtimeId}".`,
         );
       }
       const pass = snapshot.passes.find((candidate) => candidate.passId === passId);
@@ -101,7 +94,7 @@ export async function expectToolcraftPipelineInvariant(
   page: Page,
   appPerformance: ToolcraftPerformanceConfig,
   pathId: string,
-  action: ToolcraftPipelineInvariantAction,
+  lifecycle: ToolcraftPipelineInvariantLifecycle,
 ): Promise<void> {
   if (!isToolcraftRendererPipelineRegistration(appPerformance.rendererPipeline)) {
     throw new Error(
@@ -122,13 +115,19 @@ export async function expectToolcraftPipelineInvariant(
     appPerformance.rendererPipeline,
   );
   for (const phase of TOOLCRAFT_PERFORMANCE_PIPELINE_PHASES) {
+    await lifecycle.preparePhase?.(phase);
+    if (lifecycle.settlePreparedPhase) {
+      await lifecycle.settlePreparedPhase(phase);
+    } else {
+      await settlePreparedPipelinePhase(page);
+    }
     const before = initialRender
       ? canonicalZeroSnapshot
       : await readToolcraftPipelineSnapshot(page);
     const documentTimeOriginBefore = initialRender
       ? await readDocumentTimeOrigin(page)
       : undefined;
-    await action(phase);
+    await lifecycle.runPhase(phase);
     if (
       initialRender &&
       (await readDocumentTimeOrigin(page)) === documentTimeOriginBefore

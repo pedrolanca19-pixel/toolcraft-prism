@@ -6,6 +6,7 @@ import type {
 import { getControlLabelText } from "./controls";
 import {
   schemaHasPngExportPanelAction,
+  schemaHasSvgExportPanelAction,
   schemaHasVideoExportPanelAction,
 } from "./output-export-actions";
 import { normalizeToolcraftSemanticText } from "./semantic";
@@ -19,6 +20,7 @@ export type ToolcraftOutputExportFacts = {
   backgroundSection: ToolcraftControlsSection | undefined;
   finalExportSettingsIndex: number;
   hasImageExportAction: boolean;
+  hasSvgExportAction: boolean;
   hasVideoExportAction: boolean;
   imageExportSection: ToolcraftControlsSection | undefined;
   imageExportSectionIndex: number;
@@ -29,7 +31,6 @@ export type ToolcraftOutputExportFacts = {
   panelActionsSectionIndex: number;
   setupSection: ToolcraftControlsSection | undefined;
   setupSectionIndex: number;
-  timelineEntry: readonly [string, ToolcraftControlSchema] | undefined;
   videoExportSection: ToolcraftControlsSection | undefined;
   videoExportSectionIndex: number;
   videoFormatEntry: readonly [string, ToolcraftControlSchema] | undefined;
@@ -130,7 +131,7 @@ export function buildToolcraftOutputExportFacts({
     schema,
     "Background",
   );
-  const setupSection = getSchemaControlsSectionByTitle(schema, "Setup");
+  const setupSection = schema.panels.controls?.sections.find((section) => section.id === "runtime.setup");
   const imageExportSection = getSchemaControlsSectionByTitle(
     schema,
     "Image Export",
@@ -148,6 +149,7 @@ export function buildToolcraftOutputExportFacts({
     "Video Export",
   );
   const hasImageExportAction = schemaHasPngExportPanelAction(schema);
+  const hasSvgExportAction = schemaHasSvgExportPanelAction(schema);
   const hasVideoExportAction = schemaHasVideoExportPanelAction(schema);
 
   return {
@@ -159,6 +161,7 @@ export function buildToolcraftOutputExportFacts({
         ? imageExportSectionIndex
         : -1,
     hasImageExportAction,
+    hasSvgExportAction,
     hasVideoExportAction,
     imageExportSection,
     imageExportSectionIndex,
@@ -180,11 +183,7 @@ export function buildToolcraftOutputExportFacts({
     ),
     panelActionsSectionIndex: getFirstPanelActionsSectionIndex(schema),
     setupSection,
-    setupSectionIndex: getSchemaControlsSectionIndexByTitle(schema, "Setup"),
-    timelineEntry: getSectionControlEntryByTarget(
-      setupSection,
-      "panels.timeline.extended",
-    ),
+    setupSectionIndex: schema.panels.controls?.sections.findIndex((section) => section.id === "runtime.setup") ?? -1,
     videoExportSection,
     videoExportSectionIndex,
     videoFormatEntry: getSectionControlEntryByTarget(

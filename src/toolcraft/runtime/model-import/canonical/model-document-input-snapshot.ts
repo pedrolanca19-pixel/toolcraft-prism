@@ -96,7 +96,7 @@ function snapshotString(value: unknown): unknown {
 function snapshotStringArray(
   value: unknown,
   path: string,
-  context: SnapshotContext,
+  _context: SnapshotContext,
   options: {
     beforeAllocate?: (length: number) => void;
     maxLength: number;

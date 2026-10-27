@@ -6,7 +6,7 @@ import {
   isToolcraftControlVisible,
   isToolcraftSectionVisible,
 } from "../controls-panel/conditions/control-conditions";
-import { isToolcraftImageFile } from "./media-file";
+import { isToolcraftImageFile } from "../../source-assets/media-file";
 
 export type ToolcraftCanvasDropTargetSelection =
   | { control?: ToolcraftControlSchema; kind: "selected" }
@@ -57,7 +57,7 @@ export function getCanvasDropTarget(
   }
 
   const batch = { files, origin: "canvas" as const };
-  const candidates: CanvasDropCandidate[] = controls.flatMap((control) => {
+  const candidates = controls.flatMap<CanvasDropCandidate>((control) => {
     if (
       control.assetKind === "model" ||
       !doesToolcraftControlAcceptBatch(control, batch)

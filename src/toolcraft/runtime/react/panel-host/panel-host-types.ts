@@ -70,6 +70,7 @@ export type PanelContainerProps = {
   dragMode?: PanelDragMode;
   onPanelStateChange?: PanelStateChange;
   panelClassName?: string;
+  panelStyle?: React.CSSProperties;
   panelState?: ToolcraftPanelState;
   panelType: ToolcraftPanelType;
   placement: PanelPlacement;

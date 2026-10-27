@@ -6,15 +6,13 @@ import {
   registerToolcraftRendererPipeline,
   type ToolcraftRendererPipelinePassContract,
 } from "@/toolcraft/runtime";
-import type {
-  ToolcraftPerformancePipelinePhase,
-} from "../src/app/test-evidence/browser-performance-contract";
+import type { ToolcraftPerformancePipelinePhase } from "../src/app/test-evidence/browser-performance-contract";
 
 import { attachedEvidenceTypes } from "./browser-semantic-evidence-test-helpers";
 import {
   compileToolcraftPerformancePathAdapterMatrix,
-  runToolcraftPerformancePath,
-} from "./performance-path-helpers";
+} from "./performance-path-adapter-matrix";
+import { runToolcraftPerformancePath } from "./performance-path-helpers";
 import {
   TOOLCRAFT_PERFORMANCE_FIXTURE_RESOLUTION_MODE_ENV,
   TOOLCRAFT_PERFORMANCE_REQUEST_AUTHORITY_HASH_ENV,
@@ -48,26 +46,32 @@ test.afterEach(() => {
 });
 
 const renderScaleSchema = defineToolcraft({
-  canvas: { enabled: true, renderScale: true },
-  panels: {
-    controls: {
-      sections: [
-        {
-          controls: {
-            color: {
-              defaultValue: "#ffffff",
-              label: "Color",
-              performanceRole: "responsiveness",
-              target: "appearance.color",
-              type: "color",
+  base: {
+    identity: { id: "contract-fixture", title: "Contract fixture" },
+    canvas: { enabled: true, renderScale: true },
+    panels: {
+      controls: {
+        sections: [
+          {
+            id: "test-section-1",
+            controls: {
+              color: {
+                applicability: { mode: "always" as const },
+                defaultValue: "#ffffff",
+                label: "Color",
+                performanceRole: "responsiveness",
+                target: "appearance.color",
+                type: "color",
+              },
             },
+            title: "Appearance",
           },
-          title: "Appearance",
-        },
-      ],
-      title: "Controls",
+        ],
+        title: "Controls",
+      },
     },
   },
+  modules: [],
 });
 
 type RenderScalePipelinePasses = {
@@ -183,51 +187,53 @@ function compileRunner(
     adapters: [
       {
         action: async ({ page, phase }) => {
-          await page.evaluate(({ scale, selector }) => {
-            const state = Reflect.get(
-              globalThis,
-              "__renderScaleRunnerTestState",
-            ) as {
-              outcome: number;
-              snapshot: {
-                passes: {
-                  composite: {
-                    cacheMisses: number;
-                    durationMax: number;
-                    durationTotal: number;
-                    executions: number;
+          await page.evaluate(
+            ({ scale, selector }) => {
+              const state = Reflect.get(
+                globalThis,
+                "__renderScaleRunnerTestState",
+              ) as {
+                outcome: number;
+                snapshot: {
+                  passes: {
+                    composite: {
+                      cacheMisses: number;
+                      durationMax: number;
+                      durationTotal: number;
+                      executions: number;
+                    };
                   };
                 };
               };
-            };
-            state.outcome += 1;
-            const pass = state.snapshot.passes.composite;
-            pass.cacheMisses += 1;
-            pass.durationMax = 1;
-            pass.durationTotal += 1;
-            pass.executions += 1;
-            const canvas = document.querySelector(selector);
-            if (!(canvas instanceof HTMLCanvasElement)) {
-              throw new Error("Render-scale runner fixture lost its canvas.");
-            }
-            const rect = canvas.getBoundingClientRect();
-            canvas.width = Math.round(
-              rect.width * window.devicePixelRatio * scale,
-            );
-            canvas.height = Math.round(
-              rect.height * window.devicePixelRatio * scale,
-            );
-          }, { scale: backingScaleByPhase[phase], selector: canvasSelector });
+              state.outcome += 1;
+              const pass = state.snapshot.passes.composite;
+              pass.cacheMisses += 1;
+              pass.durationMax = 1;
+              pass.durationTotal += 1;
+              pass.executions += 1;
+              const canvas = document.querySelector(selector);
+              if (!(canvas instanceof HTMLCanvasElement)) {
+                throw new Error("Render-scale runner fixture lost its canvas.");
+              }
+              const rect = canvas.getBoundingClientRect();
+              canvas.width = Math.round(
+                rect.width * window.devicePixelRatio * scale,
+              );
+              canvas.height = Math.round(
+                rect.height * window.devicePixelRatio * scale,
+              );
+            },
+            { scale: backingScaleByPhase[phase], selector: canvasSelector },
+          );
           await afterAction?.(page);
         },
         observeOutcome: ({ page }) =>
           page.evaluate(
             () =>
               (
-                Reflect.get(
-                  globalThis,
-                  "__renderScaleRunnerTestState",
-                ) as { outcome: number }
+                Reflect.get(globalThis, "__renderScaleRunnerTestState") as {
+                  outcome: number;
+                }
               ).outcome,
           ),
         pathId: renderScalePath!.id,
@@ -257,7 +263,9 @@ test("runner preserves an undefined phase rejection when guard disposal fails", 
             key.startsWith("__toolcraftCanvasQualityObserver"),
           );
           if (!stateKey) {
-            throw new Error("Quality guard fixture could not find observer state.");
+            throw new Error(
+              "Quality guard fixture could not find observer state.",
+            );
           }
           const state = Reflect.get(globalThis, stateKey) as {
             flush: () => Promise<void>;

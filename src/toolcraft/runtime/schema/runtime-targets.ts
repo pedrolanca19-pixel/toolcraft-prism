@@ -1,10 +1,14 @@
 export const toolcraftTimelinePanelVisibleTarget = "panels.timeline.visible";
 export const toolcraftTimelinePanelExtendedTarget = "panels.timeline.extended";
 export const toolcraftCanvasInfinityTarget = "canvas.infinity";
+export const toolcraftCanvasRotationLockedTarget = "canvas.rotationLocked";
+export const toolcraftCanvasWorkspaceBackgroundTarget = "canvas.workspaceBackground";
 
 export const toolcraftRuntimeOwnedTargets = [
   "canvas.aspectRatio",
   toolcraftCanvasInfinityTarget,
+  toolcraftCanvasRotationLockedTarget,
+  toolcraftCanvasWorkspaceBackgroundTarget,
   "canvas.renderScale",
   "canvas.size.width",
   "canvas.size.height",

@@ -50,7 +50,7 @@ export function SwitchControl({
   return (
     <Field className="h-fit justify-start py-1" orientation="horizontal" style={{ gap: 8 }}>
       <Switch
-        aria-label={showLabel ? undefined : name}
+        aria-label={name}
         checked={currentChecked}
         disabled={disabled}
         onCheckedChange={updateChecked}

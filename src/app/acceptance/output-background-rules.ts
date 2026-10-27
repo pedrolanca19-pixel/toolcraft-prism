@@ -103,7 +103,7 @@ export function getToolcraftOutputBackgroundErrors({
 
   if (!schemaHasOutputBackgroundToggleControl(controls)) {
     errors.push(
-      'Product apps with artifact export must expose export.includeBackground in runtime Setup as a Switch labeled "Background". Runtime artifact export owns image alpha and preserves the background for opaque image formats and video; bounded live preview must use shouldIncludeToolcraftPreviewBackground(state).',
+      'Product apps with artifact export must expose export.includeBackground in runtime Setup as a Switch labeled "Background". Runtime owns evaluated bounded/Infinity preview background and artifact export owns image alpha while preserving the background for opaque image formats and video.',
     );
   }
 
@@ -162,13 +162,6 @@ export function getToolcraftOutputBackgroundErrors({
     errors.push(
       "Runtime Setup must place Background color directly below the Background/Infinity row and before Aspect ratio.",
     );
-  }
-
-  if (
-    facts.timelineEntry &&
-    setupControlOrder.at(-1) !== facts.timelineEntry[0]
-  ) {
-    errors.push("Runtime Setup must place Timeline as its final control.");
   }
 
   return errors;

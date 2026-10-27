@@ -64,6 +64,7 @@ export type ControlsPanelControlGroupProps = {
   headerKeyframeTarget: string | null;
   hideControlLabel: boolean;
   keyframesSupported: boolean;
+  plainColorFullWidth: boolean;
   runAction: ActionControlRunAction;
   sectionHasOnlyColorFields: boolean;
   sectionTitle: string | undefined;
@@ -138,6 +139,7 @@ function controlGroupPropsEqual(
     previous.headerKeyframeTarget === next.headerKeyframeTarget &&
     previous.hideControlLabel === next.hideControlLabel &&
     previous.keyframesSupported === next.keyframesSupported &&
+    previous.plainColorFullWidth === next.plainColorFullWidth &&
     previous.runAction === next.runAction &&
     previous.sectionHasOnlyColorFields === next.sectionHasOnlyColorFields &&
     previous.sectionTitle === next.sectionTitle &&
@@ -181,7 +183,12 @@ function getControlGroupDependencies({
     getToolcraftControlRendererStateDependencies(control.type).includes(
       "value",
     ) || keyframeTargets.includes(control.target)
-      ? [control.target]
+      ? [
+          control.target,
+          ...(control.type === "collectionActions" && control.selectionTarget
+            ? [control.selectionTarget]
+            : []),
+        ]
       : [],
   );
   const rendererDependencies = entries.flatMap(([, control]) =>
@@ -249,6 +256,7 @@ export const ControlsPanelControlGroup = React.memo(
     headerKeyframeTarget,
     hideControlLabel,
     keyframesSupported,
+    plainColorFullWidth,
     runAction,
     sectionHasOnlyColorFields,
     sectionTitle,
@@ -311,10 +319,15 @@ export const ControlsPanelControlGroup = React.memo(
                 : null,
             selectedKeyframeId: getSelectedKeyframeId(state, keyframeTargetSet),
             valuesByTarget: Object.fromEntries(
-              entries.map(([, control]) => [
-                control.target,
-                getToolcraftTargetValue(state, control.target) ??
-                  control.defaultValue,
+              entries.flatMap(([, control]) => [
+                [
+                  control.target,
+                  getToolcraftTargetValue(state, control.target) ??
+                    control.defaultValue,
+                ],
+                ...(control.type === "collectionActions" && control.selectionTarget
+                  ? [[control.selectionTarget, state.values[control.selectionTarget]]]
+                  : []),
               ]),
             ),
             visible: entries.every(([, control]) =>
@@ -376,7 +389,8 @@ export const ControlsPanelControlGroup = React.memo(
       return null;
     }
 
-    const [id, rawControl] = entry;
+    const [id, declaredControl] = entry;
+    const rawControl = declaredControl;
     const disabled = selection.disabledById[id] === true;
     const resolvedControl =
       disabled === Boolean(rawControl.disabled)
@@ -421,13 +435,19 @@ export const ControlsPanelControlGroup = React.memo(
       case "collection":
         node = renderCollectionControl({
           control,
+          dispatchCommand,
           name,
+          selectedIndex:
+            control.type === "collectionActions" && control.selectionTarget
+              ? (selection.valuesByTarget[control.selectionTarget] as number | null)
+              : null,
           setControlValue,
           value,
         });
         break;
       case "compound":
         node = renderCompoundControl({
+          plainColorFullWidth,
           commit,
           commitWithLabel,
           control,
@@ -456,7 +476,6 @@ export const ControlsPanelControlGroup = React.memo(
         break;
       case "settings":
         node = renderSettingsTransferControl({
-          dispatch,
           getState: store.getState,
           id,
         });

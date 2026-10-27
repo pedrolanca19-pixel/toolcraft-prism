@@ -20,7 +20,7 @@ import type {
 import {
   checkedThreeStaticGeometryTotal,
   threeStaticGeometryFailure,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 
 export type ThreeStaticAppearanceTextureSource =
   ToolcraftModelAppearanceImageResource & Readonly<{

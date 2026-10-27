@@ -1,44 +1,82 @@
 import { describe, expect, it } from "vitest";
+import { spatialViewModule } from "@/toolcraft/runtime";
+import { exportRequestFixture } from "./app-acceptance.export-request-test-fixtures";
 
 import { getToolcraftOrientationGizmoErrors } from "./acceptance/orientation-gizmo";
-import type { ToolcraftComponentAcceptance } from "./acceptance/types";
-import { defineContractSchemaFixture, validateContractAcceptance } from "./app-acceptance.contract-fixtures";
+import type {
+  ToolcraftComponentAcceptance,
+  ToolcraftProductReadiness,
+} from "./acceptance/types";
+import {
+  defineContractSchemaFixture,
+  validateContractAcceptance,
+} from "./app-acceptance.contract-fixtures";
 
 const defaultPose = {
   position: [0, 0, 5],
   up: [0, 1, 0],
 } as const;
 
+const orientationProductReadiness: ToolcraftProductReadiness = {
+  exportIntent: {
+    image: {
+      evidence: exportRequestFixture(
+        "Remove image export for this orientation fixture.",
+      ),
+      mode: "user-removed",
+    },
+    svg: { mode: "not-requested" },
+    video: { mode: "not-requested" },
+  },
+  interactionOwnership: [],
+  mode: "product",
+  productName: "Orientation fixture",
+  productSummary: "A spatial fixture for the runtime orientation gizmo.",
+  requestedBehavior: "Orbit the visible model with one shared pose.",
+  viewInteraction: {
+    mode: "orbit",
+    orientationTargets: ["view.orbit"],
+  },
+};
+
 function createOrientationSchema() {
   return defineContractSchemaFixture({
-    canvas: { enabled: true },
-    panels: {
-      controls: {
-        sections: [
-          {
-            controls: {
-              material: {
-                defaultValue: 0.5,
-                label: "Metalness",
-                max: 1,
-                min: 0,
-                target: "model.metalness",
-                type: "slider",
+    base: {
+      identity: { id: "contract-fixture", title: "Contract fixture" },
+      canvas: { enabled: true },
+      panels: {
+        controls: {
+          sections: [
+            {
+              id: "test-section-1",
+              controls: {
+                material: {
+                  applicability: { mode: "always" as const },
+                  defaultValue: 0.5,
+                  label: "Metalness",
+                  max: 1,
+                  min: 0,
+                  target: "model.metalness",
+                  type: "slider",
+                },
+                orientation: {
+                  applicability: { mode: "always" as const },
+                  defaultValue: defaultPose,
+                  keyframeable: false,
+                  label: false,
+                  target: "view.orbit",
+                  type: "orientationGizmo",
+                },
               },
-              orientation: {
-                defaultValue: defaultPose,
-                keyframeable: false,
-                label: false,
-                target: "view.orbit",
-                type: "orientationGizmo",
-              },
+              title: "Model",
             },
-            title: "Model",
-          },
-        ],
-        title: "Controls",
+          ],
+          title: "Controls",
+        },
       },
+      persistence: { storage: "none" },
     },
+    modules: [spatialViewModule()],
   });
 }
 
@@ -46,11 +84,13 @@ const orientationAcceptance: ToolcraftComponentAcceptance = {
   automated: true,
   automatedTestName:
     "orientation pose changes rendered model and undo resets it",
-  browser: true,
-  browserTestName:
-    "browser: orientation gizmo and direct model orbit share canvas ownership",
+  browser: {
+    budget: "standard",
+    file: "e2e/app-controls.spec.ts",
+    testName:
+      "browser: orientation gizmo and direct model orbit share canvas ownership",
+  },
   canvasHandle: {
-    exportCleanTestName: "export excludes orientation gizmo",
     outputObservable: "The visible model follows the shared orbit pose.",
     testId: "toolcraft-orientation-gizmo",
     writesTarget: "view.orbit",
@@ -74,6 +114,7 @@ describe("Toolcraft orientation gizmo acceptance", () => {
     expect(getToolcraftOrientationGizmoErrors(schema)).toEqual([]);
     const errors = validateContractAcceptance({
       acceptance: [orientationAcceptance],
+      productReadiness: orientationProductReadiness,
       schema,
     });
 
@@ -86,45 +127,58 @@ describe("Toolcraft orientation gizmo acceptance", () => {
 
   it("accepts multiple gizmos when visibility conditions prove one active model", () => {
     const schema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                activeModel: {
-                  defaultValue: "first",
-                  label: "Model",
-                  options: [
-                    { label: "First", value: "first" },
-                    { label: "Second", value: "second" },
-                  ],
-                  target: "model.active",
-                  type: "select",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "test-section-2",
+                controls: {
+                  activeModel: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: "first",
+                    label: "Model",
+                    options: [
+                      { label: "First", value: "first" },
+                      { label: "Second", value: "second" },
+                    ],
+                    target: "model.active",
+                    type: "select",
+                  },
+                  firstOrientation: {
+                    defaultValue: defaultPose,
+                    keyframeable: false,
+                    label: false,
+                    target: "first.orbit",
+                    type: "orientationGizmo",
+                    applicability: {
+                      all: [{ equals: "first", target: "model.active" }],
+                      mode: "conditional" as const,
+                    },
+                  },
+                  secondOrientation: {
+                    defaultValue: defaultPose,
+                    keyframeable: false,
+                    label: false,
+                    target: "second.orbit",
+                    type: "orientationGizmo",
+                    applicability: {
+                      all: [{ equals: "second", target: "model.active" }],
+                      mode: "conditional" as const,
+                    },
+                  },
                 },
-                firstOrientation: {
-                  defaultValue: defaultPose,
-                  keyframeable: false,
-                  label: false,
-                  target: "first.orbit",
-                  type: "orientationGizmo",
-                  visibleWhen: { equals: "first", target: "model.active" },
-                },
-                secondOrientation: {
-                  defaultValue: defaultPose,
-                  keyframeable: false,
-                  label: false,
-                  target: "second.orbit",
-                  type: "orientationGizmo",
-                  visibleWhen: { equals: "second", target: "model.active" },
-                },
+                title: "Model",
               },
-              title: "Model",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [spatialViewModule()],
     });
 
     expect(getToolcraftOrientationGizmoErrors(schema)).toEqual([]);
@@ -132,41 +186,54 @@ describe("Toolcraft orientation gizmo acceptance", () => {
 
   it("rejects multiple gizmos whose visibility is not provably exclusive", () => {
     const schema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                activeModel: {
-                  defaultValue: "first",
-                  label: "Model",
-                  target: "model.active",
-                  type: "text",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "test-section-3",
+                controls: {
+                  activeModel: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: "first",
+                    label: "Model",
+                    target: "model.active",
+                    type: "text",
+                  },
+                  firstOrientation: {
+                    defaultValue: defaultPose,
+                    keyframeable: false,
+                    label: false,
+                    target: "first.orbit",
+                    type: "orientationGizmo",
+                    applicability: {
+                      all: [{ notEquals: "hidden", target: "model.active" }],
+                      mode: "conditional" as const,
+                    },
+                  },
+                  secondOrientation: {
+                    defaultValue: defaultPose,
+                    keyframeable: false,
+                    label: false,
+                    target: "second.orbit",
+                    type: "orientationGizmo",
+                    applicability: {
+                      all: [{ equals: "second", target: "model.active" }],
+                      mode: "conditional" as const,
+                    },
+                  },
                 },
-                firstOrientation: {
-                  defaultValue: defaultPose,
-                  keyframeable: false,
-                  label: false,
-                  target: "first.orbit",
-                  type: "orientationGizmo",
-                  visibleWhen: { notEquals: "hidden", target: "model.active" },
-                },
-                secondOrientation: {
-                  defaultValue: defaultPose,
-                  keyframeable: false,
-                  label: false,
-                  target: "second.orbit",
-                  type: "orientationGizmo",
-                  visibleWhen: { equals: "second", target: "model.active" },
-                },
+                title: "Model",
               },
-              title: "Model",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [spatialViewModule()],
     });
 
     expect(getToolcraftOrientationGizmoErrors(schema)).toEqual(
@@ -190,6 +257,7 @@ describe("Toolcraft orientation gizmo acceptance", () => {
           target: "view.orbit",
         },
       ],
+      productReadiness: orientationProductReadiness,
       schema,
     });
 
@@ -198,54 +266,66 @@ describe("Toolcraft orientation gizmo acceptance", () => {
         expect.stringContaining(
           'must use acceptance kind "canvas-handle", not a panel-control proof',
         ),
-        expect.stringContaining("must declare orientationGizmoCoverage for"),
+        expect.stringContaining(
+          'spatial.view orbit target "view.orbit" requires orientationGizmo acceptance proof',
+        ),
       ]),
     );
   });
 
   it("rejects malformed and competing gizmos plus vectors named as 3D orbit controls", () => {
     const schema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                orientation: {
-                  defaultValue: {
-                    position: [0, 0, 0],
-                    up: [0, 0, 0],
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "test-section-4",
+                controls: {
+                  orientation: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: {
+                      position: [0, 0, 0],
+                      up: [0, 0, 0],
+                    },
+                    keyframeable: true,
+                    label: "Orientation",
+                    target: "view.orbit",
+                    type: "orientationGizmo",
                   },
-                  keyframeable: true,
-                  label: "Orientation",
-                  target: "view.orbit",
-                  type: "orientationGizmo",
                 },
+                title: "View",
               },
-              title: "View",
-            },
-            {
-              controls: {
-                cameraOrbit: {
-                  defaultValue: { x: 0, y: 0 },
-                  label: "Camera orbit",
-                  target: "camera.orbit",
-                  type: "vector",
+              {
+                id: "test-section-5",
+                controls: {
+                  cameraOrbit: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: { x: 0, y: 0 },
+                    label: "Camera orbit",
+                    target: "camera.orbit",
+                    type: "vector",
+                  },
+                  secondOrientation: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: defaultPose,
+                    keyframeable: false,
+                    label: false,
+                    target: "secondary.orbit",
+                    type: "orientationGizmo",
+                  },
                 },
-                secondOrientation: {
-                  defaultValue: defaultPose,
-                  keyframeable: false,
-                  label: false,
-                  target: "secondary.orbit",
-                  type: "orientationGizmo",
-                },
+                title: "Secondary model",
               },
-              title: "Secondary model",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [spatialViewModule()],
     });
     const errors = getToolcraftOrientationGizmoErrors(schema);
 

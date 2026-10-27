@@ -1,14 +1,8 @@
 'use client';
 
 import * as React from 'react';
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react';
-import { PanelSurface } from '@/toolcraft/ui';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { PanelHoverSurface } from '@/toolcraft/ui/components/panel/internal-panel-hover';
 import { motion } from 'motion/react';
 
 import type {
@@ -397,7 +391,7 @@ export function TimelinePanel({
       style={timelinePanelLayoutStyle}
       transition={timelinePanelTransition}
     >
-      <PanelSurface
+      <PanelHoverSurface
         className={cn(
           'group/timeline-panel-surface relative flex h-full w-full flex-col rounded-t-lg rounded-b-lg',
           isExpanded ? 'overflow-hidden' : 'overflow-visible p-1',
@@ -475,7 +469,7 @@ export function TimelinePanel({
             stripRef={scrubber.stripRef}
           />
         ) : null}
-      </PanelSurface>
+      </PanelHoverSurface>
     </motion.div>
   );
 

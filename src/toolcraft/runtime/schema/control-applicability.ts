@@ -6,17 +6,17 @@ import type {
 export type ToolcraftControlApplicabilityNormalizationSchema =
   | Readonly<{
       mode: "always";
-      origin?: "explicit" | "implicit" | "legacy";
+      origin?: "explicit";
     }>
   | Readonly<{
       all: readonly ToolcraftControlPredicateSchema[];
       mode: "conditional";
-      origin?: "explicit" | "implicit" | "legacy";
+      origin?: "explicit";
     }>;
 
 export type ToolcraftControlApplicabilityNormalizationInput = Readonly<{
-  applicability?: ToolcraftControlApplicabilityNormalizationSchema;
-  visibleWhen?: ToolcraftControlPredicateSchema;
+  applicability: ToolcraftControlApplicabilityNormalizationSchema;
+  visibleWhen?: never;
 }>;
 
 const numericOperatorNames = [
@@ -33,10 +33,7 @@ const valueOperatorNames = [
   "notOneOf",
 ] as const;
 
-function hasOwn(
-  value: object,
-  key: PropertyKey,
-): boolean {
+function hasOwn(value: object, key: PropertyKey): boolean {
   return Object.prototype.hasOwnProperty.call(value, key);
 }
 
@@ -141,37 +138,27 @@ function clonePredicate(
 export function resolveToolcraftControlApplicability(
   input: ToolcraftControlApplicabilityNormalizationInput,
 ): ToolcraftResolvedControlApplicabilitySchema {
-  if (input.applicability && input.visibleWhen) {
+  if (Object.prototype.hasOwnProperty.call(input, "visibleWhen")) {
     throw new Error(
-      "Toolcraft controls cannot declare both applicability and visibleWhen.",
+      "Toolcraft control-level visibleWhen is not supported; declare explicit applicability.",
     );
   }
-
-  if (input.visibleWhen) {
-    assertPredicate(input.visibleWhen, 0);
-    return {
-      all: [clonePredicate(input.visibleWhen)],
-      mode: "conditional",
-      origin: "legacy",
-    };
-  }
-
   const applicability = input.applicability;
 
   if (!applicability) {
-    return { mode: "always", origin: "implicit" };
+    throw new Error("Toolcraft controls require explicit applicability.");
   }
 
   if (applicability.mode === "always") {
-    const origin = applicability.origin ?? "explicit";
-
-    if (origin !== "explicit" && origin !== "implicit") {
+    if (
+      applicability.origin !== undefined &&
+      applicability.origin !== "explicit"
+    ) {
       throw new Error(
-        `Toolcraft control applicability has invalid resolved applicability origin "${origin}" for mode "always".`,
+        `Toolcraft control applicability has invalid resolved applicability origin "${String(applicability.origin)}" for mode "always".`,
       );
     }
-
-    return { mode: "always", origin };
+    return { mode: "always", origin: "explicit" };
   }
 
   if (!Array.isArray(applicability.all) || applicability.all.length === 0) {
@@ -180,11 +167,12 @@ export function resolveToolcraftControlApplicability(
     );
   }
 
-  const origin = applicability.origin ?? "explicit";
-
-  if (origin !== "explicit" && origin !== "legacy") {
+  if (
+    applicability.origin !== undefined &&
+    applicability.origin !== "explicit"
+  ) {
     throw new Error(
-      `Toolcraft control applicability has invalid resolved applicability origin "${origin}" for mode "conditional".`,
+      `Toolcraft control applicability has invalid resolved applicability origin "${String(applicability.origin)}" for mode "conditional".`,
     );
   }
 
@@ -193,7 +181,7 @@ export function resolveToolcraftControlApplicability(
     return clonePredicate(predicate);
   });
 
-  return { all, mode: "conditional", origin };
+  return { all, mode: "conditional", origin: "explicit" };
 }
 
 export function doesToolcraftPredicateMatchValue(
@@ -232,10 +220,7 @@ export function doesToolcraftPredicateMatchValue(
       (left: number, right: number) => left >= right,
     ],
     [predicate.lessThan, (left: number, right: number) => left < right],
-    [
-      predicate.lessThanOrEqual,
-      (left: number, right: number) => left <= right,
-    ],
+    [predicate.lessThanOrEqual, (left: number, right: number) => left <= right],
   ] as const) {
     if (typeof expected === "number" && Number.isFinite(expected)) {
       matches.push(numberValue !== null && compare(numberValue, expected));
@@ -252,10 +237,7 @@ export function doesToolcraftApplicabilityMatch(
   return (
     applicability.mode === "always" ||
     applicability.all.every((predicate) =>
-      doesToolcraftPredicateMatchValue(
-        predicate,
-        readTarget(predicate.target),
-      ),
+      doesToolcraftPredicateMatchValue(predicate, readTarget(predicate.target)),
     )
   );
 }
@@ -393,9 +375,7 @@ export function areToolcraftPredicatesProvablyExclusive(
   const leftValues = getFinitePredicateValues(left);
   if (
     leftValues &&
-    leftValues.every(
-      (value) => !doesToolcraftPredicateMatchValue(right, value),
-    )
+    leftValues.every((value) => !doesToolcraftPredicateMatchValue(right, value))
   ) {
     return true;
   }
@@ -403,9 +383,7 @@ export function areToolcraftPredicatesProvablyExclusive(
   const rightValues = getFinitePredicateValues(right);
   if (
     rightValues &&
-    rightValues.every(
-      (value) => !doesToolcraftPredicateMatchValue(left, value),
-    )
+    rightValues.every((value) => !doesToolcraftPredicateMatchValue(left, value))
   ) {
     return true;
   }
@@ -415,9 +393,9 @@ export function areToolcraftPredicatesProvablyExclusive(
 
   return Boolean(
     leftInterval &&
-      rightInterval &&
-      (intervalEndsBefore(leftInterval.upper, rightInterval.lower) ||
-        intervalEndsBefore(rightInterval.upper, leftInterval.lower)),
+    rightInterval &&
+    (intervalEndsBefore(leftInterval.upper, rightInterval.lower) ||
+      intervalEndsBefore(rightInterval.upper, leftInterval.lower)),
   );
 }
 

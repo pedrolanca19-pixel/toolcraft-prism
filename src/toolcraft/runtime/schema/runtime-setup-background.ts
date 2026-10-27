@@ -1,11 +1,11 @@
 import type {
-  ResolvedToolcraftAppSchema,
   ToolcraftControlSchema,
   ToolcraftControlSectionSchema,
 } from "./types";
+import type { ToolcraftReadonly } from "../state/readonly-state";
+import type { ResolvedToolcraftAppSchema } from "./resolved-app-schema";
 
-export const toolcraftOutputBackgroundToggleTarget =
-  "export.includeBackground";
+export const toolcraftOutputBackgroundToggleTarget = "export.includeBackground";
 const outputBackgroundTargetPattern = /\b(background|backdrop|scene|canvas)\b/i;
 
 export type ToolcraftRuntimeSetupBackgroundControls = Readonly<{
@@ -13,25 +13,35 @@ export type ToolcraftRuntimeSetupBackgroundControls = Readonly<{
   include: ToolcraftControlSchema;
 }>;
 
-type BackgroundSource = Readonly<{
+type BackgroundSource<Control> = Readonly<{
   colorControlId: string;
-  controls: ToolcraftRuntimeSetupBackgroundControls;
+  controls: Readonly<{ color: Control; include: Control }>;
   includeControlId: string;
   sectionIndex: number;
 }>;
 
 function getControlSearchText(
   controlId: string,
-  control: ToolcraftControlSchema,
+  control: ToolcraftReadonly<ToolcraftControlSchema>,
 ): string {
-  return [controlId, control.target, typeof control.label === "string" ? control.label : ""]
+  return [
+    controlId,
+    control.target,
+    typeof control.label === "string" ? control.label : "",
+  ]
     .join(" ")
     .replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
-function findBackgroundSource(
-  sections: readonly ToolcraftControlSectionSchema[],
-): BackgroundSource | undefined {
+function findBackgroundSource<
+  Control extends ToolcraftReadonly<ToolcraftControlSchema>,
+>(
+  sections: readonly Readonly<{
+    controls: Readonly<Record<string, Control>>;
+    id?: string;
+    title?: string;
+  }>[],
+): BackgroundSource<Control> | undefined {
   const candidateIndexes = sections
     .map((section, sectionIndex) => ({ section, sectionIndex }))
     .filter(
@@ -60,10 +70,9 @@ function findBackgroundSource(
     }
 
     const [includeControlId, include] = includeEntry;
-    const [colorControlId, color] = colorEntries[0] as [
-      string,
-      ToolcraftControlSchema,
-    ];
+    const colorEntry = colorEntries[0];
+    if (!colorEntry) continue;
+    const [colorControlId, color] = colorEntry;
 
     return {
       colorControlId,
@@ -77,8 +86,8 @@ function findBackgroundSource(
 }
 
 export function getToolcraftRuntimeSetupBackgroundControls(
-  schema: ResolvedToolcraftAppSchema,
-): ToolcraftRuntimeSetupBackgroundControls | undefined {
+  schema: ToolcraftReadonly<ResolvedToolcraftAppSchema>,
+): ToolcraftReadonly<ToolcraftRuntimeSetupBackgroundControls> | undefined {
   const setupSection = schema.panels.controls?.sections.find(
     (section) => section.id === "runtime.setup",
   );

@@ -1,5 +1,6 @@
 import { splitControlsPanelActionSections } from "./controls-panel-actions";
 import { createNormalizedControlsRecord } from "./control-schema-normalization";
+import { assertToolcraftCollectionControlTargets } from "./collection-actions";
 import { normalizeMixedSectionLayout } from "./controls-panel-section-layout";
 import {
   assertUniqueToolcraftControlSectionIds,
@@ -36,6 +37,7 @@ function normalizeControlSection(
 export function normalizeControlsPanelLayout(
   controls: ToolcraftControlsPanelSchema,
 ): ResolvedToolcraftControlsPanelSchema {
+  assertToolcraftCollectionControlTargets(controls);
   const normalizedSections = controls.sections.map(normalizeControlSection);
   assertUniqueToolcraftControlSectionIds(normalizedSections);
   const { bodySections, stickyFooterSections } = splitControlsPanelActionSections(

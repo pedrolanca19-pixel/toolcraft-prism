@@ -132,6 +132,15 @@ test("does not keep a hand-maintained current orchestration inventory", async ()
   assert.doesNotMatch(source, /currentDeliveryOrchestrationModules/u);
 });
 
+test("delivery architecture builds module shape without product boundary evidence", async () => {
+  const source = await fs.readFile(
+    path.join(starterRoot, "scripts/toolcraft-delivery-architecture-policy.mjs"),
+    "utf8",
+  );
+
+  assert.match(source, /sourceRecordMode: "module-shape"/u);
+});
+
 test("finds a cycle hidden in nested reachable production modules", async () => {
   await withDeliveryArchitectureFixture(
     {

@@ -65,14 +65,24 @@ export function decodeToolcraftPerformancePathId(pathId) {
     const signature = JSON.parse(
       decodeURIComponent(pathId.slice("performance-path:".length)),
     );
-    if (!Array.isArray(signature) || signature.length !== 5) return undefined;
-    const [profile, interaction, invalidates, runsOn, workloadDimensions] =
+    if (!Array.isArray(signature) || signature.length !== 7) return undefined;
+    const [
+      profile,
+      interaction,
+      invalidates,
+      preparationInvalidates,
+      retainedAccesses,
+      runsOn,
+      workloadDimensions,
+    ] =
       signature;
     if (
       !profileNames.has(profile) ||
       !isTrimmedString(interaction) ||
       interactionProfiles[interaction] !== profile ||
       !isCanonicalStringArray(invalidates) ||
+      !isCanonicalStringArray(preparationInvalidates) ||
+      !isCanonicalStringArray(retainedAccesses) ||
       !isCanonicalStringArray(runsOn, runLocations) ||
       !isCanonicalStringArray(workloadDimensions) ||
       `performance-path:${encodeURIComponent(JSON.stringify(signature))}` !==
@@ -83,7 +93,9 @@ export function decodeToolcraftPerformancePathId(pathId) {
     return Object.freeze({
       interaction,
       invalidates: Object.freeze([...invalidates]),
+      preparationInvalidates: Object.freeze([...preparationInvalidates]),
       profile,
+      retainedAccesses: Object.freeze([...retainedAccesses]),
       runsOn: Object.freeze([...runsOn]),
       workloadDimensions: Object.freeze([...workloadDimensions]),
     });
@@ -97,6 +109,8 @@ export function createToolcraftPerformancePathId(path) {
     path.profile,
     path.interaction,
     path.invalidates,
+    path.preparationInvalidates,
+    path.retainedAccesses,
     path.runsOn,
     path.workloadDimensions,
   ];

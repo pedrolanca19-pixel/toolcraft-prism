@@ -1,5 +1,6 @@
 "use client";
 
+import { sanitizeInteractionHostProps } from "../../primitives/sanitize-composed-host-props";
 import * as React from "react";
 import {
   KeyboardSensor,
@@ -161,7 +162,6 @@ function FileDropControlBase<
     if (!selectedItemKey) {
       return;
     }
-
     if (!requiresItemSelection || !itemKeys.includes(selectedItemKey)) {
       setSelectedItemKey(null);
     }
@@ -169,26 +169,21 @@ function FileDropControlBase<
 
   function handleFiles(fileList: FileList | readonly File[] | undefined): void {
     const files = Array.from(fileList ?? []);
-
     if (files.length === 0) {
       return;
     }
-
     if (!usesLegacyPresentation) {
       onFilesSelect?.(files);
       return;
     }
-
     if (presentation.allowsFileBatch) {
       if (onFilesSelect) {
         onFilesSelect(files);
         return;
       }
-
       files.forEach((file) => onFileSelect?.(file));
       return;
     }
-
     onFileSelect?.(files[0]);
   }
 
@@ -203,38 +198,31 @@ function FileDropControlBase<
   function handleItemDragEnd(event: DragEndEvent): void {
     const activeKey = String(event.active.id);
     const overKey = event.over ? String(event.over.id) : null;
-
     if (!hasReorderHandler || !overKey || activeKey === overKey) {
       return;
     }
-
     const orderedPresentationItems = reorderFileDropPresentationItems(
       presentation.items,
       itemEntries,
       activeKey,
       overKey,
     );
-
     if (!orderedPresentationItems) {
       return;
     }
-
     if (usesLegacyPresentation) {
       const orderedPreviews = orderedPresentationItems.flatMap(
         (item, index) => {
           const key = getPresentationItemKey(item, index);
           const legacyPreview = legacyPreviewByKey.get(key);
-
           return legacyPreview ? [legacyPreview] : [];
         },
       );
-
       if (orderedPreviews.length === legacy.previews.length) {
         onPreviewReorder?.(orderedPreviews);
       }
       return;
     }
-
     onItemsReorder?.(
       orderedPresentationItems as FileDropPresentationItem<AssetKind>[],
     );
@@ -248,18 +236,15 @@ function FileDropControlBase<
       const legacyPreview = legacyPreviewByKey.get(
         getPresentationItemKey(item, index),
       );
-
       if (legacyPreview) {
         onPreviewRemove?.(legacyPreview, index);
       }
       return;
     }
-
     if (onItemRemove) {
       onItemRemove(item as FileDropPresentationItem<AssetKind>, index);
       return;
     }
-
     if (renderableItems.length === 1) {
       onClear?.();
     }
@@ -267,43 +252,29 @@ function FileDropControlBase<
 
   function handleSingleItemRemove(): void {
     const entry = itemEntries[0];
-
-    if (usesLegacyPresentation) {
-      onClear?.();
-      return;
-    }
-
-    if (entry && onItemRemove) {
+    if (!usesLegacyPresentation && entry && onItemRemove) {
       onItemRemove(
         entry.item as FileDropPresentationItem<AssetKind>,
         entry.sourceIndex,
       );
       return;
     }
-
     onClear?.();
-  }
-
-  function runLegacyImageTransform(
-    operation: FileDropImageTransformOperation,
-  ): void {
-    if (!selectedItemEntry) {
-      return;
-    }
-
-    const legacyPreview = legacyPreviewByKey.get(selectedItemEntry.key);
-
-    if (legacyPreview) {
-      onPreviewTransform?.(legacyPreview, operation);
-    }
   }
 
   function handleSecondaryAction(value: string): void {
     if (shouldRenderLegacyImageActions) {
-      runLegacyImageTransform(value as FileDropImageTransformOperation);
+      const legacyPreview = selectedItemEntry
+        ? legacyPreviewByKey.get(selectedItemEntry.key)
+        : undefined;
+      if (legacyPreview) {
+        onPreviewTransform?.(
+          legacyPreview,
+          value as FileDropImageTransformOperation,
+        );
+      }
       return;
     }
-
     onAction?.(value);
   }
 
@@ -313,10 +284,15 @@ function FileDropControlBase<
         actions={collectionActions}
         canRemoveAttachedItem={canRemoveCollectionItem}
         entries={itemEntries}
-        onFilesSelect={onFilesSelect}
         onRemoveAttachedItem={handleCollectionItemRemove}
         presentation={presentation}
-        SlotControl={FileDropControlBase}
+        renderSlotControl={(slotPresentation) => (
+          <FileDropControlBase
+            collectionSlot
+            onFilesSelect={(files) => onFilesSelect?.(files.slice(0, 1))}
+            presentation={slotPresentation}
+          />
+        )}
       />
     );
   }
@@ -327,6 +303,8 @@ function FileDropControlBase<
         accept={getFileInputAccept(presentation.accept)}
         aria-label={presentation.emptyTitle}
         className="hidden"
+        data-slot="file-upload-input"
+        hidden
         onChange={(event) => {
           handleFiles(event.currentTarget.files ?? undefined);
           event.currentTarget.value = "";
@@ -360,8 +338,9 @@ function FileDropControlBase<
             : "p-0",
         )}
         data-drag-over={dragOver}
+        {...sanitizeInteractionHostProps(dropTargetHandlers)}
+        data-slot="file-upload-drop-target"
         role="group"
-        {...dropTargetHandlers}
       >
         {!hasContent ? (
           <FileDropEmptyState
@@ -475,6 +454,8 @@ export function FileDropControl<
   AssetKind extends string = FileDropAssetKind,
   Feedback = unknown,
   Status = unknown,
->(props: FileDropControlProps<AssetKind, Feedback, Status>): React.JSX.Element {
+>(
+  props: FileDropControlProps<AssetKind, Feedback, Status>,
+): React.JSX.Element {
   return <FileDropControlBase {...props} />;
 }

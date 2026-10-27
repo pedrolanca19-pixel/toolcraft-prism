@@ -1,7 +1,9 @@
 "use client";
 
 export * from "./animated-loader";
+export { Anchor } from "./anchor";
 export { Button, buttonVariants } from "./button";
+export { CanvasDotPattern } from "./canvas-dot-pattern";
 export {
   ButtonGroup,
   ButtonGroupSeparator,
@@ -81,3 +83,4 @@ export {
 } from "./tooltip";
 export { Toggle, toggleVariants } from "./toggle";
 export { ToggleGroup, ToggleGroupItem } from "./toggle-group";
+export { getOverflowTitle, useOverflowTitle } from "./use-overflow-title";

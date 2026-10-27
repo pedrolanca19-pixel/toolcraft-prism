@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   hasValidToolcraftIntegrityManifestSignature,
+  isToolcraftStarterPreflightManifest,
 } from "./toolcraft-integrity-manifest.mjs";
 
 export const toolcraftFrameworkOwnedSourceRoots = Object.freeze([
@@ -20,10 +21,15 @@ export const toolcraftFrameworkOwnedRootFiles = Object.freeze([
   "index.html",
   "playwright.config.ts",
   "src/main.tsx",
+  "src/app-bootstrap.tsx",
+  "src/desktop-access.ts",
+  "src/desktop-access.css",
   "src/router.tsx",
   "src/routes/index.tsx",
   "src/routes/root.tsx",
   "src/styles.css",
+  "toolcraft/renderer-providers/vgpu/tests/public-entry.typecheck.ts",
+  "toolcraft/renderer-providers/vgpu/tsconfig.json",
   "tsconfig.json",
   "vite.config.ts",
 ]);
@@ -36,8 +42,8 @@ export const toolcraftProductOwnedGeneratedPaths = Object.freeze([
   "e2e/app-performance-path-adapters.ts",
   "src/app/app-acceptance-data.ts",
   "src/app/app-composition.tsx",
+  "src/app/app-defaults.json",
   "src/app/app-performance.ts",
-  "src/app/app-verification-impact.json",
   "src/app/app-schema.test.ts",
   "src/app/app-schema.ts",
 ]);
@@ -144,7 +150,8 @@ export async function collectToolcraftFrameworkOwnedLocalPaths(rootDir) {
     ) {
       return [];
     }
-    return Object.keys(manifest.protectedFiles ?? {}).sort(compareCodeUnits);
+    if (!isToolcraftStarterPreflightManifest(manifest))
+      return Object.keys(manifest.protectedFiles ?? {}).sort(compareCodeUnits);
   } catch (error) {
     if (error instanceof SyntaxError) return [];
     if (error?.code !== "ENOENT") throw error;

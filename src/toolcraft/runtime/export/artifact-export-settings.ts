@@ -1,4 +1,4 @@
-import type { ToolcraftState } from "../state/types";
+import type { ReadonlyToolcraftState } from "../state/readonly-state";
 import { ToolcraftArtifactExportError } from "./export-error";
 
 export const toolcraftImageExportFormatTarget = "export.image.format";
@@ -7,6 +7,7 @@ export const toolcraftVideoExportFormatTarget = "export.video.format";
 export const toolcraftVideoExportResolutionTarget = "export.video.resolution";
 
 export type ToolcraftImageExportFormat = "jpg" | "png";
+export type ToolcraftStillExportFormat = ToolcraftImageExportFormat | "svg";
 export type ToolcraftImageExportPresetResolution = "2k" | "4k" | "8k";
 export type ToolcraftVideoExportFormat = "mp4" | "webm";
 export type ToolcraftVideoExportPresetResolution = "4k" | "current";
@@ -22,7 +23,7 @@ export type ToolcraftResolvedVideoExportSettings = Readonly<{
 }>;
 
 function getSettingValue(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   target: string,
   fallback: string,
 ): unknown {
@@ -37,15 +38,22 @@ function invalidSetting(target: string): never {
   });
 }
 
-function resolveImageFormat(state: ToolcraftState): ToolcraftImageExportFormat {
+export function readToolcraftImageExportFormat(
+  state: ReadonlyToolcraftState,
+): ToolcraftImageExportFormat | null {
   const value = getSettingValue(state, toolcraftImageExportFormatTarget, "png");
-  return value === "jpg" || value === "png"
-    ? value
-    : invalidSetting(toolcraftImageExportFormatTarget);
+  return value === "jpg" || value === "png" ? value : null;
+}
+
+export function readToolcraftStillExportFormat(
+  state: ReadonlyToolcraftState,
+): ToolcraftStillExportFormat | null {
+  const value = getSettingValue(state, toolcraftImageExportFormatTarget, "png");
+  return value === "svg" || value === "png" || value === "jpg" ? value : null;
 }
 
 function resolveImageResolution(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): ToolcraftImageExportPresetResolution {
   const value = getSettingValue(
     state,
@@ -57,15 +65,15 @@ function resolveImageResolution(
     : invalidSetting(toolcraftImageExportResolutionTarget);
 }
 
-function resolveVideoFormat(state: ToolcraftState): ToolcraftVideoExportFormat {
+export function readToolcraftVideoExportFormat(
+  state: ReadonlyToolcraftState,
+): ToolcraftVideoExportFormat | null {
   const value = getSettingValue(state, toolcraftVideoExportFormatTarget, "mp4");
-  return value === "mp4" || value === "webm"
-    ? value
-    : invalidSetting(toolcraftVideoExportFormatTarget);
+  return value === "mp4" || value === "webm" ? value : null;
 }
 
 function resolveVideoResolution(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): ToolcraftVideoExportPresetResolution {
   const value = getSettingValue(
     state,
@@ -78,19 +86,23 @@ function resolveVideoResolution(
 }
 
 export function resolveToolcraftImageExportSettings(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): ToolcraftResolvedImageExportSettings {
   return Object.freeze({
-    format: resolveImageFormat(state),
+    format:
+      readToolcraftImageExportFormat(state) ??
+      invalidSetting(toolcraftImageExportFormatTarget),
     resolution: resolveImageResolution(state),
   });
 }
 
 export function resolveToolcraftVideoExportSettings(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): ToolcraftResolvedVideoExportSettings {
   return Object.freeze({
-    format: resolveVideoFormat(state),
+    format:
+      readToolcraftVideoExportFormat(state) ??
+      invalidSetting(toolcraftVideoExportFormatTarget),
     resolution: resolveVideoResolution(state),
   });
 }

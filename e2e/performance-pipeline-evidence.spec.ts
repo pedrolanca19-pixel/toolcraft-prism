@@ -6,21 +6,23 @@ import {
 } from "../src/app/test-evidence/browser-performance-contract";
 import {
   activePipelineAttachments,
-  activePipelinePath,
   cachedActivitySnapshot,
   cachedPipelineAttachments,
-  cachedPipelinePath,
   evaluatePipelineEvidence,
   noCacheActivitySnapshot,
   pipelineEvidence,
   pipelineEvidenceAttachment,
   pipelineSnapshot,
   stableCachedPipelineAttachments,
-  stableCachedPipelinePath,
   unchangedPipelineAttachments,
-  unchangedPipelinePath,
   zeroPipelinePassCounters,
 } from "./performance-pipeline-evidence-test-fixtures";
+import {
+  activePipelinePath,
+  cachedPipelinePath,
+  stableCachedPipelinePath,
+  unchangedPipelinePath,
+} from "./performance-pipeline-evidence-test-contract";
 
 test("forged passed cannot authorize pipeline evidence", () => {
   const forged = {

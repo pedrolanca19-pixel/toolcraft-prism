@@ -87,9 +87,7 @@ type InspectedPresentationRoot = Readonly<{
 }>;
 
 function throwIfAborted(signal: AbortSignal): void {
-  if (signal.aborted) {
-    throw new DOMException("Model rendering was aborted.", "AbortError");
-  }
+  signal.throwIfAborted();
 }
 
 function createDefaultRenderer(): ToolcraftThreeRenderer {
@@ -369,11 +367,16 @@ export function createToolcraftThreeModelRenderAdapter(
         throwIfAborted(context.signal);
         return resource;
       } catch (error) {
-        lease?.release();
-        if (retainedPrewarmModel) {
-          disposeToolcraftCanonicalThreeModel(retainedPrewarmModel);
+        // Attempt every owned cleanup without replacing the acquisition failure.
+        for (const cleanup of [
+          () => lease?.release(),
+          () => {
+            if (retainedPrewarmModel) disposeToolcraftCanonicalThreeModel(retainedPrewarmModel);
+          },
+          () => disposeRenderer(renderer),
+        ]) {
+          try { cleanup(); } catch { /* The acquisition error remains primary. */ }
         }
-        disposeRenderer(renderer);
         throw error;
       }
     },
@@ -459,10 +462,13 @@ export function createToolcraftThreeModelRenderAdapter(
       }
     },
     renderExport: async (resource, context) => {
+      context.signal.throwIfAborted();
       if (resource.disposed) return;
       configureRenderer(resource, context.width, context.height, context.pixelRatio);
       resource.renderer.render(resource.scene, resource.camera);
+      context.signal.throwIfAborted();
       await context.onRendered?.(resource.renderer.domElement);
+      context.signal.throwIfAborted();
     },
     renderPreview: (resource, context) => {
       if (resource.disposed) return;

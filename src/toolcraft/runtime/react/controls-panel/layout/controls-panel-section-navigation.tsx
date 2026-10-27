@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { PanelSurface, ScrollFade } from "@/toolcraft/ui";
+import { ScrollFade } from "@/toolcraft/ui";
+import { PanelHoverSurface } from "@/toolcraft/ui/components/panel/internal-panel-hover";
 
 import {
   controlsPanelLeftPaddingPx,
@@ -388,7 +389,7 @@ export function ControlsPanelSectionNavigation({
         transform: "translateY(-50%)",
       }}
     >
-      <PanelSurface
+      <PanelHoverSurface
         aria-hidden={navigationOpen ? undefined : true}
         className={`${navigationOpen ? "pointer-events-auto" : "pointer-events-none"} max-w-[240px] overflow-hidden rounded-lg py-2 duration-[120ms] ease-out data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-right-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:slide-in-from-right-[2px] motion-reduce:animate-none`}
         data-state={navigationOpen ? "open" : "closed"}
@@ -426,7 +427,7 @@ export function ControlsPanelSectionNavigation({
                 return (
                   <button
                     aria-current={current ? "location" : undefined}
-                    className="relative w-full whitespace-nowrap px-0 py-0.5 text-left text-[13px] leading-4 text-[color:color-mix(in_oklab,var(--foreground)_50%,transparent)] outline-none transition-colors hover:text-[color:color-mix(in_oklab,var(--foreground)_80%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--popover)] data-[current=true]:text-[color:var(--foreground)] data-[current=true]:hover:text-[color:var(--foreground)]"
+                    className="relative min-w-0 w-full whitespace-nowrap px-0 py-0.5 text-left text-[13px] leading-4 text-[color:color-mix(in_oklab,var(--foreground)_50%,transparent)] outline-none transition-colors hover:text-[color:color-mix(in_oklab,var(--foreground)_80%,transparent)] focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--popover)] data-[current=true]:text-[color:var(--foreground)] data-[current=true]:hover:text-[color:var(--foreground)]"
                     data-current={current ? "true" : undefined}
                     key={item.id}
                     onClick={() => navigateToSection(item.id)}
@@ -443,16 +444,28 @@ export function ControlsPanelSectionNavigation({
                         navigationButtonRefs.current.delete(item.id);
                       }
                     }}
+                    title={item.title}
                     type="button"
                   >
-                    {item.title}
+                    <ScrollFade
+                      className="min-w-0 overflow-x-hidden overflow-y-hidden"
+                      containerClassName="min-w-0 max-w-full"
+                      preset="compact"
+                      scrollBoundaryBehavior="chain"
+                      side="right"
+                      watch={[item.title]}
+                    >
+                      <span className="block min-w-max whitespace-nowrap">
+                        {item.title}
+                      </span>
+                    </ScrollFade>
                   </button>
                 );
               })}
             </div>
           </nav>
         </ScrollFade>
-      </PanelSurface>
+      </PanelHoverSurface>
     </div>
   );
 }

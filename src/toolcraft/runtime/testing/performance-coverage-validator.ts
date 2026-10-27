@@ -1,4 +1,4 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import type { ToolcraftPerformanceConfig } from "./performance-types";
 import { createToolcraftEnvelopeValidationContext } from "./performance-envelope-validation-context";
 import { getToolcraftPerformanceFixtureAdapterErrors } from "./performance-fixture-adapters";
@@ -22,10 +22,12 @@ export {
 export function validateToolcraftPerformanceCoverage(
   schema: ResolvedToolcraftAppSchema,
   config: ToolcraftPerformanceConfig,
-  policy: ToolcraftPerformanceCoverageValidationPolicy =
-    TOOLCRAFT_STRICT_PERFORMANCE_COVERAGE_POLICY,
+  policy: ToolcraftPerformanceCoverageValidationPolicy = TOOLCRAFT_STRICT_PERFORMANCE_COVERAGE_POLICY,
 ): string[] {
-  const initialContext = createToolcraftEnvelopeValidationContext(schema, config);
+  const initialContext = createToolcraftEnvelopeValidationContext(
+    schema,
+    config,
+  );
   const workloadEnvelopeErrors =
     getToolcraftWorkloadEnvelopeErrorsForContext(initialContext);
   const context = {
@@ -34,7 +36,7 @@ export function validateToolcraftPerformanceCoverage(
   };
   return [
     ...workloadEnvelopeErrors,
-    ...getRendererTechniqueErrors(config),
+    ...getRendererTechniqueErrors(context),
     ...getRendererPipelineErrorsForEnvelopeContext(context, policy),
     ...getToolcraftPerformanceProfileErrors(context.paths),
     ...getToolcraftPerformancePathCoverageErrors(context),

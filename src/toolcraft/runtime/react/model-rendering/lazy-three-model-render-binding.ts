@@ -19,8 +19,12 @@ export function createToolcraftLazyThreeModelRenderBinding(
   loadBinding: ToolcraftThreeModelBindingLoader = loadProductionBinding,
 ): ToolcraftModelRenderBinding<LazyThreeResource> {
   let bindingPromise: Promise<ToolcraftModelRenderBinding<unknown>> | undefined;
+  let loadedBinding: ToolcraftModelRenderBinding<unknown> | undefined;
   const resolveBinding = () => {
-    bindingPromise ??= loadBinding();
+    bindingPromise ??= loadBinding().then((binding) => {
+      loadedBinding = binding;
+      return binding;
+    });
     return bindingPromise;
   };
 
@@ -32,7 +36,17 @@ export function createToolcraftLazyThreeModelRenderBinding(
     },
     dispose: ({ binding, resource }) => binding.dispose(resource),
     disposePreparedPreview: () => {
-      void bindingPromise?.then((binding) => binding.disposePreparedPreview?.());
+      // Host teardown waits for active create/preparation work, so its final
+      // cleanup reaches the settled binding synchronously and can report errors.
+      if (loadedBinding) {
+        loadedBinding.disposePreparedPreview?.();
+        return;
+      }
+      void bindingPromise?.then(
+        (binding) => binding.disposePreparedPreview?.(),
+        // Failed startup created no binding; its original caller owns the error.
+        () => undefined,
+      );
     },
     hitTest: ({ binding, resource }, point) => binding.hitTest(resource, point),
     preparePreview: async (context) => {

@@ -29,7 +29,7 @@ const scriptsDir = path.dirname(fileURLToPath(import.meta.url));
 export const projectDir = path.dirname(scriptsDir);
 export const runnerPath = path.join(scriptsDir, "run-browser-performance.mjs");
 export const fixturePerformancePathId =
-  "performance-path:%5B%22interactive-discrete%22%2C%22control-change%22%2C%5B%22composite%22%5D%2C%5B%22main%22%5D%2C%5B%5D%5D";
+  "performance-path:%5B%22interactive-discrete%22%2C%22control-change%22%2C%5B%22composite%22%5D%2C%5B%5D%2C%5B%5D%2C%5B%22main%22%5D%2C%5B%5D%5D";
 export const fixtureFunctionalTestName = "browser: focused acceptance";
 export const fixturePerformanceTestName =
   `browser perf: toolcraft path ${fixturePerformancePathId}`;
@@ -39,7 +39,7 @@ const fixtureDeliveryCatalog = Object.freeze({
     contractHash:
       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     domainId: "persistence",
-    file: "app-controls.spec.ts",
+    file: "e2e/app-controls.spec.ts",
     testName: fixtureFunctionalTestName,
   }],
   performance: [{
@@ -120,19 +120,6 @@ export function createVerificationFixture(prefix) {
   );
   writeFileSync(path.join(rootDir, "src", "app", "app.test.ts"),
     "export const appTest = true;\n");
-  writeFileSync(
-    path.join(rootDir, "src", "app", "app-verification-impact.json"),
-    `${JSON.stringify({
-      owners: [
-        {
-          acceptanceIds: ["persistence.reload"],
-          kind: "functional",
-          path: "src/app.ts",
-        },
-      ],
-      version: 3,
-    })}\n`,
-  );
   writeFileSync(
     path.join(rootDir, "src", "toolcraft", ".toolcraft-manifest.json"),
     '{"protectedFiles":{}}\n',
@@ -241,25 +228,26 @@ export function createProtectedRunnerFixture(
   deliveryCatalog = fixtureDeliveryCatalog,
 ) {
   const rootDir = createVerificationFixture("protected-runner");
-  writeFileSync(
-    path.join(rootDir, "src", "app", "app-verification-impact.json"),
-    `${JSON.stringify({
-      owners: [
-        {
-          acceptanceIds: ["persistence.reload"],
-          kind: "performance",
-          passIds: ["composite"],
-          path: "src/app.ts",
-        },
-      ],
-      version: 3,
-    })}\n`,
-  );
   const fixtureScriptsDir = path.join(rootDir, "scripts");
   const binDir = path.join(rootDir, "node_modules", ".bin");
   mkdirSync(fixtureScriptsDir, { recursive: true });
   mkdirSync(binDir, { recursive: true });
   copyLocalModuleClosure(fixtureScriptsDir, ["run-browser-performance.mjs"]);
+  const browserProofPolicyPath = path.join(
+    rootDir,
+    "src/app/acceptance/browser-proof-policy.mjs",
+  );
+  mkdirSync(path.dirname(browserProofPolicyPath), { recursive: true });
+  writeFileSync(
+    browserProofPolicyPath,
+    readFileSync(
+      path.join(
+        projectDir,
+        "src/app/acceptance/browser-proof-policy.mjs",
+      ),
+      "utf8",
+    ),
+  );
   writeFileSync(
     path.join(fixtureScriptsDir, "check-toolcraft-integrity.mjs"),
     "process.exitCode = 0;\n",

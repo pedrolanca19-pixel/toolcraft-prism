@@ -27,7 +27,7 @@ import {
   decodeToolcraftPerformanceEnvironment,
   type ToolcraftPerformanceEnvironmentEvidence,
 } from "./performance-environment-evidence";
-import { getToolcraftPerformancePathTestName } from "./performance-path-helpers";
+import { getToolcraftPerformancePathTestName } from "./performance-path-adapter-matrix";
 
 export type ToolcraftCheckpointReportTarget = Readonly<{
   nonce: string;

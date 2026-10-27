@@ -1,7 +1,25 @@
-import { expect, type Page } from "@playwright/test";
+import { expectToolcraftInfinityArtifactFrameParity, type ToolcraftInfinityExportEvidenceOptions } from "./browser-infinity-artifact-parity";
+import { expect } from "@playwright/test";
 
 import { attachToolcraftBrowserRuntimeEvidence } from "./browser-runtime-evidence";
+import {
+  expectFiniteCanvasObservation,
+  expectInfiniteCanvasObservation,
+  expectMeasurableInfinityCanvasRect,
+  type InfinityCanvasBackgroundObservation,
+  type InfinityCanvasObservation,
+} from "./browser-infinity-canvas-observation";
 
+export {
+  expectFiniteCanvasObservation,
+  expectInfiniteCanvasObservation,
+  observeInfinityCanvas,
+  observeInfinityCanvasBackground,
+} from "./browser-infinity-canvas-observation";
+export type {
+  InfinityCanvasBackgroundObservation,
+  InfinityCanvasObservation,
+} from "./browser-infinity-canvas-observation";
 export {
   createToolcraftUnavailableImageResourceFixture,
   expectToolcraftInfinityCanvasUnavailableImageExportEvidence,
@@ -11,224 +29,17 @@ export type {
   ToolcraftUnavailableImageResourceObservation,
 } from "./browser-infinity-canvas-unavailable-image-evidence";
 
-export type InfinityCanvasObservation = Readonly<{
-  artboardPresent: boolean;
-  canvasMode: string | null;
-  finiteCanvasSize: { height: number; width: number } | null;
-  finiteControlSize: { height: number; width: number } | null;
-  finiteControlsPresent: boolean;
-  overflow: string;
-  productSceneStatus: "empty" | "ready" | "unavailable" | null;
-  sceneRect: { height: number; width: number; x: number; y: number } | null;
-  viewportOffset: { x: number; y: number };
+export type InfinityCanvasTransitionContinuity = Readonly<{
+  productHostPreserved: boolean;
+  productOutputPreserved: boolean;
 }>;
 
-export type InfinityCanvasBackgroundObservation = Readonly<{
-  backgroundEnabled: boolean | null;
-  canvasMode: string | null;
-  infinityDisabled: boolean | null;
-  runtimeBackgroundColor: string | null;
-  viewportBackgroundColor: string | null;
-  viewportMatchesRuntimeColor: boolean;
+type InfinityCanvasContinuityTransitions = Readonly<{
+  afterReloadToRestored: InfinityCanvasTransitionContinuity;
+  beforeToEnabled: InfinityCanvasTransitionContinuity;
+  restoredToUndone: InfinityCanvasTransitionContinuity;
+  undoneToRedone: InfinityCanvasTransitionContinuity;
 }>;
-
-export async function observeInfinityCanvasBackground(
-  page: Page,
-): Promise<InfinityCanvasBackgroundObservation> {
-  return page.evaluate(() => {
-    const readSwitch = (
-      target: string,
-    ): Readonly<{ checked: boolean | null; disabled: boolean | null }> => {
-      const field = document.querySelector<HTMLElement>(
-        `[data-toolcraft-control-target="${target}"]`,
-      );
-      const switchElement = field?.querySelector<HTMLElement>('[role="switch"]');
-      const checked = switchElement?.getAttribute("aria-checked");
-
-      return {
-        checked:
-          checked === "true" ? true : checked === "false" ? false : null,
-        disabled: switchElement
-          ? switchElement.matches(":disabled") ||
-            switchElement.getAttribute("aria-disabled") === "true"
-          : null,
-      };
-    };
-    const background = readSwitch("export.includeBackground");
-    const infinity = readSwitch("canvas.infinity");
-    const surface = document.querySelector<HTMLElement>(
-      "[data-toolcraft-canvas-mode]",
-    );
-    const viewport = document.querySelector<HTMLElement>(
-      '[data-slot="toolcraft-runtime-canvas"]',
-    );
-    const runtimeBackgroundColor =
-      viewport?.dataset.toolcraftInfiniteBackgroundColor ?? null;
-    const viewportBackgroundColor = viewport
-      ? getComputedStyle(viewport).backgroundColor
-      : null;
-    let normalizedRuntimeColor: string | null = null;
-
-    if (runtimeBackgroundColor) {
-      const probe = document.createElement("span");
-      probe.style.backgroundColor = runtimeBackgroundColor;
-      document.body.append(probe);
-      normalizedRuntimeColor = getComputedStyle(probe).backgroundColor;
-      probe.remove();
-    }
-
-    return {
-      backgroundEnabled: background.checked,
-      canvasMode: surface?.dataset.toolcraftCanvasMode ?? null,
-      infinityDisabled: infinity.disabled,
-      runtimeBackgroundColor,
-      viewportBackgroundColor,
-      viewportMatchesRuntimeColor:
-        normalizedRuntimeColor !== null &&
-        normalizedRuntimeColor === viewportBackgroundColor,
-    };
-  });
-}
-
-export async function observeInfinityCanvas(
-  page: Page,
-): Promise<InfinityCanvasObservation> {
-  return page.evaluate(() => {
-    const surface = document.querySelector<HTMLElement>(
-      "[data-toolcraft-canvas-mode]",
-    );
-    const world = document.querySelector<HTMLElement>(
-      "[data-toolcraft-canvas-world]",
-    );
-    const productScene = document.querySelector<HTMLElement>(
-      "[data-toolcraft-product-scene]",
-    );
-    const finiteControlsPresent = [
-      "canvas.aspectRatio",
-      "canvas.size.width",
-      "canvas.size.height",
-    ].every((target) =>
-      document.querySelector(
-        `[data-toolcraft-control-target="${target}"]`,
-      ),
-    );
-    const readPositiveDimension = (
-      value: string | null | undefined,
-    ): number | null => {
-      const parsed = Number.parseFloat(value ?? "");
-      return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-    };
-    const editableCanvas = document.querySelector<HTMLElement>(
-      "[data-toolcraft-editable-canvas]",
-    );
-    const canvasWidth = readPositiveDimension(editableCanvas?.style.width);
-    const canvasHeight = readPositiveDimension(editableCanvas?.style.height);
-    const readControlDimension = (target: string): number | null =>
-      readPositiveDimension(
-        document
-          .querySelector<HTMLElement>(
-            `[data-toolcraft-control-target="${target}"]`,
-          )
-          ?.querySelector<HTMLInputElement>("input")
-          ?.value,
-      );
-    const controlWidth = readControlDimension("canvas.size.width");
-    const controlHeight = readControlDimension("canvas.size.height");
-    const read = (value: string | undefined): number | null => {
-      const parsed = Number.parseFloat(value ?? "");
-      return Number.isFinite(parsed) ? parsed : null;
-    };
-    const style = productScene?.style;
-    const sceneValues = style
-      ? {
-          height: read(style.height),
-          width: read(style.width),
-          x: read(style.left),
-          y: read(style.top),
-        }
-      : null;
-    const sceneRect =
-      sceneValues && Object.values(sceneValues).every((value) => value !== null)
-        ? {
-            height: sceneValues.height!,
-            width: sceneValues.width!,
-            x: sceneValues.x!,
-            y: sceneValues.y!,
-          }
-        : null;
-    const productSceneStatus =
-      productScene?.dataset.toolcraftProductSceneStatus;
-
-    return {
-      artboardPresent: Boolean(editableCanvas),
-      canvasMode: surface?.getAttribute("data-toolcraft-canvas-mode") ?? null,
-      finiteCanvasSize:
-        canvasWidth === null || canvasHeight === null
-          ? null
-          : { height: canvasHeight, width: canvasWidth },
-      finiteControlSize:
-        controlWidth === null || controlHeight === null
-          ? null
-          : { height: controlHeight, width: controlWidth },
-      finiteControlsPresent,
-      overflow: surface ? getComputedStyle(surface).overflow : "missing",
-      productSceneStatus:
-        productSceneStatus === "ready" ||
-        productSceneStatus === "empty" ||
-        productSceneStatus === "unavailable"
-          ? productSceneStatus
-          : null,
-      sceneRect,
-      viewportOffset: {
-        x: Number(world?.dataset.toolcraftCanvasOffsetX ?? 0),
-        y: Number(world?.dataset.toolcraftCanvasOffsetY ?? 0),
-      },
-    };
-  });
-}
-
-export function expectInfiniteCanvasObservation(
-  observation: InfinityCanvasObservation,
-  expectedSceneRect?: InfinityCanvasObservation["sceneRect"],
-): void {
-  expect(observation.canvasMode).toBe("infinite");
-  expect(observation.artboardPresent).toBe(false);
-  expect(observation.finiteCanvasSize).toEqual(null);
-  expect(observation.finiteControlSize).toEqual(null);
-  expect(observation.finiteControlsPresent).toBe(false);
-  expect(observation.overflow).toBe("visible");
-  if (expectedSceneRect) {
-    expect(observation.productSceneStatus).toBe("ready");
-    expect(observation.sceneRect).toEqual(expectedSceneRect);
-  }
-  expect(Number.isFinite(observation.viewportOffset.x)).toBe(true);
-  expect(Number.isFinite(observation.viewportOffset.y)).toBe(true);
-}
-
-export function expectFiniteCanvasObservation(
-  observation: InfinityCanvasObservation,
-  expectedSize?: Readonly<{ height: number; width: number }>,
-): void {
-  expect(observation.canvasMode).toBe("finite");
-  expect(observation.artboardPresent).toBe(true);
-  expect(observation.finiteControlsPresent).toBe(true);
-  expect(observation.overflow).toBe("hidden");
-  const resolvedExpectedSize = expectedSize ?? observation.finiteCanvasSize;
-  expect(
-    resolvedExpectedSize,
-    "Finite canvas proof requires observable positive canvas dimensions or explicit expected dimensions.",
-  ).not.toEqual(null);
-  expect(
-    resolvedExpectedSize !== null &&
-      Number.isFinite(resolvedExpectedSize.width) &&
-      resolvedExpectedSize.width > 0 &&
-      Number.isFinite(resolvedExpectedSize.height) &&
-      resolvedExpectedSize.height > 0,
-    "Finite canvas proof dimensions must be positive finite numbers.",
-  ).toBe(true);
-  expect(observation.finiteCanvasSize).toEqual(resolvedExpectedSize);
-  expect(observation.finiteControlSize).toEqual(resolvedExpectedSize);
-}
 
 export async function expectToolcraftInfinityCanvasModeEvidence(
   observations: Readonly<{
@@ -240,15 +51,27 @@ export async function expectToolcraftInfinityCanvasModeEvidence(
     restored: InfinityCanvasObservation;
     undone: InfinityCanvasObservation;
   }>,
+  transitions: InfinityCanvasContinuityTransitions,
   options: Readonly<{
     expectedFiniteSize?: Readonly<{ height: number; width: number }>;
-    expectedSceneRect: NonNullable<InfinityCanvasObservation["sceneRect"]>;
+    expectedSceneRect: NonNullable<
+      InfinityCanvasObservation["productScene"]["worldRect"]
+    >;
     requirementId: string;
     target: string;
   }>,
 ): Promise<void> {
   const expectedFiniteSize =
     options.expectedFiniteSize ?? observations.before.finiteCanvasSize;
+  const observedSequence = [
+    observations.before,
+    observations.enabled,
+    observations.afterPan,
+    observations.afterReload,
+    observations.restored,
+    observations.undone,
+    observations.redone,
+  ];
   expect(
     expectedFiniteSize,
     `Infinity canvas "${options.requirementId}" requires explicit expected finite dimensions or an exact observable before snapshot.`,
@@ -257,6 +80,26 @@ export async function expectToolcraftInfinityCanvasModeEvidence(
     observations.before,
     expectedFiniteSize ?? undefined,
   );
+  const baselineOutput = observations.before.productScene.output;
+  expect(
+    baselineOutput?.kind === "canvas" || baselineOutput?.kind === "svg",
+    `Infinity canvas "${options.requirementId}" requires mounted product canvas or SVG output.`,
+  ).toBe(true);
+  expectMeasurableInfinityCanvasRect(
+    options.expectedSceneRect,
+    `Infinity canvas "${options.requirementId}" requires a finite positive-area expected product world rectangle.`,
+  );
+  for (const observation of observedSequence) {
+    expect(observation.productSceneStatus).toBe("ready");
+    expectMeasurableInfinityCanvasRect(
+      observation.productScene.worldRect,
+      `Infinity canvas "${options.requirementId}" requires finite positive-area product world rectangles.`,
+    );
+    expectMeasurableInfinityCanvasRect(
+      observation.productScene.viewportRect,
+      `Infinity canvas "${options.requirementId}" requires finite positive-area product viewport rectangles.`,
+    );
+  }
   expectInfiniteCanvasObservation(
     observations.enabled,
     options.expectedSceneRect,
@@ -264,9 +107,6 @@ export async function expectToolcraftInfinityCanvasModeEvidence(
   expectInfiniteCanvasObservation(
     observations.afterPan,
     options.expectedSceneRect,
-  );
-  expect(observations.afterPan.viewportOffset).not.toEqual(
-    observations.enabled.viewportOffset,
   );
   expectInfiniteCanvasObservation(
     observations.afterReload,
@@ -285,13 +125,92 @@ export async function expectToolcraftInfinityCanvasModeEvidence(
     expectedFiniteSize ?? undefined,
   );
 
+  for (const observation of observedSequence) {
+    expect(observation.productScene.worldRect).toEqual(
+      options.expectedSceneRect,
+    );
+    const output = observation.productScene.output;
+    expect(output?.kind).toBe(baselineOutput?.kind);
+    if (output?.kind === "canvas") {
+      expect(
+        Number.isInteger(output.backingWidth) &&
+          output.backingWidth > 0 &&
+          Number.isInteger(output.backingHeight) &&
+          output.backingHeight > 0,
+        `Infinity canvas "${options.requirementId}" requires positive integer product canvas backing dimensions.`,
+      ).toBe(true);
+      expect(output).toEqual(baselineOutput);
+    } else if (output?.kind === "svg" && baselineOutput?.kind === "svg") {
+      for (const rect of [
+        output.localRect,
+        output.contentRect,
+        output.viewportRect,
+      ]) {
+        expectMeasurableInfinityCanvasRect(
+          rect,
+          `Infinity canvas "${options.requirementId}" requires measurable, nonempty SVG product geometry.`,
+        );
+      }
+      expect(output.localRect).toEqual(baselineOutput.localRect);
+      expect(output.contentRect).toEqual(baselineOutput.contentRect);
+      expect({
+        width: output.viewportRect.width,
+        height: output.viewportRect.height,
+      }).toEqual({
+        width: baselineOutput.viewportRect.width,
+        height: baselineOutput.viewportRect.height,
+      });
+    }
+  }
+
+  expect(observations.enabled.viewport).toEqual(observations.before.viewport);
+  expect(observations.afterPan.viewport.zoom).toBe(
+    observations.enabled.viewport.zoom,
+  );
+  expect({
+    offsetX: observations.afterPan.viewport.offsetX,
+    offsetY: observations.afterPan.viewport.offsetY,
+  }).not.toEqual({
+    offsetX: observations.enabled.viewport.offsetX,
+    offsetY: observations.enabled.viewport.offsetY,
+  });
+  expect(observations.afterReload.viewport).toEqual(
+    observations.afterPan.viewport,
+  );
+  expect(observations.restored.viewport).toEqual(
+    observations.afterReload.viewport,
+  );
+  expect(observations.undone.viewport).toEqual(observations.restored.viewport);
+  expect(observations.redone.viewport).toEqual(observations.undone.viewport);
+
+  for (const [beforeTransition, afterTransition] of [
+    [observations.before, observations.enabled],
+    [observations.afterReload, observations.restored],
+    [observations.restored, observations.undone],
+    [observations.undone, observations.redone],
+  ] as const) {
+    expect(afterTransition.productScene.viewportRect).toEqual(
+      beforeTransition.productScene.viewportRect,
+    );
+    const beforeOutput = beforeTransition.productScene.output;
+    const afterOutput = afterTransition.productScene.output;
+    if (beforeOutput?.kind === "svg" && afterOutput?.kind === "svg") {
+      expect(afterOutput.viewportRect).toEqual(beforeOutput.viewportRect);
+    }
+  }
+
+  for (const continuity of Object.values(transitions)) {
+    expect(continuity.productHostPreserved).toBe(true);
+    expect(continuity.productOutputPreserved).toBe(true);
+  }
+
   await attachToolcraftBrowserRuntimeEvidence({
     evidenceType: "viewport-side-effect",
     requirementId: options.requirementId,
     target: options.target,
   });
   await attachToolcraftBrowserRuntimeEvidence({
-    evidenceType: "infinity-mode-restoration",
+    evidenceType: "infinity-mode-continuity",
     requirementId: options.requirementId,
     target: options.target,
   });
@@ -318,15 +237,16 @@ export async function expectToolcraftInfinityCanvasBackgroundEvidence(
   });
   expect(observations.backgroundExcluded).toMatchObject({
     backgroundEnabled: false,
-    canvasMode: "finite",
-    infinityDisabled: true,
+    canvasMode: "infinite",
+    infinityDisabled: false,
     runtimeBackgroundColor: null,
   });
   expect(observations.backgroundRestored).toMatchObject({
     backgroundEnabled: true,
-    canvasMode: "finite",
+    canvasMode: "infinite",
     infinityDisabled: false,
-    runtimeBackgroundColor: null,
+    runtimeBackgroundColor: options.expectedBackgroundColor,
+    viewportMatchesRuntimeColor: true,
   });
 
   await attachToolcraftBrowserRuntimeEvidence({
@@ -338,25 +258,26 @@ export async function expectToolcraftInfinityCanvasBackgroundEvidence(
 
 export async function expectToolcraftInfinityCanvasImageExportEvidence(
   artifacts: Readonly<{
-    finite: Readonly<{ byteLength: number; height: number; width: number }>;
-    infinite: Readonly<{ byteLength: number; height: number; width: number }>;
+    finite: Readonly<{ byteLength: number; decodedPixelHash: string; height: number; width: number }>;
+    infinite: Readonly<{ byteLength: number; decodedPixelHash: string; height: number; width: number }>;
   }>,
-  options: Readonly<{
-    expectedFiniteSize: Readonly<{ height: number; width: number }>;
-    expectedInfiniteSize: Readonly<{ height: number; width: number }>;
-    requirementId: string;
-    target: string;
-  }>,
+  options: ToolcraftInfinityExportEvidenceOptions,
 ): Promise<void> {
-  expect(artifacts.finite).toMatchObject(options.expectedFiniteSize);
-  expect(artifacts.infinite).toMatchObject(options.expectedInfiniteSize);
-  expect(artifacts.finite.byteLength).toBeGreaterThan(100);
-  expect(artifacts.infinite.byteLength).toBeGreaterThan(100);
-  expect({ height: artifacts.infinite.height, width: artifacts.infinite.width })
-    .not.toEqual({
-      height: artifacts.finite.height,
-      width: artifacts.finite.width,
-    });
+  expectToolcraftInfinityArtifactFrameParity(artifacts, options.expectedSize);
+  expect(artifacts.finite.decodedPixelHash).toMatch(/^[a-f0-9]{64}$/u);
+  expect(artifacts.infinite.decodedPixelHash).toMatch(/^[a-f0-9]{64}$/u);
+  const hasMatchingFrame =
+    artifacts.finite.width === artifacts.infinite.width &&
+    artifacts.finite.height === artifacts.infinite.height;
+  if (hasMatchingFrame) {
+    expect(artifacts.infinite.decodedPixelHash).toBe(
+      artifacts.finite.decodedPixelHash,
+    );
+  } else {
+    expect(artifacts.infinite.decodedPixelHash).not.toBe(
+      artifacts.finite.decodedPixelHash,
+    );
+  }
 
   await attachToolcraftBrowserRuntimeEvidence({
     evidenceType: "exported-artifact",
@@ -375,34 +296,30 @@ export async function expectToolcraftInfinityCanvasVideoExportEvidence(
     finite: Readonly<{
       byteLength: number;
       durationMs: number;
+      frameCount: number;
+      samplePixelHashes: readonly string[];
       height: number;
       width: number;
     }>;
     infinite: Readonly<{
       byteLength: number;
       durationMs: number;
+      frameCount: number;
+      samplePixelHashes: readonly string[];
       height: number;
       width: number;
     }>;
   }>,
-  options: Readonly<{
-    expectedFiniteSize: Readonly<{ height: number; width: number }>;
-    expectedInfiniteSize: Readonly<{ height: number; width: number }>;
-    requirementId: string;
-    target: string;
-  }>,
+  options: ToolcraftInfinityExportEvidenceOptions,
 ): Promise<void> {
-  expect(artifacts.finite).toMatchObject(options.expectedFiniteSize);
-  expect(artifacts.infinite).toMatchObject(options.expectedInfiniteSize);
-  expect(artifacts.finite.byteLength).toBeGreaterThan(100);
-  expect(artifacts.infinite.byteLength).toBeGreaterThan(100);
+  expectToolcraftInfinityArtifactFrameParity(artifacts, options.expectedSize);
   expect(artifacts.finite.durationMs).toBeGreaterThan(0);
-  expect(artifacts.infinite.durationMs).toBeGreaterThan(0);
-  expect({ height: artifacts.infinite.height, width: artifacts.infinite.width })
-    .not.toEqual({
-      height: artifacts.finite.height,
-      width: artifacts.finite.width,
-    });
+  expect(artifacts.infinite.durationMs).toBe(artifacts.finite.durationMs);
+  expect(artifacts.finite.frameCount).toBeGreaterThan(0);
+  expect(artifacts.infinite.frameCount).toBe(artifacts.finite.frameCount);
+  expect(artifacts.finite.samplePixelHashes.length).toBeGreaterThan(0);
+  for (const hash of artifacts.finite.samplePixelHashes) expect(hash).toMatch(/^[a-f0-9]{64}$/u);
+  expect(artifacts.infinite.samplePixelHashes).toEqual(artifacts.finite.samplePixelHashes);
 
   await attachToolcraftBrowserRuntimeEvidence({
     evidenceType: "exported-artifact",

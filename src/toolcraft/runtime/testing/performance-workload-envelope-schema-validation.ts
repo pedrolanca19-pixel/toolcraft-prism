@@ -44,13 +44,17 @@ function getEffectiveNumericControlBounds(
   const hasDeclaredMaximum = Object.prototype.hasOwnProperty.call(control, "max");
   if (!isBuiltInNumeric && !hasDeclaredMinimum && !hasDeclaredMaximum) return null;
 
-  const minimum = isBuiltInNumeric
+  const minimum = control.editableRange
+    ? { invalid: !isFiniteNumber(control.editableRange.hardMin), value: control.editableRange.hardMin }
+    : isBuiltInNumeric
     ? resolveNumericControlField(control.min, 0)
     : {
         invalid: !isFiniteNumber(control.min),
         value: isFiniteNumber(control.min) ? control.min : undefined,
       };
-  const maximum = isBuiltInNumeric
+  const maximum = control.editableRange
+    ? { invalid: !isFiniteNumber(control.editableRange.hardMax), value: control.editableRange.hardMax }
+    : isBuiltInNumeric
     ? resolveNumericControlField(control.max, 100)
     : {
         invalid: !isFiniteNumber(control.max),

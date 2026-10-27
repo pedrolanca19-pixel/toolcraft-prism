@@ -18,6 +18,7 @@
     { "id": "controls-component-layout-invariants", "level": "invariant", "area": "controls" },
     { "id": "controls-layout-heuristics", "level": "heuristic", "area": "controls" },
     { "id": "renderer-technique-inventory", "level": "default", "area": "renderer" },
+    { "id": "renderer-gpu-provider", "level": "invariant", "area": "renderer" },
     { "id": "renderer-view-interaction", "level": "invariant", "area": "renderer" },
     { "id": "model-appearance-presentation", "level": "invariant", "area": "renderer" },
     { "id": "reference-clone-source-of-truth", "level": "invariant", "area": "reference-clone" },

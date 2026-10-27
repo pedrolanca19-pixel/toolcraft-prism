@@ -5,6 +5,7 @@ import {
   type ToolcraftInternalHistoryPatchSource,
 } from "./history-patch-metadata";
 import type { ToolcraftState } from "./types";
+import { decodeToolcraftCollectionItemControlAddress } from "./collection-control-address";
 
 const trackedHistorySources = [
   getToolcraftControlsResetHistorySource(),
@@ -78,11 +79,16 @@ function getChangedKeyframeSelectionTargets(
     return new Set();
   }
 
-  return new Set(
+  const targets = new Set(
     [previousTarget, nextTarget].filter(
       (target): target is string => target !== null,
     ),
   );
+  for (const target of [...targets]) {
+    const address = decodeToolcraftCollectionItemControlAddress(target);
+    if (address) targets.add(address.collectionTarget);
+  }
+  return targets;
 }
 
 function addHistorySource(
@@ -200,6 +206,11 @@ function getChangedKeyframeTargets(
     ) {
       targets.delete(target);
     }
+  }
+
+  for (const target of [...targets]) {
+    const address = decodeToolcraftCollectionItemControlAddress(target);
+    if (address) targets.add(address.collectionTarget);
   }
 
   return targets;

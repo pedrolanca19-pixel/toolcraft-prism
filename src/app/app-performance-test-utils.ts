@@ -13,7 +13,8 @@ import {
   unwrapToolcraftTypeScriptExpression,
 } from "../../scripts/toolcraft-typescript-analysis.mjs";
 
-import { sourceDefinesProductCanvasContent } from "./app-acceptance.source-test-utils";
+import { compositionHasProductCanvasSurface } from "./app-acceptance.composition-test-utils";
+import { appComposition } from "./app-composition";
 import { appSchema } from "./app-schema";
 
 export const appDir = dirname(fileURLToPath(import.meta.url));
@@ -249,7 +250,7 @@ export function sourceUsesCustomRenderer(): boolean {
   const appSources = stripJsComments(readFiles(srcDir, /\.(ts|tsx)$/));
 
   return (
-    sourceDefinesProductCanvasContent() ||
+    compositionHasProductCanvasSurface(appComposition) ||
     /useToolcraft(Value)?\(/.test(appSources) ||
     /getContext\(["']2d["']\)|webgl|webgpu|OffscreenCanvas|ImageData/.test(appSources)
   );

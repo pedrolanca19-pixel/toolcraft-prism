@@ -45,7 +45,7 @@ const measurementProvenance = new WeakMap<
 >();
 
 export function getToolcraftMeasurementProvenance(
-  result: object,
+  result: ToolcraftInteractionResult,
 ):
   | {
       kind: "animation-frames" | "interaction";

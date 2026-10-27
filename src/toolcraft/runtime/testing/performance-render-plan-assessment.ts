@@ -1,7 +1,5 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
-import {
-  type ToolcraftPerformanceConfig,
-} from "./performance-types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
+import { type ToolcraftPerformanceConfig } from "./performance-types";
 import { validateToolcraftBenchmarkDecisions } from "./performance-render-plan-benchmark-evidence";
 import {
   createToolcraftRenderPlanInvariants,
@@ -29,7 +27,11 @@ export function assessParsedToolcraftRenderPlan(
   config: ToolcraftPerformanceConfig,
   parsedPipeline: ToolcraftRendererPipelineParseResult,
 ): ToolcraftRenderPlanAssessment {
-  return assessParsedToolcraftEnvelopeRenderPlan(schema, config, parsedPipeline);
+  return assessParsedToolcraftEnvelopeRenderPlan(
+    schema,
+    config,
+    parsedPipeline,
+  );
 }
 
 export function assessParsedToolcraftEnvelopeRenderPlan(
@@ -88,10 +90,7 @@ export function assessParsedToolcraftEnvelopeRenderPlan(
     }
   }
 
-  const passAssessment = assessToolcraftRenderPasses(
-    config,
-    runtimePasses,
-  );
+  const passAssessment = assessToolcraftRenderPasses(config, runtimePasses);
   errors.push(...passAssessment.errors);
   const decisions = validateToolcraftBenchmarkDecisions(
     config,

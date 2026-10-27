@@ -1,6 +1,6 @@
 import {
   validateToolcraftDeliveryCatalog,
-} from "./playwright-test-title-selection.mjs";
+} from "./toolcraft-delivery-catalog-validation.mjs";
 import {
   captureToolcraftProofProcess,
   getToolcraftBinaryPath,
@@ -21,16 +21,6 @@ export function parseToolcraftDeliveryCatalogOutput(output) {
   } catch {
     throw new Error("Toolcraft delivery catalog reporter emitted malformed JSON.");
   }
-  const validation = validateToolcraftDeliveryCatalog(value);
-  if (validation.errors.length > 0) {
-    throw new Error(
-      `Toolcraft delivery catalog is invalid:\n${validation.errors.join("\n")}`,
-    );
-  }
-  return validation.catalog;
-}
-
-export function validateExplicitToolcraftDeliveryCatalog(value) {
   const validation = validateToolcraftDeliveryCatalog(value);
   if (validation.errors.length > 0) {
     throw new Error(

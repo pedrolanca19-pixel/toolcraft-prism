@@ -2,7 +2,6 @@
 
 import * as React from "react";
 
-import type { ResolvedToolcraftControlSchema } from "../../schema/types";
 import type { ToolcraftStoreDependency } from "../../state/toolcraft-external-store-dependencies";
 import type { ToolcraftState } from "../../state/types";
 import { useToolcraftDependencySelector } from "../app-shell/toolcraft-selectors";
@@ -18,7 +17,7 @@ import {
 } from "./orientation-gizmo-selection";
 
 export type ToolcraftOrientationControlSelection = Readonly<{
-  control: ResolvedToolcraftControlSchema | null;
+  control: ToolcraftOrientationControlEntry["control"] | null;
   id: string | null;
   value: unknown;
 }>;

@@ -2,18 +2,20 @@ import { expect, test } from "@playwright/test";
 
 import {
   activePipelineAttachments,
-  activePipelinePath,
-  animationPipelinePath,
   evaluatePipelineEvidence,
   initialPipelineAttachments,
-  initialPipelinePath,
   noCacheActivitySnapshot,
   pipelineEvidence,
   pipelineEvidenceAttachment,
   pipelineSnapshot,
   unchangedPipelineAttachments,
-  unchangedPipelinePath,
 } from "./performance-pipeline-evidence-test-fixtures";
+import {
+  activePipelinePath,
+  animationPipelinePath,
+  initialPipelinePath,
+  unchangedPipelinePath,
+} from "./performance-pipeline-evidence-test-contract";
 
 test("runtime, profile, and decreasing-counter forgeries fail", () => {
   const [cold, warm, sustained] = activePipelineAttachments();
@@ -204,7 +206,7 @@ test("report ordering is deterministic by path, phase, and pass", () => {
     forward.report?.observations.every(
       (observation) =>
         observation.passes.map((pass) => pass.passId).join(",") ===
-        "composite,decode",
+        "composite,decode,simulate",
     ),
   ).toBe(true);
 });

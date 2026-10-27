@@ -78,11 +78,10 @@ export function createToolcraftSourceAssetRegistry<
     if (
       typeof handler.match !== "function" ||
       typeof handler.plan !== "function" ||
-      typeof handler.prepare !== "function" ||
-      typeof handler.present !== "function"
+      typeof handler.prepare !== "function"
     ) {
       throw new Error(
-        `[source-asset-registry] Handler "${handler.kind}" must implement match, plan, prepare, and present.`,
+        `[source-asset-registry] Handler "${handler.kind}" must implement match, plan, and prepare.`,
       );
     }
     if (kinds.has(handler.kind)) {

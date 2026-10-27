@@ -188,6 +188,68 @@ test("quality guard accepts stable exact 2x backing", async ({ page }) => {
   }
 });
 
+test("quality guard accepts a declared prepared 1x to committed 2x action", async ({
+  page,
+}) => {
+  await installCanvas(page);
+  const baselineCssSize = await expectToolcraftCanvasBackingPixelsForRenderScale(
+    page,
+    canvasSelector,
+    2,
+  );
+  const guard = await createToolcraftPerformanceCanvasQualityGuard(page, {
+    baselineCssSize,
+    canvasSelector,
+    cssSizePolicy: "fixed",
+    pathId: "performance-path:render-scale-action",
+    preparationScale: 1,
+  });
+  await setBackingScale(page, 1);
+
+  try {
+    await expect(
+      guard.runPhase("cold", async () => setBackingScale(page, 2)),
+    ).resolves.toBeUndefined();
+    await setBackingScale(page, 1);
+    await expect(
+      guard.runPhase("warm", async () => undefined),
+    ).rejects.toThrow(/warm.*backing width/iu);
+  } finally {
+    await guard.dispose();
+  }
+});
+
+test("quality guard rejects a prepared scale after required scale was committed", async ({
+  page,
+}) => {
+  await installCanvas(page);
+  const baselineCssSize = await expectToolcraftCanvasBackingPixelsForRenderScale(
+    page,
+    canvasSelector,
+    2,
+  );
+  const guard = await createToolcraftPerformanceCanvasQualityGuard(page, {
+    baselineCssSize,
+    canvasSelector,
+    cssSizePolicy: "fixed",
+    pathId: "performance-path:render-scale-regression",
+    preparationScale: 1,
+  });
+  await setBackingScale(page, 1);
+
+  try {
+    await expect(
+      guard.runPhase("cold", async () => {
+        await setBackingScale(page, 2);
+        await setBackingScale(page, 1);
+        await setBackingScale(page, 2);
+      }),
+    ).rejects.toThrow(/cold.*backing width/iu);
+  } finally {
+    await guard.dispose();
+  }
+});
+
 test("quality guard accepts exact backing while viewport zoom changes visible size", async ({
   page,
 }) => {

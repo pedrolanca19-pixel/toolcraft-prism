@@ -1,18 +1,32 @@
 import { evaluateToolcraftTimelineValues } from "../state/keyframe-evaluation";
-import type { ToolcraftState } from "../state/types";
-import type { ToolcraftVideoFrameScheduleEntry } from "./video-frame-schedule";
+import type { ReadonlyToolcraftState } from "../state/readonly-state";
+import { freezeToolcraftArtifactMetadata } from "./artifact-export-snapshot";
 
-export type ToolcraftArtifactFrameState = Readonly<ToolcraftState>;
+export type ToolcraftArtifactFrameState = ReadonlyToolcraftState;
 
-export type ToolcraftVideoArtifactFramePlanEntry = Readonly<{
-  scheduleEntry: ToolcraftVideoFrameScheduleEntry;
-  state: ToolcraftArtifactFrameState;
-}>;
+export function getToolcraftArtifactTimelineProgress(
+  state: ReadonlyToolcraftState,
+): number {
+  if (state.timeline.durationSeconds <= 0) {
+    return 0;
+  }
+
+  return Math.max(
+    0,
+    Math.min(
+      1,
+      state.timeline.currentTimeSeconds / state.timeline.durationSeconds,
+    ),
+  );
+}
 
 export function createToolcraftArtifactFrameState(
-  baseState: ToolcraftState,
+  baseState: ReadonlyToolcraftState,
   timeSeconds: number,
 ): ToolcraftArtifactFrameState {
+  const values = evaluateToolcraftTimelineValues(baseState, timeSeconds);
+  // Evaluated compound values can be newly allocated; the shared base is already immutable.
+  freezeToolcraftArtifactMetadata(values);
   return Object.freeze({
     ...baseState,
     timeline: Object.freeze({
@@ -20,25 +34,6 @@ export function createToolcraftArtifactFrameState(
       currentTimeSeconds: timeSeconds,
       isPlaying: false,
     }),
-    values: Object.freeze(
-      evaluateToolcraftTimelineValues(baseState, timeSeconds),
-    ),
+    values,
   });
-}
-
-export function createToolcraftVideoArtifactFramePlan(
-  baseState: ToolcraftState,
-  schedule: readonly ToolcraftVideoFrameScheduleEntry[],
-): readonly ToolcraftVideoArtifactFramePlanEntry[] {
-  return Object.freeze(
-    schedule.map((scheduleEntry) =>
-      Object.freeze({
-        scheduleEntry,
-        state: createToolcraftArtifactFrameState(
-          baseState,
-          scheduleEntry.timeSeconds,
-        ),
-      }),
-    ),
-  );
 }

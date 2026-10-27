@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { spatialViewModule, timelineModule } from "@/toolcraft/runtime";
 
 import { getToolcraftViewInteractionErrors } from "./acceptance/view-interaction";
 import type {
@@ -20,18 +21,21 @@ const defaultPose = {
 const noAnimation: ToolcraftTransferMode = {
   animationIntent: { mode: "none" },
   mode: "new-toolcraft-app",
+  referenceInputs: [],
 };
 
 const timelineAnimation: ToolcraftTransferMode = {
   animationIntent: {
     loopDuration: {
-      evidence: "The requested camera path completes one seamless cycle in six seconds.",
+      evidence:
+        "The requested camera path completes one seamless cycle in six seconds.",
       seconds: 6,
       source: "user-request",
     },
     mode: "timeline-playback",
   },
   mode: "new-toolcraft-app",
+  referenceInputs: [],
 };
 
 function createProductReadiness(
@@ -40,13 +44,15 @@ function createProductReadiness(
   return {
     exportIntent: {
       image: { mode: "toolcraft-default" },
+      svg: { mode: "not-requested" },
       video: { mode: "not-requested" },
     },
     interactionOwnership: [],
     mode: "product",
     productName: "Spatial fixture",
     productSummary: "A fixture used to validate spatial view ownership.",
-    requestedBehavior: "Render and interact with the configured product output.",
+    requestedBehavior:
+      "Render and interact with the configured product output.",
     viewInteraction,
   };
 }
@@ -59,56 +65,62 @@ function createSchema({
   timeline?: boolean;
 } = {}) {
   return defineContractSchemaFixture({
-    canvas: { enabled: true },
-    panels: {
-      controls: {
-        sections: [
-          {
-            controls: {
-              material: {
-                defaultValue: 0.5,
-                label: "Metalness",
-                max: 1,
-                min: 0,
-                target: "model.metalness",
-                type: "slider",
+    base: {
+      identity: { id: "contract-fixture", title: "Contract fixture" },
+      canvas: { enabled: true },
+      panels: {
+        controls: {
+          sections: [
+            {
+              id: "test-section-1",
+              controls: {
+                material: {
+                  applicability: { mode: "always" as const },
+                  defaultValue: 0.5,
+                  label: "Metalness",
+                  max: 1,
+                  min: 0,
+                  target: "model.metalness",
+                  type: "slider",
+                },
+                ...Object.fromEntries(
+                  orientationTargets.map((target, index) => [
+                    `orientation${index + 1}`,
+                    {
+                      applicability:
+                        orientationTargets.length > 1
+                          ? {
+                              all: [
+                                {
+                                  equals: `model-${index + 1}`,
+                                  target: "model.active",
+                                },
+                              ],
+                              mode: "conditional" as const,
+                            }
+                          : { mode: "always" as const },
+                      defaultValue: defaultPose,
+                      keyframeable: false,
+                      label: false,
+                      target,
+                      type: "orientationGizmo" as const,
+                    },
+                  ]),
+                ),
               },
-              ...Object.fromEntries(
-                orientationTargets.map((target, index) => [
-                  `orientation${index + 1}`,
-                  {
-                    defaultValue: defaultPose,
-                    keyframeable: false,
-                    label: false,
-                    target,
-                    type: "orientationGizmo" as const,
-                    ...(orientationTargets.length > 1
-                      ? {
-                          visibleWhen: {
-                            equals: `model-${index + 1}`,
-                            target: "model.active",
-                          },
-                        }
-                      : {}),
-                  },
-                ]),
-              ),
+              title: "Model",
             },
-            title: "Model",
-          },
-        ],
-        title: "Controls",
+          ],
+          title: "Controls",
+        },
       },
-      ...(timeline
-        ? {
-            timeline: {
-              defaultDurationSeconds: 6,
-              enabled: true,
-              mode: "playback" as const,
-            },
-          }
-        : {}),
     },
+    modules: [
+      ...(orientationTargets.length > 0 ? [spatialViewModule()] : []),
+      ...(timeline
+        ? [timelineModule({ defaultDurationSeconds: 6, mode: "playback" })]
+        : []),
+    ],
   });
 }
 
@@ -117,6 +129,7 @@ describe("Toolcraft spatial view interaction intent", () => {
     const productReadiness = {
       exportIntent: {
         image: { mode: "toolcraft-default" },
+        svg: { mode: "not-requested" },
         video: { mode: "not-requested" },
       },
       mode: "product",
@@ -132,7 +145,9 @@ describe("Toolcraft spatial view interaction intent", () => {
         transferMode: noAnimation,
       }),
     ).toEqual([
-      expect.stringContaining("must declare viewInteraction before controls or renderer code"),
+      expect.stringContaining(
+        "must declare viewInteraction before controls or renderer code",
+      ),
     ]);
   });
 
@@ -206,40 +221,98 @@ describe("Toolcraft spatial view interaction intent", () => {
     );
   });
 
-  it("allows fixed framing only with explicit request or reference evidence", () => {
-    const missingEvidence = getToolcraftViewInteractionErrors({
-      productReadiness: createProductReadiness({
-        evidence: " ",
-        mode: "fixed-camera",
-        source: "explicit-user-request",
-      }),
-      schema: createSchema(),
-      transferMode: noAnimation,
-    });
+  it("allows fixed framing only with positive request or behavioral-reference authority", () => {
     const explicitEvidence = getToolcraftViewInteractionErrors({
-      productReadiness: createProductReadiness({
-        evidence: "The user requested a locked isometric product view.",
-        mode: "fixed-camera",
-        source: "explicit-user-request",
-      }),
+      productReadiness: createProductReadiness(
+        {
+          authority: {
+            kind: "explicit-user-request",
+            requestQuote: "Keep the camera locked to this framing.",
+          },
+          mode: "fixed-camera",
+        } as unknown as ToolcraftViewInteractionIntent,
+      ),
       schema: createSchema(),
       transferMode: noAnimation,
     });
 
-    expect(missingEvidence).toEqual(
-      expect.arrayContaining([
-        expect.stringContaining("fixed-camera evidence must be non-empty"),
-      ]),
-    );
     expect(explicitEvidence).toEqual([]);
   });
 
+  it.each([
+    {
+      intent: {
+        authority: { kind: "explicit-user-request", requestQuote: " " },
+        mode: "fixed-camera",
+      },
+      message: "requestQuote must be non-empty",
+      name: "an empty request quote",
+    },
+    {
+      intent: {
+        authority: {
+          kind: "inspected-behavioral-reference",
+          observedBehavior: "The reference keeps one locked composition.",
+          referenceId: " ",
+        },
+        mode: "fixed-camera",
+      },
+      message: "referenceId must be non-empty",
+      name: "an empty behavioral reference id",
+    },
+    {
+      intent: {
+        authority: {
+          kind: "inspected-behavioral-reference",
+          observedBehavior: " ",
+          referenceId: "reference-camera-lock",
+        },
+        mode: "fixed-camera",
+      },
+      message: "observedBehavior must be non-empty",
+      name: "an empty observed behavior",
+    },
+    {
+      intent: {
+        authority: { kind: "agent-inference", requestQuote: "Looks fixed." },
+        mode: "fixed-camera",
+      },
+      message: "authority kind must be explicit-user-request or inspected-behavioral-reference",
+      name: "an unknown authority kind",
+    },
+    {
+      intent: {
+        evidence: "Orbit was not requested, therefore framing is fixed.",
+        mode: "fixed-camera",
+        source: "explicit-user-request",
+      },
+      message: "requires a positive authority object",
+      name: "the legacy source and evidence shape",
+    },
+  ])("rejects $name", ({ intent, message }) => {
+    const errors = getToolcraftViewInteractionErrors({
+      productReadiness: createProductReadiness(
+        intent as unknown as ToolcraftViewInteractionIntent,
+      ),
+      schema: createSchema(),
+      transferMode: noAnimation,
+    });
+
+    expect(errors).toEqual(
+      expect.arrayContaining([expect.stringContaining(message)]),
+    );
+  });
+
   it("allows timeline-owned camera motion only with a real Toolcraft timeline intent", () => {
-    const intent: ToolcraftViewInteractionIntent = {
-      evidence: "The inspected reference animates one authored camera path.",
+    const intent = {
+      authority: {
+        kind: "inspected-behavioral-reference",
+        observedBehavior:
+          "Playback follows one authored camera path and exposes no orbit interaction.",
+        referenceId: "reference-camera-playback",
+      },
       mode: "timeline-camera",
-      source: "inspected-reference",
-    };
+    } as unknown as ToolcraftViewInteractionIntent;
     const missingTimeline = getToolcraftViewInteractionErrors({
       productReadiness: createProductReadiness(intent),
       schema: createSchema(),
@@ -270,7 +343,9 @@ describe("Toolcraft spatial view interaction intent", () => {
       orientationTargets: ["view.orbit"],
     });
     const errors = validateContractAcceptance({ productReadiness });
-    const diagnostics = validateContractAcceptanceDiagnostics({ productReadiness });
+    const diagnostics = validateContractAcceptanceDiagnostics({
+      productReadiness,
+    });
 
     expect(errors).toEqual(
       expect.arrayContaining([

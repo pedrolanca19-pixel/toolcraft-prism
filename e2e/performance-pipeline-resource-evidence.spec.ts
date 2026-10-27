@@ -1,13 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 import {
-  cachedPipelinePath,
   cachedActivitySnapshot,
   evaluatePipelineEvidence,
   pipelineEvidence,
   pipelineEvidenceAttachment,
-  stableCachedPipelinePath,
 } from "./performance-pipeline-evidence-test-fixtures";
+import {
+  cachedPipelinePath,
+  stableCachedPipelinePath,
+} from "./performance-pipeline-evidence-test-contract";
 
 function withResourceCounts(
   snapshot: ReturnType<typeof cachedActivitySnapshot>,

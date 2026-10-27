@@ -6,13 +6,13 @@ import {
 } from "../model-import/model-asset-metadata";
 import { isToolcraftDefaultModelPlaceholder } from "../model-import/default-model-source-assets";
 import { createToolcraftMediaImportAllocation } from "./media-import-allocation";
-import { cloneToolcraftMediaResourceState } from "./media-resource-state";
+import { cloneToolcraftMediaAssets } from "./media-defaults";
+import { normalizeToolcraftMediaImportIngress } from "./media-import-ingress";
 import { getMediaReadyTimelineState } from "./timeline-readiness";
 import type {
   ToolcraftCommand,
   ToolcraftMediaAsset,
   ToolcraftMediaAssetDraft,
-  ToolcraftMediaImportAsset,
   ToolcraftMediaTransform,
   ToolcraftState,
 } from "./types";
@@ -23,9 +23,9 @@ type ToolcraftMediaCommand = Extract<
     type:
       | "media.delete"
       | "media.commitModelRepair"
+      | "media.commitCanonicalImportAllocation"
       | "media.hydrateDefaultModel"
       | "media.hydrateModel"
-      | "media.import"
       | "media.importBatch"
       | "media.reorder"
       | "media.setBinaryResourceState"
@@ -34,27 +34,12 @@ type ToolcraftMediaCommand = Extract<
   }
 >;
 
-function normalizeMediaImportAsset(
-  asset: ToolcraftMediaImportAsset,
-): ToolcraftMediaAssetDraft {
-  if (asset.assetKind === "model" || "resourceRef" in asset) {
-    return asset;
-  }
-
-  const assetKind = asset.assetKind === "file" ? "file" : "image";
-  const { dataUrl: _dataUrl, ...metadata } = asset;
-
-  return {
-    ...metadata,
-    assetKind,
-    ...cloneToolcraftMediaResourceState(assetKind, asset),
-  };
-}
-
 function normalizeMediaRotation(rotationDeg: number): 0 | 90 | 180 | 270 {
-  const normalized = ((Math.round(rotationDeg / 90) * 90) % 360 + 360) % 360;
+  const normalized = (((Math.round(rotationDeg / 90) * 90) % 360) + 360) % 360;
 
-  return normalized === 90 || normalized === 180 || normalized === 270 ? normalized : 0;
+  return normalized === 90 || normalized === 180 || normalized === 270
+    ? normalized
+    : 0;
 }
 
 function compactMediaTransform(
@@ -80,7 +65,10 @@ function compactMediaTransform(
 
 function getTransformedMediaAsset(
   mediaAsset: ToolcraftMediaAsset,
-  operation: Extract<ToolcraftCommand, { type: "media.transform" }>["operation"],
+  operation: Extract<
+    ToolcraftCommand,
+    { type: "media.transform" }
+  >["operation"],
 ): ToolcraftMediaAsset {
   if (mediaAsset.assetKind !== "image") {
     return mediaAsset;
@@ -127,82 +115,39 @@ function createImportedMediaAsset({
   draft,
   layerId,
   mediaId,
-  resetImagePosition,
 }: {
-  draft: ToolcraftMediaImportAsset;
+  draft: ToolcraftMediaAssetDraft;
   layerId: string;
   mediaId: string;
-  resetImagePosition: boolean;
 }): ToolcraftMediaAsset {
-  if (draft.assetKind === "model") {
-    const record = cloneToolcraftModelAssetRecord(draft);
-
-    return {
-      ...record,
-      assetKind: "model",
-      fileName: draft.fileName,
-      id: mediaId,
-      layerId,
-      mimeType: draft.mimeType,
-      position: { ...draft.position },
-      size: { ...draft.size },
-      ...(draft.sourceTarget ? { sourceTarget: draft.sourceTarget } : {}),
-    };
-  }
-
-  if (draft.assetKind === "file") {
-    const resourceState = cloneToolcraftMediaResourceState("file", draft);
-
-    return {
-      ...resourceState,
-      assetKind: "file",
-      fileName: draft.fileName,
-      id: mediaId,
-      layerId,
-      mimeType: draft.mimeType,
-      position: { ...draft.position },
-      ...(draft.sourceTarget ? { sourceTarget: draft.sourceTarget } : {}),
-    };
-  }
-
-  const resourceState = cloneToolcraftMediaResourceState("image", draft);
-
-  return {
-    ...resourceState,
-    assetKind: "image",
-    fileName: draft.fileName,
-    id: mediaId,
-    layerId,
-    mimeType: draft.mimeType,
-    position: resetImagePosition ? { x: 0, y: 0 } : { ...draft.position },
-    ...(draft.size ? { size: { ...draft.size } } : {}),
-    ...(draft.sourceTarget ? { sourceTarget: draft.sourceTarget } : {}),
-    ...(draft.transform ? { transform: { ...draft.transform } } : {}),
-  };
+  const { layerName: _layerName, ...asset } = draft;
+  return cloneToolcraftMediaAssets([{ ...asset, id: mediaId, layerId }])[0]!;
 }
 
-function reduceMediaImportBatch(
+function commitCanonicalMediaImportAllocation(
   state: ToolcraftState,
-  command: Extract<ToolcraftCommand, { type: "media.importBatch" }>,
+  allocation: Extract<
+    ToolcraftCommand,
+    { type: "media.commitCanonicalImportAllocation" }
+  >["allocation"],
 ): ToolcraftState {
-  if (command.assets.length === 0) {
+  if (allocation.items.length === 0) {
     return state;
   }
 
-  const { baseLayers, baseMediaAssets, items } =
-    createToolcraftMediaImportAllocation(state, command);
+  const { baseLayers, baseMediaAssets, items } = allocation;
   const importedAssets: ToolcraftMediaAsset[] = [];
   const importedLayers: ToolcraftState["layers"] = [];
-  const resizeImage = [...command.assets]
+  const lastImageDraft = [...items]
     .reverse()
-    .find(
-      (asset) =>
-        asset.assetKind === "image" && asset.size !== undefined,
-    );
-  const shouldResizeCanvas =
+    .find((item) => item.draft.assetKind === "image")?.draft;
+  // Canonical reinsertions resize intrinsic canvases from decoded source
+  // geometry while preserving their authored scene frame in the asset.
+  const intrinsicCanvasSize =
     state.schema.canvas.sizing.mode === "intrinsic-media" &&
-    resizeImage?.assetKind === "image" &&
-    resizeImage.size !== undefined;
+    lastImageDraft?.assetKind === "image"
+      ? lastImageDraft.sourceSize
+      : undefined;
 
   for (const { draft, layerId, layerName, mediaId } of items) {
     importedAssets.push(
@@ -210,7 +155,6 @@ function reduceMediaImportBatch(
         draft,
         layerId,
         mediaId,
-        resetImagePosition: shouldResizeCanvas,
       }),
     );
     importedLayers.push({
@@ -226,13 +170,13 @@ function reduceMediaImportBatch(
   const layers = [...baseLayers, ...importedLayers];
   const selectedLayerId = importedLayers.at(-1)?.id ?? state.selectedLayerId;
   const after = {
-    ...(shouldResizeCanvas ? { "canvas.size": resizeImage.size } : {}),
+    ...(intrinsicCanvasSize ? { "canvas.size": intrinsicCanvasSize } : {}),
     layers,
     mediaAssets,
     selectedLayerId,
   };
   const before = {
-    ...(shouldResizeCanvas ? { "canvas.size": state.canvas.size } : {}),
+    ...(intrinsicCanvasSize ? { "canvas.size": state.canvas.size } : {}),
     layers: state.layers,
     mediaAssets: state.mediaAssets,
     selectedLayerId: state.selectedLayerId,
@@ -245,6 +189,27 @@ function reduceMediaImportBatch(
   });
 }
 
+function reduceMediaImportBatch(
+  state: ToolcraftState,
+  command: Extract<ToolcraftCommand, { type: "media.importBatch" }>,
+): ToolcraftState {
+  if (command.assets.length === 0) {
+    return state;
+  }
+
+  const canonicalAssets = normalizeToolcraftMediaImportIngress(command.assets, {
+    canvasMode: state.canvas.mode,
+    canvasSize: state.canvas.size,
+    sizingMode: state.schema.canvas.sizing.mode,
+  });
+  const allocation = createToolcraftMediaImportAllocation(state, {
+    assets: canonicalAssets,
+    replaceExisting: command.replaceExisting,
+  });
+
+  return commitCanonicalMediaImportAllocation(state, allocation);
+}
+
 export function reduceToolcraftMediaCommand(
   state: ToolcraftState,
   command: ToolcraftMediaCommand,
@@ -252,8 +217,7 @@ export function reduceToolcraftMediaCommand(
   switch (command.type) {
     case "media.commitModelRepair": {
       const targetModel = state.mediaAssets.find(
-        (asset) =>
-          asset.id === command.assetId && asset.assetKind === "model",
+        (asset) => asset.id === command.assetId && asset.assetKind === "model",
       );
 
       if (!targetModel || targetModel.assetKind !== "model") {
@@ -302,8 +266,7 @@ export function reduceToolcraftMediaCommand(
 
     case "media.hydrateModel": {
       const targetModel = state.mediaAssets.find(
-        (asset) =>
-          asset.id === command.asset.id && asset.assetKind === "model",
+        (asset) => asset.id === command.asset.id && asset.assetKind === "model",
       );
 
       if (
@@ -312,7 +275,8 @@ export function reduceToolcraftMediaCommand(
         targetModel.lifecycle !== "restoring" ||
         targetModel.sourceBundleDigest !== command.expectedSourceBundleDigest ||
         targetModel.topologyProfile !== command.expectedTopologyProfile ||
-        command.asset.sourceBundleDigest !== command.expectedSourceBundleDigest ||
+        command.asset.sourceBundleDigest !==
+          command.expectedSourceBundleDigest ||
         command.asset.topologyProfile !== command.expectedTopologyProfile ||
         command.asset.lifecycle === "restoring"
       ) {
@@ -383,6 +347,7 @@ export function reduceToolcraftMediaCommand(
                 ...hydrated,
                 assetKind: "model" as const,
                 fileName: command.asset.fileName,
+                ...(command.asset.sourcePaths ? { sourcePaths: [...command.asset.sourcePaths] } : {}),
                 id: targetModel.id,
                 layerId: targetModel.layerId,
                 mimeType: command.asset.mimeType,
@@ -399,8 +364,7 @@ export function reduceToolcraftMediaCommand(
 
     case "media.setBinaryResourceState": {
       const target = state.mediaAssets.find(
-        (asset) =>
-          asset.id === command.assetId && asset.assetKind !== "model",
+        (asset) => asset.id === command.assetId && asset.assetKind !== "model",
       );
 
       if (
@@ -444,21 +408,15 @@ export function reduceToolcraftMediaCommand(
       };
     }
 
-    case "media.import": {
-      return reduceMediaImportBatch(state, {
-        assets: [normalizeMediaImportAsset(command.asset)],
-        replaceExisting: command.replaceExisting,
-        type: "media.importBatch",
-      });
-    }
-
     case "media.importBatch":
       return reduceMediaImportBatch(state, command);
 
+    case "media.commitCanonicalImportAllocation":
+      return commitCanonicalMediaImportAllocation(state, command.allocation);
+
     case "media.setModelRepairError": {
       const targetModel = state.mediaAssets.find(
-        (asset) =>
-          asset.id === command.assetId && asset.assetKind === "model",
+        (asset) => asset.id === command.assetId && asset.assetKind === "model",
       );
 
       if (
@@ -481,12 +439,16 @@ export function reduceToolcraftMediaCommand(
           if (command.feedback) {
             return {
               ...asset,
-              lastRepairError: cloneToolcraftSourceAssetFeedback(command.feedback),
+              lastRepairError: cloneToolcraftSourceAssetFeedback(
+                command.feedback,
+              ),
             };
           }
 
-          const { lastRepairError: _lastRepairError, ...modelWithoutRepairError } =
-            asset;
+          const {
+            lastRepairError: _lastRepairError,
+            ...modelWithoutRepairError
+          } = asset;
           return modelWithoutRepairError;
         }),
       };
@@ -497,8 +459,14 @@ export function reduceToolcraftMediaCommand(
         return state;
       }
 
-      const mediaAssets = state.mediaAssets.filter((asset) => asset.id !== command.mediaId);
-      const timeline = getMediaReadyTimelineState(state.schema, state.timeline, mediaAssets);
+      const mediaAssets = state.mediaAssets.filter(
+        (asset) => asset.id !== command.mediaId,
+      );
+      const timeline = getMediaReadyTimelineState(
+        state.schema,
+        state.timeline,
+        mediaAssets,
+      );
       const shouldCommitTimeline = timeline !== state.timeline;
 
       return commitToolcraftStatePatch(state, {
@@ -519,7 +487,9 @@ export function reduceToolcraftMediaCommand(
         return state;
       }
 
-      const mediaById = new Map(state.mediaAssets.map((asset) => [asset.id, asset]));
+      const mediaById = new Map(
+        state.mediaAssets.map((asset) => [asset.id, asset]),
+      );
       const seenIds = new Set<string>();
       const reorderedMediaAssets = command.mediaIds.flatMap((mediaId) => {
         const mediaAsset = mediaById.get(mediaId);
@@ -544,7 +514,9 @@ export function reduceToolcraftMediaCommand(
 
       if (
         reorderedMediaAssets.length === state.mediaAssets.length &&
-        reorderedMediaAssets.every((asset, index) => asset.id === state.mediaAssets[index]?.id)
+        reorderedMediaAssets.every(
+          (asset, index) => asset.id === state.mediaAssets[index]?.id,
+        )
       ) {
         return state;
       }
@@ -557,7 +529,9 @@ export function reduceToolcraftMediaCommand(
     }
 
     case "media.transform": {
-      const targetMediaAsset = state.mediaAssets.find((asset) => asset.id === command.mediaId);
+      const targetMediaAsset = state.mediaAssets.find(
+        (asset) => asset.id === command.mediaId,
+      );
 
       if (!targetMediaAsset || targetMediaAsset.assetKind !== "image") {
         return state;

@@ -19,9 +19,9 @@ import {
 import {
   getPipelineObservationInvariantErrors,
   getPipelinePassDelta,
-  getPipelinePhaseContinuityErrors,
   pipelinePassMap,
 } from "./performance-pipeline-invariants";
+import { getPipelinePhaseContinuityErrors } from "./performance-pipeline-phase-continuity";
 
 export type ToolcraftPerformancePipelinePassReport = Readonly<{
   delta: Readonly<Record<ToolcraftPerformancePipelineMetricKey, number>>;

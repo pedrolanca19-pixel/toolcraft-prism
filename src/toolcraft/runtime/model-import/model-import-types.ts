@@ -167,7 +167,7 @@ export type ToolcraftModelSourceBundle = {
   };
   aggregateByteLength: number;
   aggregateDigest: string;
-  descriptorVersion: 1 | 2;
+  descriptorVersion: 2;
   diagnostics: readonly ToolcraftModelPackageDiagnostic[];
   packageSource: ToolcraftModelPackageSource;
   rootPath: string;

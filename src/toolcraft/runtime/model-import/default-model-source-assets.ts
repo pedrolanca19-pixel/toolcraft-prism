@@ -1,17 +1,20 @@
 import type {
-  ResolvedToolcraftAppSchema,
   ToolcraftControlSchema,
   ToolcraftDefaultModelAssetSchema,
   ToolcraftModelImportLimits,
   ToolcraftModelTopologyProfile,
 } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import type { ToolcraftModelAsset } from "../state/types";
 import { defaultToolcraftSceneElementFrame } from "../state/scene-element-frame";
 
 const DEFAULT_MODEL_PLACEHOLDER_REF_PREFIX =
   "toolcraft-default-model-placeholder:";
 
-function getDefaultModelId(index: number, asset: ToolcraftDefaultModelAssetSchema): string {
+function getDefaultModelId(
+  index: number,
+  asset: ToolcraftDefaultModelAssetSchema,
+): string {
   return asset.id ?? `default-media-${index + 1}`;
 }
 
@@ -84,15 +87,18 @@ export function createToolcraftDefaultModelPlaceholder({
   const id = getDefaultModelId(index, asset);
   const placeholderRef = createPlaceholderRef(id);
   const analysis = emptyModelAnalysis();
-  const rootSource = asset.sourceFiles.find(
-    (source) => source.path.slice(source.path.lastIndexOf("/") + 1) === asset.fileName,
-  ) ?? asset.sourceFiles[0];
+  const rootSource =
+    asset.sourceFiles.find(
+      (source) =>
+        source.path.slice(source.path.lastIndexOf("/") + 1) === asset.fileName,
+    ) ?? asset.sourceFiles[0];
 
   return Object.freeze({
     activeDocumentRef: placeholderRef,
     analysis,
     assetKind: "model" as const,
     fileName: asset.fileName,
+    sourcePaths: Object.freeze(asset.sourceFiles.map(({ path }) => path)),
     id,
     layerId: getDefaultModelLayerId(index, asset),
     lifecycle: "restoring" as const,
@@ -111,11 +117,13 @@ export function createToolcraftDefaultModelPlaceholder({
 export function isToolcraftDefaultModelPlaceholder(
   asset: ToolcraftModelAsset,
 ): boolean {
-  return asset.lifecycle === "restoring" &&
+  return (
+    asset.lifecycle === "restoring" &&
     asset.sourceBundleRef.startsWith(DEFAULT_MODEL_PLACEHOLDER_REF_PREFIX) &&
     asset.sourceBundleDigest === asset.sourceBundleRef &&
     asset.activeDocumentRef === asset.sourceBundleRef &&
-    asset.originalDocumentRef === asset.sourceBundleRef;
+    asset.originalDocumentRef === asset.sourceBundleRef
+  );
 }
 
 export function findToolcraftDefaultModelSchemaAsset(
@@ -167,10 +175,12 @@ function decodeDataUrl(
   const isBase64 = metadataParts.at(-1)?.toLowerCase() === "base64";
   const mimeType = metadataParts[0] || "application/octet-stream";
   const encodedCeiling = isBase64
-    ? Math.ceil(maxRemainingBytes * 4 / 3) + 4
+    ? Math.ceil((maxRemainingBytes * 4) / 3) + 4
     : maxRemainingBytes * 3;
   if (payload.length > encodedCeiling) {
-    throw new Error("Default model sources exceed the configured source byte limit.");
+    throw new Error(
+      "Default model sources exceed the configured source byte limit.",
+    );
   }
 
   let bytes: Uint8Array;
@@ -184,7 +194,9 @@ function decodeDataUrl(
     }
   }
   if (bytes.byteLength > maxRemainingBytes) {
-    throw new Error("Default model sources exceed the configured source byte limit.");
+    throw new Error(
+      "Default model sources exceed the configured source byte limit.",
+    );
   }
   return Object.freeze({ bytes, mimeType });
 }
@@ -197,14 +209,18 @@ export function createToolcraftDefaultModelFiles(
     throw new Error(`Default model "${asset.fileName}" has no source files.`);
   }
   if (asset.sourceFiles.length > limits.maxBundleFiles) {
-    throw new Error("Default model sources exceed the configured bundle file limit.");
+    throw new Error(
+      "Default model sources exceed the configured bundle file limit.",
+    );
   }
 
   let aggregateByteLength = 0;
   const seenPaths = new Set<string>();
   const files = asset.sourceFiles.map((source) => {
     if (seenPaths.has(source.path)) {
-      throw new Error(`Default model source path "${source.path}" is duplicated.`);
+      throw new Error(
+        `Default model source path "${source.path}" is duplicated.`,
+      );
     }
     seenPaths.add(source.path);
     const fileName = source.path.slice(source.path.lastIndexOf("/") + 1);

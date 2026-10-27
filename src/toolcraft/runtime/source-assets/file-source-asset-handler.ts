@@ -1,8 +1,7 @@
 import type { ToolcraftControlSchema } from "../schema/types";
-import { readImportedFile } from "../react/canvas/media-file";
+import { readImportedFile } from "./media-file";
 import { createToolcraftMediaResourceRef } from "./media-resource-ref";
 import { prepareToolcraftSourceAssetBatch } from "./source-asset-batch-preparation";
-import { createToolcraftSourceAssetPresentation } from "./source-asset-presentation";
 import type {
   ToolcraftPreparedSourceAssetRecord,
   ToolcraftSourceAssetBatch,
@@ -131,6 +130,7 @@ export const toolcraftFileSourceAssetHandler: ToolcraftSourceAssetHandler<
         return {
           assetKind: "file" as const,
           fileName: file.name,
+          sourcePaths: [file.webkitRelativePath || file.name],
           lifecycle: "ready" as const,
           mimeType,
           position: { x: 0, y: 0 },
@@ -147,11 +147,4 @@ export const toolcraftFileSourceAssetHandler: ToolcraftSourceAssetHandler<
       stagedResourceRefs: Object.freeze([...stagedResourceRefs].sort()),
     };
   },
-  present: ({ control, mediaAssets, operation }) =>
-    createToolcraftSourceAssetPresentation(
-      "file",
-      control,
-      mediaAssets,
-      operation,
-    ),
 };

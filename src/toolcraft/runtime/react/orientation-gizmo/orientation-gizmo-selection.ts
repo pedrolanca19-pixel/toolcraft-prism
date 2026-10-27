@@ -1,21 +1,21 @@
+import type { ReadonlyToolcraftState, ToolcraftReadonly } from "../../state/readonly-state";
 import type {
   ResolvedToolcraftControlSchema,
   ResolvedToolcraftControlSectionSchema,
 } from "../../schema/types";
-import type { ToolcraftState } from "../../state/types";
 import {
   isToolcraftControlVisible,
   isToolcraftSectionVisible,
 } from "../controls-panel/conditions/control-conditions";
 
 export type ToolcraftOrientationControlEntry = {
-  control: ResolvedToolcraftControlSchema;
+  control: ToolcraftReadonly<ResolvedToolcraftControlSchema>;
   id: string;
-  section: ResolvedToolcraftControlSectionSchema;
+  section: ToolcraftReadonly<ResolvedToolcraftControlSectionSchema>;
 };
 
 export function getToolcraftOrientationControlEntries(
-  sections: readonly ResolvedToolcraftControlSectionSchema[],
+  sections: ToolcraftReadonly<readonly ResolvedToolcraftControlSectionSchema[]>,
 ): ToolcraftOrientationControlEntry[] {
   return sections.flatMap((section) =>
     Object.entries(section.controls).flatMap(([id, control]) =>
@@ -25,7 +25,7 @@ export function getToolcraftOrientationControlEntries(
 }
 
 export function resolveToolcraftOrientationControl(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   entries: readonly ToolcraftOrientationControlEntry[],
 ): ToolcraftOrientationControlEntry | null {
   const visibleEntries = entries.filter(

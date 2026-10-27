@@ -20,14 +20,30 @@ const createPerformanceIterationWorklogFixture = (
     options,
   );
 
-const bareDeliveryError =
-  `agent-worklog.md Decision Trail iteration "Delivery 1 - Product build" Verification must contain exactly one bare \`${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}\` command and no command-shaped authority.`;
 const foreignDeliveryCommand =
   TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND.startsWith("npm ")
     ? "pnpm verify:delivery"
     : "npm run verify:delivery";
 
 describe("starter acceptance worklog command authority", () => {
+  it("accepts a compact follow-up while retaining the initial product decisions", () => {
+    const entry = `### Delivery 2 — Label correction
+- Entry type: focused
+- Change ID: label-correction
+- Request: Rename the visible label.
+- Changed owner: src/app/app-schema.ts
+- User-visible result: The label is correct.
+- Verification: pnpm test:feature -- label passed; text run recorded.
+- Risks: None.
+`;
+    const worklog = createAgentWorklogFixture().replace("\n## Evidence", `\n${entry}\n## Evidence`);
+    expect(getAgentWorklogValidationErrors(worklog)).toEqual([]);
+    expect(getAgentWorklogValidationErrors(worklog.replace("- Changed owner: src/app/app-schema.ts\n", "")))
+      .toContain('agent-worklog.md Decision Trail iteration "Delivery 2 — Label correction" must include "Changed owner:".');
+    expect(getAgentWorklogValidationErrors(createAgentWorklogFixture().replace("- Request:", "- Entry type: focused\n- Change ID: first\n- Changed owner: src/app\n- Request:")))
+      .toContain("agent-worklog.md must retain its initial delivery decision entry before adding focused follow-ups.");
+  });
+
   it("accepts a bare delivery command in ordinary narrative verification", () => {
     const worklog = createAgentWorklogFixture({
       trailFields: {
@@ -68,28 +84,24 @@ describe("starter acceptance worklog command authority", () => {
     `${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND} && pnpm test.`,
     `${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}; pnpm build.`,
     `sh -c \`${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}\`.`,
-  ])("rejects command-shaped authority in Decision Trail Verification: %s", (verification) => {
+  ])("accepts recorded commands as narrative, without execution authority: %s", (verification) => {
     const worklog = createAgentWorklogFixture({
       trailFields: { Verification: verification },
     });
 
-    expect(getAgentWorklogValidationErrors(worklog)).toContain(
-      bareDeliveryError,
-    );
+    expect(getAgentWorklogValidationErrors(worklog)).toEqual([]);
   });
 
   it.each([
     "pnpm verify:perf.",
     "pnpm run verify:perf.",
     `One bare \`${TOOLCRAFT_DELIVERY_VERIFICATION_COMMAND}\` then \`pnpm verify:perf\`.`,
-  ])("rejects full-performance authority in Decision Trail Verification: %s", (verification) => {
+  ])("accepts full-performance command mentions as narrative only: %s", (verification) => {
     const worklog = createAgentWorklogFixture({
       trailFields: { Verification: verification },
     });
 
-    expect(getAgentWorklogValidationErrors(worklog)).toContain(
-      'agent-worklog.md Decision Trail iteration "Delivery 1 - Product build" cannot use worklog evidence to authorize full performance certification.',
-    );
+    expect(getAgentWorklogValidationErrors(worklog)).toEqual([]);
   });
 
   it("ignores command-like explanatory text outside Decision Trail Verification", () => {

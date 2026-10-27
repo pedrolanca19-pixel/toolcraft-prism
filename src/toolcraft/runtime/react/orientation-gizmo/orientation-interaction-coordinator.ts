@@ -1,4 +1,5 @@
 import type { ToolcraftExternalStore } from "../../state/toolcraft-external-store";
+import { toolcraftCanvasRotationLockedTarget } from "../../schema/runtime-targets";
 
 type OrientationInteractionRecord = {
   onCancel: () => void;
@@ -66,7 +67,10 @@ export function beginToolcraftOrientationInteraction({
   onCancel: () => void;
   store: ToolcraftExternalStore;
   target: string;
-}): ToolcraftOrientationInteractionLease {
+}): ToolcraftOrientationInteractionLease | null {
+  if (store.getState().values[toolcraftCanvasRotationLockedTarget] === true) {
+    return null;
+  }
   const previous = getInteractionMap(store).get(target);
 
   if (previous) {
@@ -83,18 +87,31 @@ export function beginToolcraftOrientationInteraction({
   };
   interactions.set(target, record);
   record.unsubscribe = store.subscribeSelector(
-    (state) => state.values[target],
+    (state) => ({
+      locked: state.values[toolcraftCanvasRotationLockedTarget] === true,
+      pose: state.values[target],
+    }),
     () => {
-      if (record.ownWriteDepth === 0) {
+      if (
+        store.getState().values[toolcraftCanvasRotationLockedTarget] === true ||
+        record.ownWriteDepth === 0
+      ) {
         closeInteraction(record, true);
       }
     },
+    (previous, next) =>
+      previous.locked === next.locked && Object.is(previous.pose, next.pose),
   );
 
   return {
     cancel: () => closeInteraction(record, true),
     release: () => closeInteraction(record, false),
     runOwnWrite: (write) => {
+      if (
+        store.getState().values[toolcraftCanvasRotationLockedTarget] === true
+      ) {
+        closeInteraction(record, true);
+      }
       if (!isCurrentInteraction(record)) {
         return false;
       }

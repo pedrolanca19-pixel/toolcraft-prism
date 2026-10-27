@@ -1,7 +1,6 @@
-import type { ToolcraftState } from "../state/types";
+import type { ReadonlyToolcraftState } from "../state/readonly-state";
 import {
   resolveToolcraftExportFrame,
-  ToolcraftSceneExportError,
   type ToolcraftExportFrame,
 } from "./export-frame";
 
@@ -17,7 +16,7 @@ export type ToolcraftRetinaExportSize = {
 export type ToolcraftExportSizeOptions = {
   devicePixelRatio?: number;
   frame?: ToolcraftExportFrame;
-  state: ToolcraftState;
+  state: ReadonlyToolcraftState;
 };
 
 export type ToolcraftImageExportSizeOptions = ToolcraftExportSizeOptions & {
@@ -40,9 +39,7 @@ const videoExportMaxSizes: Record<
 
 function getExportFrame(options: ToolcraftExportSizeOptions): ToolcraftExportFrame {
   if (options.frame) return options.frame;
-  const result = resolveToolcraftExportFrame(options.state, null);
-  if (!result.ok) throw new ToolcraftSceneExportError(result);
-  return result.frame;
+  return resolveToolcraftExportFrame(options.state);
 }
 
 function roundVideoDimension(value: number): number {

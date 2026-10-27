@@ -1,5 +1,4 @@
 "use client";
-
 import * as React from "react";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react";
 import {
@@ -11,6 +10,7 @@ import {
 } from "@/toolcraft/ui";
 
 import type { ResolvedToolcraftControlSectionSchema } from "../../../schema/types";
+import { toolcraftRuntimeDefaultsSectionId } from "../../../schema/runtime-defaults-section";
 import type { ToolcraftStoreDependency } from "../../../state/toolcraft-external-store-dependencies";
 import type {
   ToolcraftCommand,
@@ -45,7 +45,6 @@ import {
   getControlsRecord,
   getRenderedControlsSectionTitle,
   isColorOnlySection,
-  isRuntimeSetupSection,
 } from "./controls-panel-layout";
 
 export type ControlsPanelSectionGroupsArgs = {
@@ -80,6 +79,7 @@ type ControlsPanelSectionHeaderActionProps = {
   keyframesSupported: boolean;
   renderedSectionTitle: React.ReactNode;
   resetEnabled: boolean;
+  sectionControls: ResolvedToolcraftControlSectionSchema["controls"];
 };
 
 type SectionKeyframeSelection = {
@@ -159,6 +159,7 @@ export const ControlsPanelSectionHeaderAction = React.memo(
     keyframesSupported,
     renderedSectionTitle,
     resetEnabled,
+    sectionControls,
   }: ControlsPanelSectionHeaderActionProps): React.JSX.Element | null {
     const headerKeyframeEntry =
       keyframesSupported && headerKeyframeTarget
@@ -241,7 +242,7 @@ export const ControlsPanelSectionHeaderAction = React.memo(
                     dispatchCommand({
                       label: resetLabel,
                       targets: Array.from(
-                        new Set(entries.map(([, control]) => control.target)),
+                        new Set(Object.values(sectionControls).map((control) => control.target)),
                       ),
                       type: "controls.resetTargets",
                     });
@@ -279,12 +280,11 @@ export const ControlsPanelSection = React.memo(function ControlsPanelSection({
   vectorPadShape,
 }: ControlsPanelSectionProps): React.JSX.Element {
   const renderableEntries = getControlsPanelRenderableEntries(entries);
-  const isRuntimeSetup = isRuntimeSetupSection({ entries, section });
-  const renderedSectionTitle = isRuntimeSetup
+  const isDefaultsSection = section.id === toolcraftRuntimeDefaultsSectionId;
+  const renderedSectionTitle = isDefaultsSection
     ? undefined
     : getRenderedControlsSectionTitle(section);
-  const isSectionCollapsible =
-    !isRuntimeSetup && renderedSectionTitle !== undefined;
+  const isSectionCollapsible = renderedSectionTitle !== undefined;
   const headerKeyframeEntry = keyframesSupported
     ? getControlsPanelSectionHeaderKeyframeEntry(entries, section.title)
     : null;
@@ -293,9 +293,6 @@ export const ControlsPanelSection = React.memo(function ControlsPanelSection({
   return (
     <PanelSection
       data-toolcraft-controls-section-anchor={sectionNavigationId}
-      className={
-        isRuntimeSetup ? "[&>[data-control-list]]:pt-3" : undefined
-      }
       action={
         isSectionCollapsible || headerKeyframeTarget ? (
           <ControlsPanelSectionHeaderAction
@@ -305,6 +302,7 @@ export const ControlsPanelSection = React.memo(function ControlsPanelSection({
             keyframesSupported={keyframesSupported}
             renderedSectionTitle={section.title}
             resetEnabled={isSectionCollapsible}
+            sectionControls={section.controls}
           />
         ) : undefined
       }
@@ -312,10 +310,11 @@ export const ControlsPanelSection = React.memo(function ControlsPanelSection({
       allowCompoundDividers={renderableEntries.length > 1}
       collapsed={isSectionCollapsible && collapsed}
       collapsible={isSectionCollapsible}
+      description={section.description}
       onCollapsedChange={(nextCollapsed) => {
         onCollapsedChange(sectionCollapseKey, nextCollapsed);
       }}
-      spacing="default"
+      spacing={isDefaultsSection ? "technical" : "default"}
       title={renderedSectionTitle}
     >
       {getControlsPanelSectionGroups({
@@ -353,17 +352,29 @@ export function getControlsPanelSectionGroups({
     controlsById: visibleControls,
     layoutGroups: section.layoutGroups,
   });
-  const renderedGroups = getControlRenderGroups(renderableEntries).map(
+  const renderedGroups = getControlRenderGroups(
+    renderableEntries,
+    sectionHasOnlyColorFields,
+  ).map(
     (group) => {
       const ids = getControlRenderGroupIds(group);
       const groupEntries =
         group.kind === "colorGroup" ? group.entries : [group.entry];
       const singleEntry = group.kind === "control" ? group.entry : undefined;
+      const inlineLayoutGroup = singleEntry
+        ? inlineLayoutGroupByControlId.get(singleEntry[0])
+        : undefined;
+      const hasVisibleInlinePeer = inlineLayoutGroup?.controls.some(
+        (id) => id !== singleEntry?.[0] && visibleControls[id],
+      ) ?? false;
 
       return {
         ids,
         node: (
           <ControlsPanelControlGroup
+            plainColorFullWidth={group.kind === "control" && (
+              group.plainColorFullWidth === true || hasVisibleInlinePeer
+            )}
             controlRenderers={controlRenderers}
             dispatch={dispatch}
             dispatchCommand={dispatchCommand}
@@ -374,9 +385,7 @@ export function getControlsPanelSectionGroups({
                 ? shouldHideToggleParameterControlLabel({
                     control: singleEntry[1],
                     controlsById: visibleControls,
-                    layoutGroup: inlineLayoutGroupByControlId.get(
-                      singleEntry[0],
-                    ),
+                    layoutGroup: inlineLayoutGroup,
                   })
                 : false
             }

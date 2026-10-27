@@ -38,7 +38,6 @@ export {
   decodeToolcraftModelSourceBundleDescriptor,
   encodeToolcraftModelSourceBundleDescriptor,
   TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_CONTENT_TYPE,
-  TOOLCRAFT_MODEL_SOURCE_BUNDLE_LEGACY_DESCRIPTOR_CONTENT_TYPE,
   TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_MAX_BYTES,
 } from "./model-source-bundle-codec";
 export type {

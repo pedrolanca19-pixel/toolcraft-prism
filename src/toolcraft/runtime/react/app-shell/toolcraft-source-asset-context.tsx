@@ -23,6 +23,7 @@ export { useToolcraftMediaPresentationUrls } from "./toolcraft-media-presentatio
 
 export const ToolcraftSourceAssetCoordinatorContext =
   React.createContext<ToolcraftSourceAssetCoordinator | null>(null);
+const SourceAssetRetentionContext = React.createContext<(() => () => void) | null>(null);
 
 type ToolcraftSourceAssetCoordinatorFactory = (
   store: ToolcraftExternalStore,
@@ -42,8 +43,9 @@ function selectModelHydrationFingerprint(
 ): string {
   return state.mediaAssets
     .filter((asset) => asset.assetKind === "model")
-    .map((asset) =>
-      `${asset.id}\u0000${asset.lifecycle}\u0000${asset.sourceBundleRef}`
+    .map(
+      (asset) =>
+        `${asset.id}\u0000${asset.lifecycle}\u0000${asset.sourceBundleRef}`,
     )
     .sort()
     .join("\u0001");
@@ -63,36 +65,26 @@ function selectBinaryHydrationFingerprint(
 }
 
 export function ToolcraftSourceAssetProvider({
-  binaryMediaHydrationJobs = [],
   children,
   createCoordinator,
-  onDisposeError,
   onError,
   store,
 }: {
-  binaryMediaHydrationJobs?: readonly ToolcraftBinaryMediaHydrationJob[];
   children: React.ReactNode;
   createCoordinator?: ToolcraftSourceAssetCoordinatorFactory;
-  /** @deprecated Use onError. */
-  onDisposeError?: (error: unknown) => void;
   onError?: (error: unknown) => void;
   store: ToolcraftExternalStore;
 }): React.JSX.Element {
   const [acquisition, setAcquisition] =
     React.useState<ToolcraftSourceAssetAcquisition | null>(null);
-  const activeLease = acquisition?.store === store
-    ? acquisition.lease
-    : null;
-  const constructionOnError = onError ?? onDisposeError;
-
+  const activeLease = acquisition?.store === store ? acquisition.lease : null;
   // Construction inputs are captured when the store owner is acquired.
   // Same-store callback identity changes intentionally keep that owner.
   React.useLayoutEffect(() => {
     const lease = acquireToolcraftSourceAssetOwner({
       createCoordinator,
-      decorateCoordinator:
-        decorateToolcraftUnavailableResourceProofCoordinator,
-      onError: constructionOnError,
+      decorateCoordinator: decorateToolcraftUnavailableResourceProofCoordinator,
+      onError,
       store,
     });
     setAcquisition({
@@ -102,26 +94,20 @@ export function ToolcraftSourceAssetProvider({
     return lease.release;
   }, [store]);
 
-  return activeLease
-    ? (
-      <ToolcraftSourceAssetProviderContent
-        binaryMediaHydrationJobs={binaryMediaHydrationJobs}
-        lease={activeLease}
-        store={store}
-      >
-        {children}
-      </ToolcraftSourceAssetProviderContent>
-    )
-    : <></>;
+  return activeLease ? (
+    <ToolcraftSourceAssetProviderContent lease={activeLease} store={store}>
+      {children}
+    </ToolcraftSourceAssetProviderContent>
+  ) : (
+    <></>
+  );
 }
 
 function ToolcraftSourceAssetProviderContent({
-  binaryMediaHydrationJobs,
   children,
   lease,
   store,
 }: {
-  binaryMediaHydrationJobs: readonly ToolcraftBinaryMediaHydrationJob[];
   children: React.ReactNode;
   lease: ToolcraftSourceAssetOwnerLease;
   store: ToolcraftExternalStore;
@@ -129,25 +115,33 @@ function ToolcraftSourceAssetProviderContent({
   const coordinator = lease.coordinator;
   const modelPresentation = useToolcraftModelPresentationMode();
   const customSourceTargets = React.useMemo(
-    () => modelPresentation.mode === "custom"
-      ? new Set(
-          modelPresentation.consumers.map(({ sourceTarget }) => sourceTarget),
-        )
-      : new Set<string>(),
+    () =>
+      modelPresentation.mode === "custom"
+        ? new Set(
+            modelPresentation.consumers.map(({ sourceTarget }) => sourceTarget),
+          )
+        : new Set<string>(),
     [modelPresentation],
   );
   const getActiveCustomTargetsFingerprint = React.useCallback(
-    () => [...new Set(
-      store.getCommittedState().mediaAssets.flatMap((asset) =>
-        asset.assetKind === "model" &&
-          asset.lifecycle !== "restoring" &&
-          asset.lifecycle !== "unavailable" &&
-          asset.sourceTarget !== undefined &&
-          customSourceTargets.has(asset.sourceTarget)
-          ? [asset.sourceTarget]
-          : []
-      ),
-    )].sort().join("\u0000"),
+    () =>
+      [
+        ...new Set(
+          store
+            .getCommittedState()
+            .mediaAssets.flatMap((asset) =>
+              asset.assetKind === "model" &&
+              asset.lifecycle !== "restoring" &&
+              asset.lifecycle !== "unavailable" &&
+              asset.sourceTarget !== undefined &&
+              customSourceTargets.has(asset.sourceTarget)
+                ? [asset.sourceTarget]
+                : [],
+            ),
+        ),
+      ]
+        .sort()
+        .join("\u0000"),
     [customSourceTargets, store],
   );
   const activeCustomTargetsFingerprint = React.useSyncExternalStore(
@@ -156,22 +150,25 @@ function ToolcraftSourceAssetProviderContent({
     getActiveCustomTargetsFingerprint,
   );
   const activeCustomTargets = React.useMemo(
-    () => activeCustomTargetsFingerprint.length === 0
-      ? []
-      : activeCustomTargetsFingerprint.split("\u0000"),
+    () =>
+      activeCustomTargetsFingerprint.length === 0
+        ? []
+        : activeCustomTargetsFingerprint.split("\u0000"),
     [activeCustomTargetsFingerprint],
   );
   const orientationEntries = React.useMemo(
-    () => getToolcraftOrientationControlEntries(
-      store.getCommittedState().schema.panels.controls?.sections ?? [],
-    ),
+    () =>
+      getToolcraftOrientationControlEntries(
+        store.getCommittedState().schema.panels.controls?.sections ?? [],
+      ),
     [store],
   );
   const getVisibleOrientationTarget = React.useCallback(
-    () => resolveToolcraftOrientationControl(
-      store.getCommittedState(),
-      orientationEntries,
-    )?.control.target ?? "",
+    () =>
+      resolveToolcraftOrientationControl(
+        store.getCommittedState(),
+        orientationEntries,
+      )?.control.target ?? "",
     [orientationEntries, store],
   );
   const visibleOrientationTarget = React.useSyncExternalStore(
@@ -183,12 +180,9 @@ function ToolcraftSourceAssetProviderContent({
   const binaryHydrationJobs = React.useMemo(() => {
     const jobs = new Map<string, ToolcraftBinaryMediaHydrationJob>();
 
-    for (const job of [
-      ...createToolcraftDefaultBinaryMediaHydrationJobs(
-        store.getCommittedState().schema,
-      ),
-      ...binaryMediaHydrationJobs,
-    ]) {
+    for (const job of createToolcraftDefaultBinaryMediaHydrationJobs(
+      store.getCommittedState().schema,
+    )) {
       jobs.set(
         getToolcraftBinaryMediaHydrationKey(job.assetId, job.resourceRef),
         job,
@@ -196,12 +190,10 @@ function ToolcraftSourceAssetProviderContent({
     }
 
     return [...jobs.values()];
-  }, [binaryMediaHydrationJobs, store]);
+  }, [store]);
   const binaryBootstrapUrls = React.useMemo(
     () =>
-      new Map(
-        binaryHydrationJobs.map((job) => [job.resourceRef, job.dataUrl]),
-      ),
+      new Map(binaryHydrationJobs.map((job) => [job.resourceRef, job.dataUrl])),
     [binaryHydrationJobs],
   );
 
@@ -227,9 +219,9 @@ function ToolcraftSourceAssetProviderContent({
       hydrateModels,
     );
     const hydrateBinaryMedia = (): void => {
-      void coordinator.hydrateBinaryMedia(binaryHydrationJobs).catch(
-        lease.reportError,
-      );
+      void coordinator
+        .hydrateBinaryMedia(binaryHydrationJobs)
+        .catch(lease.reportError);
     };
     const unsubscribeBinaryHydration = store.subscribeSelector(
       selectBinaryHydrationFingerprint,
@@ -250,7 +242,9 @@ function ToolcraftSourceAssetProviderContent({
       resources={lease.presentationResources}
     >
       <ToolcraftSourceAssetCoordinatorContext.Provider value={coordinator}>
-        {children}
+        <SourceAssetRetentionContext.Provider value={lease.retain}>
+          {children}
+        </SourceAssetRetentionContext.Provider>
       </ToolcraftSourceAssetCoordinatorContext.Provider>
     </ToolcraftMediaPresentationProvider>
   );
@@ -260,9 +254,7 @@ function ToolcraftSourceAssetProviderContent({
       activeCustomTargets={activeCustomTargets}
       clearPresentationFeedback={coordinator.clearPresentationFeedback}
       customConsumers={
-        modelPresentation.mode === "custom"
-          ? modelPresentation.consumers
-          : []
+        modelPresentation.mode === "custom" ? modelPresentation.consumers : []
       }
       reportPresentationFeedback={coordinator.reportPresentationFeedback}
       resolveResource={coordinator.resolveResource}
@@ -271,7 +263,9 @@ function ToolcraftSourceAssetProviderContent({
     >
       {context}
     </ToolcraftModelRenderProvider>
-  ) : context;
+  ) : (
+    context
+  );
 }
 
 export function useToolcraftSourceAssetCoordinator(): ToolcraftSourceAssetCoordinator {
@@ -284,4 +278,10 @@ export function useToolcraftSourceAssetCoordinator(): ToolcraftSourceAssetCoordi
   }
 
   return coordinator;
+}
+
+export function useToolcraftSourceAssetRetention(): () => () => void {
+  const retain = React.useContext(SourceAssetRetentionContext);
+  if (!retain) throw new Error("Toolcraft export retention requires a source asset owner.");
+  return retain;
 }

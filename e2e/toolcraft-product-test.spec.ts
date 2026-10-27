@@ -8,7 +8,7 @@ productTest("product test wrapper withholds Playwright TestInfo", async (...args
 });
 
 test("product test wrapper exposes only controlled registration methods", () => {
-  expect(productTest).toHaveProperty("setTimeout");
+  expect(productTest).not.toHaveProperty("setTimeout");
   expect(productTest).not.toHaveProperty("info");
   expect(productTest).not.toHaveProperty("extend");
 });

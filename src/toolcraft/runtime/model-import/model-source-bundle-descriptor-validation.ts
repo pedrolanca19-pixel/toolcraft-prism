@@ -25,10 +25,7 @@ import {
   type ModelSourceBundleDescriptorRecord,
 } from "./model-source-bundle-descriptor-fields";
 import { failModelSourceBundle } from "./model-source-bundle-error";
-import {
-  digestLegacyModelSourceBundle,
-  digestModelSourceBundle,
-} from "./model-source-digest";
+import { digestModelSourceBundle } from "./model-source-digest";
 import { sourceExtension } from "./model-source-path";
 import { getToolcraftModelPackageMimeType } from "./model-package-path";
 
@@ -73,9 +70,7 @@ function packageEntries(
         "Model source bundle ZIP manifest entry identity is invalid.",
       );
     }
-    if (
-      totalBytes > limits.maxArchiveUncompressedBytes - entry.byteLength
-    ) {
+    if (totalBytes > limits.maxArchiveUncompressedBytes - entry.byteLength) {
       return descriptorLimitExceeded(
         "Model source bundle ZIP manifest exceeds its byte limit.",
       );
@@ -85,7 +80,7 @@ function packageEntries(
     entries.push(entry);
   }
   entries.sort((left, right) =>
-    left.path < right.path ? -1 : left.path > right.path ? 1 : 0
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
   );
   return Object.freeze(entries);
 }
@@ -156,12 +151,11 @@ function packageDiagnostics(
     return descriptorInvalid("Model package diagnostics are invalid.");
   }
   if (value.length === 0) return Object.freeze([]);
-  const candidate = readDescriptorRecord(value[0], [
-    "affectedCount",
-    "code",
-    "explanation",
-    "severity",
-  ], "package diagnostic");
+  const candidate = readDescriptorRecord(
+    value[0],
+    ["affectedCount", "code", "explanation", "severity"],
+    "package diagnostic",
+  );
   const affectedCount = readDescriptorInteger(
     readDescriptorData(candidate, "affectedCount", "diagnostic affected count"),
     "diagnostic affected count",
@@ -192,12 +186,14 @@ function packageDiagnostics(
   ) {
     return descriptorInvalid("Model package diagnostic identity is invalid.");
   }
-  return Object.freeze([Object.freeze({
-    affectedCount,
-    code,
-    explanation,
-    severity,
-  })]);
+  return Object.freeze([
+    Object.freeze({
+      affectedCount,
+      code,
+      explanation,
+      severity,
+    }),
+  ]);
 }
 
 function sourceFiles(
@@ -247,7 +243,9 @@ export function snapshotModelSourceBundleDescriptorLimits(
 ): ToolcraftModelSourceBundleDescriptorLimits {
   if (
     requested !== undefined &&
-    (typeof requested !== "object" || requested === null || Array.isArray(requested))
+    (typeof requested !== "object" ||
+      requested === null ||
+      Array.isArray(requested))
   ) {
     return descriptorInvalid(
       "Model source bundle descriptor limits must be an object.",
@@ -277,11 +275,15 @@ export function snapshotModelSourceBundleDescriptorLimits(
       key,
       `limit ${key}`,
     );
-    const ceiling = TOOLCRAFT_MODEL_IMPORT_LIMIT_CEILINGS[
-      key as keyof ToolcraftModelSourceBundleDescriptorLimits
-    ];
-    if (!Number.isSafeInteger(value) || (value as number) <= 0 ||
-        (value as number) > ceiling) {
+    const ceiling =
+      TOOLCRAFT_MODEL_IMPORT_LIMIT_CEILINGS[
+        key as keyof ToolcraftModelSourceBundleDescriptorLimits
+      ];
+    if (
+      !Number.isSafeInteger(value) ||
+      (value as number) <= 0 ||
+      (value as number) > ceiling
+    ) {
       return descriptorInvalid(
         `Model source bundle descriptor limit ${key} is invalid.`,
       );
@@ -295,45 +297,40 @@ export function validateToolcraftModelSourceBundleDescriptor(
   value: unknown,
   limits: ToolcraftModelSourceBundleDescriptorLimits,
 ): ToolcraftModelSourceBundle {
-  let versionDescriptor: PropertyDescriptor | undefined;
-  try {
-    versionDescriptor = typeof value === "object" && value !== null
-      ? Object.getOwnPropertyDescriptor(value, "descriptorVersion")
-      : undefined;
-  } catch {
-    return descriptorInvalid(
-      "Model source bundle descriptor version cannot be inspected.",
-    );
-  }
-  const descriptorVersion = versionDescriptor === undefined ? 1 : 2;
-  const candidate = readDescriptorRecord(value, [
-    "adapter",
-    "aggregateByteLength",
-    "aggregateDigest",
-    "rootPath",
-    "sourceFiles",
-    ...(descriptorVersion === 2
-      ? ["descriptorVersion", "diagnostics", "packageSource"]
-      : []),
-  ], "payload");
+  const candidate = readDescriptorRecord(
+    value,
+    [
+      "adapter",
+      "aggregateByteLength",
+      "aggregateDigest",
+      "rootPath",
+      "sourceFiles",
+      "descriptorVersion",
+      "diagnostics",
+      "packageSource",
+    ],
+    "payload",
+  );
   const budget = createModelSourceBundleDescriptorBudget();
-  if (descriptorVersion === 2) {
-    const declaredVersion = readDescriptorInteger(
-      readDescriptorData(candidate, "descriptorVersion", "descriptor version"),
-      "descriptor version",
+  const descriptorVersion = readDescriptorInteger(
+    readDescriptorData(candidate, "descriptorVersion", "descriptor version"),
+    "descriptor version",
+  );
+  if (descriptorVersion !== 2) {
+    return descriptorInvalid(
+      "Model source bundle descriptor version is unsupported.",
     );
-    if (declaredVersion !== 2) {
-      return descriptorInvalid(
-        "Model source bundle descriptor version is unsupported.",
-      );
-    }
   }
   const adapter = readDescriptorAdapter(
     readDescriptorData(candidate, "adapter", "adapter"),
     budget,
   );
   const aggregateByteLength = readDescriptorInteger(
-    readDescriptorData(candidate, "aggregateByteLength", "aggregate byte length"),
+    readDescriptorData(
+      candidate,
+      "aggregateByteLength",
+      "aggregate byte length",
+    ),
     "aggregate byte length",
   );
   const aggregateDigest = readDescriptorDigest(
@@ -351,21 +348,17 @@ export function validateToolcraftModelSourceBundleDescriptor(
     limits,
     budget,
   );
-  const source = descriptorVersion === 2
-    ? packageSource(
-        readDescriptorData(candidate, "packageSource", "package source"),
-        files,
-        limits,
-        budget,
-      )
-    : Object.freeze({ kind: "selected-files" as const });
-  const diagnostics = descriptorVersion === 2
-    ? packageDiagnostics(
-        readDescriptorData(candidate, "diagnostics", "package diagnostics"),
-        limits,
-        budget,
-      )
-    : Object.freeze([]);
+  const source = packageSource(
+    readDescriptorData(candidate, "packageSource", "package source"),
+    files,
+    limits,
+    budget,
+  );
+  const diagnostics = packageDiagnostics(
+    readDescriptorData(candidate, "diagnostics", "package diagnostics"),
+    limits,
+    budget,
+  );
   const actualByteLength = files.reduce(
     (total, file) => total + file.byteLength,
     0,
@@ -379,9 +372,7 @@ export function validateToolcraftModelSourceBundleDescriptor(
       "Model source bundle descriptor aggregate or root is invalid.",
     );
   }
-  const actualDigest = descriptorVersion === 2
-    ? digestModelSourceBundle(adapter, rootPath, files)
-    : digestLegacyModelSourceBundle(adapter, rootPath, files);
+  const actualDigest = digestModelSourceBundle(adapter, rootPath, files);
   if (actualDigest !== aggregateDigest) {
     return failModelSourceBundle(
       "bundle",

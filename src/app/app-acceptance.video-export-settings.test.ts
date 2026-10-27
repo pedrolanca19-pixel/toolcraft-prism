@@ -1,3 +1,4 @@
+import { exportRequestFixture } from "./app-acceptance.export-request-test-fixtures";
 import { describe, expect, it } from "vitest";
 
 import type { ToolcraftComponentAcceptance } from "./acceptance/types";
@@ -5,86 +6,52 @@ import { getToolcraftOutputExportErrors } from "./acceptance/output-export";
 import { buildToolcraftOutputExportFacts } from "./acceptance/output-export-model";
 import { getToolcraftVideoExportErrors } from "./acceptance/output-video-export-rules";
 import { collectToolcraftVisibleAcceptanceControls } from "./acceptance/validate-coverage";
-import { defineContractSchemaFixture, validateContractAcceptance } from "./app-acceptance.contract-fixtures";
+import { validateContractAcceptance } from "./app-acceptance.contract-fixtures";
 import {
-  makeBackgroundSection,
+  defineExportModuleSchemaFixture,
+  forgeResolvedExportSections,
   makeExportSettingsProductReadiness,
 } from "./app-acceptance.export-test-utils";
 import { makeControlAcceptance } from "./app-acceptance.test-utils";
 
 describe("Toolcraft video export settings acceptance contract", () => {
   it("accepts a Segmented video format paired with a Select resolution", () => {
-    const schemaWithSegmentedVideoFormat = defineContractSchemaFixture({
-      canvas: {
-        enabled: true,
-        sizing: { mode: "editable-output" },
-      },
-      panels: {
-        controls: {
-          sections: [
-            makeBackgroundSection(),
-            {
-              controls: {
-                videoFormat: {
-                  defaultValue: "mp4",
-                  label: "Format",
-                  options: [
-                    { label: "MP4", value: "mp4" },
-                    { label: "WebM", value: "webm" },
-                  ],
-                  target: "export.video.format",
-                  type: "segmented",
-                },
-                videoResolution: {
-                  defaultValue: "current",
-                  label: "Resolution",
-                  options: [
-                    { label: "Current", value: "current" },
-                    { label: "4K", value: "4k" },
-                  ],
-                  target: "export.video.resolution",
-                  type: "select",
-                },
-              },
-              layoutGroups: [
-                {
-                  columns: 2,
-                  controls: ["videoFormat", "videoResolution"],
-                  layout: "inline",
-                },
-              ],
-              title: "Video Export",
-            },
-            {
-              actionGroup: "secondary",
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      icon: "upload-simple",
-                      label: "Export Video",
-                      role: "export-video",
-                      value: "export.video",
+    const schemaWithSegmentedVideoFormat = forgeResolvedExportSections(
+      defineExportModuleSchemaFixture({ video: true }),
+      (sections) =>
+        sections.map((section) =>
+          section.title === "Video Export"
+            ? Object.freeze({
+                ...section,
+                controls: Object.freeze({
+                  ...section.controls,
+                  videoFormat: Object.freeze({
+                    applicability: {
+                      mode: "always" as const,
+                      origin: "explicit" as const,
                     },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-              title: "Export",
-            },
-          ],
-          title: "Controls",
-        },
-      },
-    });
+                    defaultValue: "mp4",
+                    label: "Format",
+                    options: Object.freeze([
+                      Object.freeze({ label: "MP4", value: "mp4" }),
+                      Object.freeze({ label: "WebM", value: "webm" }),
+                    ]),
+                    target: "export.video.format",
+                    type: "segmented" as const,
+                  }),
+                }),
+              })
+            : section,
+        ),
+    );
     const segmentedProductReadiness = makeExportSettingsProductReadiness({
       image: {
-        evidence: "The user explicitly removed image delivery.",
+        evidence: exportRequestFixture("Remove image export."),
         mode: "user-removed",
       },
+      svg: { mode: "not-requested" },
       video: {
-        evidence: "The user explicitly requested video delivery.",
+        evidence: exportRequestFixture("Add video export."),
         mode: "user-requested",
       },
     });
@@ -107,8 +74,11 @@ describe("Toolcraft video export settings acceptance contract", () => {
         actionCoverage: ["export.video"],
         automated: true,
         automatedTestName: "exports segmented-format video output",
-        browser: true,
-        browserTestName: "browser: exports segmented-format video output",
+        browser: {
+          budget: "standard",
+          file: "e2e/app-controls.spec.ts",
+          testName: "browser: exports segmented-format video output",
+        },
         componentType: "panelActions",
         evidence: "exported-bytes",
         expectedObservable: "Export Video creates validated video bytes.",
@@ -117,7 +87,8 @@ describe("Toolcraft video export settings acceptance contract", () => {
         id: "actions.output",
         kind: "control",
         target: "actions.output",
-        userAction: "Choose MP4 or WebM, then export and inspect the video artifact.",
+        userAction:
+          "Choose MP4 or WebM, then export and inspect the video artifact.",
       },
     ];
 
@@ -147,15 +118,13 @@ describe("Toolcraft video export settings acceptance contract", () => {
 
   it.each([
     {
-      expected:
-        'Video Export format options must be exactly "mp4" and "webm".',
+      expected: 'Video Export format options must be exactly "mp4" and "webm".',
       formatOptions: ["mp4", "webm", "mov"],
       name: "extra video format",
       resolutionOptions: ["current", "4k"],
     },
     {
-      expected:
-        'Video Export format options must be exactly "mp4" and "webm".',
+      expected: 'Video Export format options must be exactly "mp4" and "webm".',
       formatOptions: ["mp4", "webm", "webm"],
       name: "duplicate video format",
       resolutionOptions: ["current", "4k"],
@@ -174,116 +143,108 @@ describe("Toolcraft video export settings acceptance contract", () => {
       name: "duplicate video resolution",
       resolutionOptions: ["current", "4k", "4k"],
     },
-  ])("rejects an $name option", ({
-    expected,
-    formatOptions,
-    resolutionOptions,
-  }) => {
-    const schema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                videoFormat: {
-                  defaultValue: "mp4",
-                  label: "Format",
-                  options: formatOptions.map((value) => ({
-                    label: value.toUpperCase(),
-                    value,
-                  })),
-                  target: "export.video.format",
-                  type: "select",
-                },
-                videoResolution: {
-                  defaultValue: "current",
-                  label: "Resolution",
-                  options: resolutionOptions.map((value) => ({
-                    label: value.toUpperCase(),
-                    value,
-                  })),
-                  target: "export.video.resolution",
-                  type: "select",
-                },
-              },
-              layoutGroups: [
-                {
-                  columns: 2,
-                  controls: ["videoFormat", "videoResolution"],
-                  layout: "inline",
-                },
-              ],
-              title: "Video Export",
-            },
-          ],
-          title: "Controls",
-        },
-      },
-    });
+  ])(
+    "rejects an $name option",
+    ({ expected, formatOptions, resolutionOptions }) => {
+      const schema = forgeResolvedExportSections(
+        defineExportModuleSchemaFixture({ video: true }),
+        (sections) =>
+          sections.map((section) =>
+            section.title === "Video Export"
+              ? Object.freeze({
+                  ...section,
+                  controls: Object.freeze({
+                    ...section.controls,
+                    videoFormat: Object.freeze({
+                      applicability: {
+                        mode: "always" as const,
+                        origin: "explicit" as const,
+                      },
+                      defaultValue: "mp4",
+                      label: "Format",
+                      options: Object.freeze(
+                        formatOptions.map((value) =>
+                          Object.freeze({
+                            label: value.toUpperCase(),
+                            value,
+                          }),
+                        ),
+                      ),
+                      target: "export.video.format",
+                      type: "select" as const,
+                    }),
+                    videoResolution: Object.freeze({
+                      applicability: {
+                        mode: "always" as const,
+                        origin: "explicit" as const,
+                      },
+                      defaultValue: "current",
+                      label: "Resolution",
+                      options: Object.freeze(
+                        resolutionOptions.map((value) =>
+                          Object.freeze({
+                            label: value.toUpperCase(),
+                            value,
+                          }),
+                        ),
+                      ),
+                      target: "export.video.resolution",
+                      type: "select" as const,
+                    }),
+                  }),
+                })
+              : section,
+          ),
+      );
 
-    expect(
-      getToolcraftVideoExportErrors(
-        buildToolcraftOutputExportFacts({ schema }),
-      ),
-    ).toContain(expected);
-  });
+      expect(
+        getToolcraftVideoExportErrors(
+          buildToolcraftOutputExportFacts({ schema }),
+        ),
+      ).toContain(expected);
+    },
+  );
 
   it("validates the complete video format, resolution, defaults, and layout contract", () => {
-    const malformedVideoSchema = defineContractSchemaFixture({
-      canvas: {
-        enabled: true,
-        sizing: { mode: "editable-output" },
-      },
-      panels: {
-        controls: {
-          sections: [
-            makeBackgroundSection(),
-            {
-              controls: {
-                videoFormat: {
-                  defaultValue: "mov",
-                  label: "Format",
-                  target: "export.video.format",
-                  textValueKind: "single-line",
-                  type: "text",
-                },
-                videoResolution: {
-                  defaultValue: "8k",
-                  label: "Resolution",
-                  options: [
-                    { label: "Current", value: "current" },
-                    { label: "8K", value: "8k" },
-                  ],
-                  target: "export.video.resolution",
-                  type: "segmented",
-                },
-              },
-              title: "Video Export",
-            },
-            {
-              actionGroup: "secondary",
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      icon: "upload-simple",
-                      label: "Export Video",
-                      role: "export-video",
-                      value: "export.video",
+    const malformedVideoSchema = forgeResolvedExportSections(
+      defineExportModuleSchemaFixture({ video: true }),
+      (sections) =>
+        sections.map((section) =>
+          section.title === "Video Export"
+            ? Object.freeze({
+                ...section,
+                layoutGroups: undefined,
+                controls: Object.freeze({
+                  videoFormat: Object.freeze({
+                    applicability: {
+                      mode: "always" as const,
+                      origin: "explicit" as const,
                     },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-              title: "Export",
-            },
-          ],
-          title: "Controls",
-        },
-      },
-    });
+                    defaultValue: "mov",
+                    label: "Format",
+                    target: "export.video.format",
+                    textValueKind: "single-line" as const,
+                    type: "text" as const,
+                  }),
+                  videoResolution: Object.freeze({
+                    applicability: {
+                      mode: "always" as const,
+                      origin: "explicit" as const,
+                    },
+                    defaultValue: "8k",
+                    label: "Resolution",
+                    options: Object.freeze([
+                      Object.freeze({ label: "Current", value: "current" }),
+                      Object.freeze({ label: "8K", value: "8k" }),
+                    ]),
+                    target: "export.video.resolution",
+                    type: "segmented" as const,
+                  }),
+                }),
+              })
+            : section,
+        ),
+    );
 
     expect(
       validateContractAcceptance({
@@ -296,8 +257,11 @@ describe("Toolcraft video export settings acceptance contract", () => {
             actionCoverage: ["export.video"],
             automated: true,
             automatedTestName: "exports video output",
-            browser: true,
-            browserTestName: "browser: exports video output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: exports video output",
+            },
             componentType: "panelActions",
             evidence: "exported-bytes",
             expectedObservable: "Export Video creates validated video bytes.",
@@ -311,11 +275,12 @@ describe("Toolcraft video export settings acceptance contract", () => {
         ],
         productReadiness: makeExportSettingsProductReadiness({
           image: {
-            evidence: "The user explicitly removed image delivery.",
+            evidence: exportRequestFixture("Remove image export."),
             mode: "user-removed",
           },
+          svg: { mode: "not-requested" },
           video: {
-            evidence: "The user explicitly requested video delivery.",
+            evidence: exportRequestFixture("Add video export."),
             mode: "user-requested",
           },
         }),

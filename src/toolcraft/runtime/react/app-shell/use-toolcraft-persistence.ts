@@ -3,21 +3,25 @@
 import * as React from "react";
 
 import type { ToolcraftPersistableStateSlice } from "../../schema/types";
-import type { ResolvedToolcraftAppSchema } from "../../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../../schema/resolved-app-schema";
 import {
   createToolcraftPersistenceController,
+  type ToolcraftPersistenceCheckpoint,
   type ToolcraftPersistenceStatus,
-} from "../../state/persistence-controller";
+} from "../../composition/public-persistence";
+import { getToolcraftPersistedValueTargets } from "../../state/persistence-value-targets";
 import type { ToolcraftExternalStore } from "../../state/toolcraft-external-store";
 import type { ToolcraftState } from "../../state/types";
-import { getToolcraftBinaryMediaHydrationKey } from "../../source-assets/binary-media-hydration";
+import { prepareToolcraftPersistenceFlush } from "./persistence-flush-preparation";
 
-const ToolcraftPersistenceStatusContext =
-  React.createContext<ToolcraftPersistenceStatus>({ status: "disabled" });
+const ToolcraftPersistenceStatusContext = React.createContext<ToolcraftPersistenceStatus>({
+  status: "disabled",
+});
 
 function getPersistedStateReferences(
   state: ToolcraftState,
   include: readonly ToolcraftPersistableStateSlice[],
+  additionalValueTargets: readonly string[],
 ): readonly unknown[] {
   const references: unknown[] = [];
 
@@ -39,8 +43,12 @@ function getPersistedStateReferences(
         references.push(state.timeline);
         break;
       case "values":
-        for (const target of Object.keys(state.defaults)) {
-          references.push(state.values[target]);
+        references.push(state.controlRanges);
+        for (const target of getToolcraftPersistedValueTargets(
+          state.defaults,
+          additionalValueTargets,
+        )) {
+          references.push(target, Object.hasOwn(state.values, target), state.values[target]);
         }
         break;
     }
@@ -65,9 +73,7 @@ function isPersistenceHydrationPending(
 ): boolean {
   return (
     include.includes("media") &&
-    state.mediaAssets.some(
-      (asset) => "lifecycle" in asset && asset.lifecycle === "restoring",
-    )
+    state.mediaAssets.some((asset) => "lifecycle" in asset && asset.lifecycle === "restoring")
   );
 }
 
@@ -75,79 +81,55 @@ export function useToolcraftPersistence(
   schema: ResolvedToolcraftAppSchema,
   store: ToolcraftExternalStore,
   options: {
-    blockedReason?: "newer-version";
-    cleanupStorageKeys?: readonly string[];
-    mediaMigrationResourceKeys?: readonly string[];
+    authority?: "runtime" | "external";
+    blockedReason?: "incompatible-version";
+    checkpoint?: ToolcraftPersistenceCheckpoint;
+    storageKind?: "localStorage" | "sessionStorage";
   } = {},
 ): ToolcraftPersistenceStatus {
+  const checkpoint = React.useMemo<ToolcraftPersistenceCheckpoint>(
+    () => options.checkpoint ?? {},
+    [options.checkpoint, store],
+  );
   const [status, setStatus] = React.useState<ToolcraftPersistenceStatus>(() =>
-    options.blockedReason === "newer-version"
+    options.authority === "external"
+      ? { status: "disabled" }
+      : options.blockedReason === "incompatible-version"
       ? { reason: "incompatible-version", status: "failed" }
       : schema.persistence.storage === "localStorage"
-      ? { status: "pending" }
-      : { status: "disabled" },
+        ? { status: "pending" }
+        : { status: "disabled" },
   );
 
   React.useEffect(() => {
     const persistence = schema.persistence;
 
-    if (
-      persistence.storage !== "localStorage" ||
-      typeof window === "undefined"
-    ) {
+    if (options.authority === "external" || persistence.storage !== "localStorage" || typeof window === "undefined") {
       setStatus({ status: "disabled" });
       return undefined;
     }
 
     let mounted = true;
-    const mediaMigrationResourceKeys = new Set(
-      options.mediaMigrationResourceKeys ?? [],
-    );
+    let storage: Storage | undefined;
+    try {
+      storage = window[options.storageKind ?? "localStorage"];
+    } catch {
+      // Let the controller report its existing unavailable-storage result.
+    }
     const controller = createToolcraftPersistenceController({
       blockedReason: options.blockedReason,
+      checkpoint,
       getCommittedState: store.getCommittedState,
-      getWriteBlock: () => {
-        if (!persistence.include.includes("media")) {
-          return null;
-        }
-
-        const hasBlockedMigration = store.getCommittedState().mediaAssets.some(
-          (asset) =>
-            asset.assetKind !== "model" &&
-            asset.lifecycle !== "ready" &&
-            mediaMigrationResourceKeys.has(
-              getToolcraftBinaryMediaHydrationKey(asset.id, asset.resourceRef),
-            ),
-        );
-
-        return hasBlockedMigration
-          ? { reason: "unavailable", status: "failed" }
-          : null;
-      },
       onStatusChange: (nextStatus) => {
         if (mounted) {
           setStatus(nextStatus);
         }
       },
-      onWriteSuccess: () => {
-        for (const storageKey of options.cleanupStorageKeys ?? []) {
-          try {
-            window.localStorage.removeItem(storageKey);
-          } catch {
-            // Cleanup is best-effort after the canonical snapshot is durable.
-          }
-        }
-      },
       schema,
-      storage: window.localStorage,
+      storage,
     });
     const scheduleWhenHydrated = (): void => {
-      if (
-        !isPersistenceHydrationPending(
-          store.getCommittedState(),
-          persistence.include,
-        )
-      ) {
+      if (!isPersistenceHydrationPending(store.getCommittedState(), persistence.include)) {
         controller.schedule();
       }
     };
@@ -156,11 +138,13 @@ export function useToolcraftPersistence(
         getPersistedStateReferences(
           store.getCommittedState(),
           persistence.include,
+          persistence.additionalValueTargets,
         ),
       scheduleWhenHydrated,
       persistedStateReferencesEqual,
     );
     const handlePageHide = (): void => {
+      prepareToolcraftPersistenceFlush(store);
       controller.flush();
     };
 
@@ -173,13 +157,7 @@ export function useToolcraftPersistence(
       unsubscribe();
       controller.dispose();
     };
-  }, [
-    options.blockedReason,
-    options.cleanupStorageKeys,
-    options.mediaMigrationResourceKeys,
-    schema,
-    store,
-  ]);
+  }, [checkpoint, options.authority, options.blockedReason, options.storageKind, schema, store]);
 
   return status;
 }

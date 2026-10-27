@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { expectToolcraftBackgroundOutputSemantics } from "./browser-background-output-evidence";
+import {
+  expectToolcraftBackgroundOutputSemantics,
+  expectToolcraftFiniteBackgroundMediaStacking,
+} from "./browser-background-output-evidence";
 import { expectToolcraftControlApplicabilityState } from "./browser-control-applicability-evidence";
 import {
   expectToolcraftLayerReorder,
@@ -445,11 +448,53 @@ test("background recipe proves preview exclusion, transparent image pixels, and 
     },
   );
 
+  await setProofState(page, "finite-background", {
+    backgroundColor: "#101010",
+    backgroundVisible: false,
+    canvasMode: "finite",
+    layerOrder: ["media", "product"],
+    mediaVisible: true,
+    outputSignature: "finite-background-off",
+    productForegroundTransparent: true,
+  });
+  const finiteStacking = session.observe((root) =>
+    JSON.parse(root.getAttribute("data-proof-finite-background") ?? "null"),
+  );
+  await expectToolcraftFiniteBackgroundMediaStacking(
+    finiteStacking,
+    session.controlAction(includeBackgroundTarget, (_control, currentPage) =>
+      setProofState(currentPage, "finite-background", {
+        backgroundColor: "#101010",
+        backgroundVisible: true,
+        canvasMode: "finite",
+        layerOrder: ["background", "media", "product"],
+        mediaVisible: true,
+        outputSignature: "finite-background-on",
+        productForegroundTransparent: true,
+      }),
+    ),
+    {
+      backgroundColor: "#101010",
+      backgroundVisible: true,
+      canvasMode: "finite",
+      layerOrder: ["background", "media", "product"],
+      mediaVisible: true,
+      outputSignature: "finite-background-on",
+      productForegroundTransparent: true,
+    },
+    {
+      requirementId: includeBackgroundTarget,
+      stabilityIntervalMs: 0,
+    },
+  );
+
   expect(attachedEvidenceTypes(testInfo, attachmentCount)).toEqual([
     "product-observable-change",
     "background-preview-exclusion",
     "exported-artifact",
     "background-image-transparency",
     "background-video-preserved",
+    "product-observable-change",
+    "background-finite-media-stacking",
   ]);
 });

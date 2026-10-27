@@ -25,9 +25,15 @@ export async function dragToolcraftCanvasViewport(
   const startY = box.y + box.height * 0.5;
 
   await page.mouse.move(startX, startY);
-  await page.mouse.down();
-  await page.mouse.move(startX + delta.x, startY + delta.y, { steps: 16 });
-  await page.mouse.up();
+  await viewport.focus();
+  await page.keyboard.down("Space");
+  try {
+    await page.mouse.down();
+    await page.mouse.move(startX + delta.x, startY + delta.y, { steps: 16 });
+  } finally {
+    await page.mouse.up();
+    await page.keyboard.up("Space");
+  }
   if (options.pathId) {
     await attachToolcraftBrowserRuntimeEvidence({
       evidenceType: "performance-viewport",

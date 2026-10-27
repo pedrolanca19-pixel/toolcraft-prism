@@ -2,6 +2,7 @@ import {
   clampToolcraftCanvasZoom,
   toolcraftCanvasZoomDefault,
   toolcraftCanvasZoomStep,
+  zoomToolcraftCanvasOffset,
 } from "./canvas-zoom";
 import { normalizeToolcraftCanvasModeForBackground } from "./canvas-background-state";
 import { commitToolcraftStatePatch } from "./history-patches";
@@ -63,15 +64,6 @@ export function reduceToolcraftCanvasCommand(
       if (state.canvas.mode !== mode) {
         before["canvas.mode"] = state.canvas.mode;
         after["canvas.mode"] = mode;
-      }
-
-      if (
-        state.canvas.mode === "infinite" &&
-        mode === "finite" &&
-        (state.canvas.offset.x !== 0 || state.canvas.offset.y !== 0)
-      ) {
-        before["canvas.offset"] = state.canvas.offset;
-        after["canvas.offset"] = { x: 0, y: 0 };
       }
 
       if (
@@ -152,31 +144,21 @@ export function reduceToolcraftCanvasCommand(
       };
 
     case "canvas.zoomIn":
-      return {
-        ...state,
-        canvas: {
-          ...state.canvas,
-          zoom: clampToolcraftCanvasZoom(state.canvas.zoom + toolcraftCanvasZoomStep),
-        },
-      };
-
     case "canvas.zoomOut":
+    case "canvas.zoomReset": {
+      const zoom = command.type === "canvas.zoomReset"
+        ? toolcraftCanvasZoomDefault
+        : clampToolcraftCanvasZoom(state.canvas.zoom +
+            (command.type === "canvas.zoomIn" ? toolcraftCanvasZoomStep : -toolcraftCanvasZoomStep));
       return {
         ...state,
         canvas: {
           ...state.canvas,
-          zoom: clampToolcraftCanvasZoom(state.canvas.zoom - toolcraftCanvasZoomStep),
+          zoom,
+          offset: zoomToolcraftCanvasOffset(state.canvas.offset, state.canvas.zoom, zoom),
         },
       };
-
-    case "canvas.zoomReset":
-      return {
-        ...state,
-        canvas: {
-          ...state.canvas,
-          zoom: toolcraftCanvasZoomDefault,
-        },
-      };
+    }
 
     case "canvas.setViewport":
       return {

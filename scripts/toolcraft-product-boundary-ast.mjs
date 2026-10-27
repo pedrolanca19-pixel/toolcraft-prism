@@ -10,6 +10,7 @@ import {
 } from "./toolcraft-product-export-boundary.mjs";
 import { createToolcraftProductControlInspector } from "./toolcraft-product-control-boundary.mjs";
 import { getToolcraftSensitiveModuleKind } from "./toolcraft-product-boundary-module-policy.mjs";
+import { createToolcraftProductConstructorInspector } from "./toolcraft-product-constructor-boundary.mjs";
 import { inspectToolcraftProductStyleNode } from "./toolcraft-product-style-boundary.mjs";
 
 const runtimeSurfaceNames = new Set(runtimeSurfaceComponentNames);
@@ -24,11 +25,15 @@ const runtimeModelPresentationInternalNames = new Set([
 
 function isForbiddenNamedExport(moduleKind, importedName) {
   if (moduleKind === "ui-control-implementation") return true;
+  if (moduleKind === "ui-private-implementation") return true;
+  if (moduleKind === "ui-base-implementation") return true;
   if (isForbiddenToolcraftRuntimeExport(moduleKind)) return true;
+  if (moduleKind === "runtime-product-module-internal") return true;
   if (
     moduleKind === "runtime-model-import" ||
     moduleKind === "runtime-model-presentation"
-  ) return true;
+  )
+    return true;
   return moduleKind === "runtime-react"
     ? runtimeSurfaceNames.has(importedName) ||
         runtimeModelPresentationInternalNames.has(importedName)
@@ -49,8 +54,14 @@ function getImportViolationKind(moduleKind, importedName) {
         : "runtime-surface";
     case "runtime-model-import":
       return "runtime-model-import-ownership";
+    case "runtime-product-module-internal":
+      return "runtime-product-module-ownership";
     case "ui-control-implementation":
       return "built-in-control-implementation";
+    case "ui-private-implementation":
+      return "private-ui-implementation";
+    case "ui-base-implementation":
+      return "private-ui-implementation";
     default:
       return "built-in-control";
   }
@@ -59,15 +70,19 @@ function getImportViolationKind(moduleKind, importedName) {
 function getViolationMessage(kind, subject, moduleSpecifier) {
   switch (kind) {
     case "runtime-export-ownership":
-      return `Product source must not own artifact encoding, recording, or download mechanics${subject} from ${moduleSpecifier}. Declare exportRenderer and let runtime export actions encode and download the artifact.`;
+      return `Product source must not own artifact encoding, recording, or download mechanics${subject} from ${moduleSpecifier}. Declare exportRenderer for image/video or svgExportRenderer for SVG and let runtime export actions create and download the artifact.`;
     case "runtime-surface":
       return `Product source must not import or re-export host-owned runtime surface${subject} from ${moduleSpecifier}. Use ToolcraftAppComposition, schema, canvasContent, controlRenderers, onPanelAction, and runtime commands.`;
     case "runtime-model-presentation-ownership":
       return `Product source must not import raw model render hosts or standard model canvas internals${subject} from ${moduleSpecifier}. Declare modelPresentation and use useToolcraftModelPresentationConsumer for visible custom model output.`;
     case "runtime-model-import-ownership":
       return `Product source must not import or re-export model loaders, topology/repair infrastructure, or runtime model-import internals${subject} from ${moduleSpecifier}. Declare a model fileDrop in schema and use the runtime-owned import, analysis, repair, persistence, preview, and export pipeline.`;
+    case "runtime-product-module-ownership":
+      return `Product source must not import module resolvers or deep module internals${subject} from ${moduleSpecifier}. Use factories from the public Toolcraft runtime root.`;
     case "built-in-control-implementation":
       return `Product source must not import or re-export a deep control implementation${subject} from ${moduleSpecifier}. Use the public schema control instead of copying or composing its private mechanics.`;
+    case "private-ui-implementation":
+      return `Product source may import Toolcraft UI only from the public root. Deep UI implementation${subject} from ${moduleSpecifier} is private.`;
     default:
       return `Product source must not import or re-export built-in control${subject} from ${moduleSpecifier}. Declare it through schema or justify a true custom controlRenderer.`;
   }
@@ -96,6 +111,7 @@ export function inspectToolcraftProductSource({
   checker,
   getNodeLocation,
   repoPath,
+  resolveCssModuleClass,
   resolveStaticString,
   rootDir,
   sourceFile,
@@ -110,7 +126,13 @@ export function inspectToolcraftProductSource({
     checker,
     getNodeLocation,
     repoPath,
+    resolveCssModuleClass,
     resolveStaticString,
+    sourceFile,
+  });
+  const inspectConstructors = createToolcraftProductConstructorInspector({
+    getNodeLocation,
+    repoPath,
     sourceFile,
   });
 
@@ -146,6 +168,14 @@ export function inspectToolcraftProductSource({
       report(node, moduleSpecifier, moduleKind);
       return null;
     }
+    if (moduleKind === "ui-private-implementation") {
+      report(node, moduleSpecifier, moduleKind);
+      return null;
+    }
+    if (moduleKind === "ui-base-implementation") {
+      report(node, moduleSpecifier, moduleKind);
+      return null;
+    }
     if (isForbiddenToolcraftRuntimeExport(moduleKind)) {
       report(node, moduleSpecifier, moduleKind);
       return null;
@@ -163,6 +193,7 @@ export function inspectToolcraftProductSource({
       }),
       ...inspectExportMechanics(node),
       ...inspectControls.inspectNode(node),
+      ...inspectConstructors.inspectNode(node),
     );
 
     if (
@@ -174,7 +205,8 @@ export function inspectToolcraftProductSource({
       const importClause = node.importClause;
 
       if (moduleKind && importClause && !importClause.isTypeOnly) {
-        if (importClause.name) report(importClause.name, moduleSpecifier, moduleKind);
+        if (importClause.name)
+          report(importClause.name, moduleSpecifier, moduleKind);
         const bindings = importClause.namedBindings;
         if (bindings && ts.isNamespaceImport(bindings)) {
           report(bindings, moduleSpecifier, moduleKind);
@@ -243,7 +275,8 @@ export function inspectToolcraftProductSource({
     if (
       ts.isCallExpression(node) &&
       (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
-        (ts.isIdentifier(node.expression) && node.expression.text === "require")) &&
+        (ts.isIdentifier(node.expression) &&
+          node.expression.text === "require")) &&
       node.arguments.length > 0
     ) {
       const moduleSpecifier = resolveStaticString(node.arguments[0]);

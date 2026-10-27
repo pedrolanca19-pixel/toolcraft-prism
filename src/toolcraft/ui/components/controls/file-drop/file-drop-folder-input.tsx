@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { configureBrowserDirectoryInput } from "../../primitives/browser-transport";
+
 type FileDropFolderInputProps = {
   ariaLabel: string;
   inputRef: React.RefObject<HTMLInputElement | null>;
@@ -15,16 +17,15 @@ export function FileDropFolderInput({
 }: FileDropFolderInputProps): React.JSX.Element {
   const registerInput = React.useCallback((input: HTMLInputElement | null) => {
     inputRef.current = input;
-    if (input) {
-      input.setAttribute("webkitdirectory", "");
-      input.setAttribute("directory", "");
-    }
+    if (input) configureBrowserDirectoryInput(input);
   }, [inputRef]);
 
   return (
     <input
       aria-label={ariaLabel}
       className="hidden"
+      data-slot="file-upload-folder-input"
+      hidden
       multiple
       onChange={(event) => {
         const files = Array.from(event.currentTarget.files ?? []);
@@ -34,6 +35,7 @@ export function FileDropFolderInput({
       ref={registerInput}
       tabIndex={-1}
       type="file"
+      {...{ webkitdirectory: "" }}
     />
   );
 }

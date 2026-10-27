@@ -9,7 +9,7 @@ import {
   threeStaticGeometryFailure,
   throwIfThreeStaticGeometryAborted,
   ToolcraftThreeStaticGeometryError,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 import { loadObjMaterialLibrary } from "./obj-material-library";
 import { readThreeStaticGeometryBundle } from "./three-static-source-bundle";
 import { canonicalizeThreeStaticGeometry } from "./three-static-geometry-canonicalizer";

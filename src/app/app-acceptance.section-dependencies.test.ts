@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { mediaSourceModule } from "@/toolcraft/runtime";
 
 import {
   defineContractSchemaFixture,
@@ -10,41 +11,48 @@ import { makeControlAcceptance } from "./app-acceptance.test-utils";
 describe("starter acceptance section dependency contract", () => {
   it("rejects stale control section inventory entries", () => {
     const schemaWithInventoryMismatch = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                kind: {
-                  defaultValue: "soft",
-                  label: "Kind",
-                  options: [
-                    { label: "Soft", value: "soft" },
-                    { label: "Sharp", value: "sharp" },
-                  ],
-                  orderRole: "mode",
-                  target: "shape.kind",
-                  type: "select",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                controls: {
+                  kind: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: "soft",
+                    label: "Kind",
+                    options: [
+                      { label: "Soft", value: "soft" },
+                      { label: "Sharp", value: "sharp" },
+                    ],
+                    orderRole: "mode",
+                    target: "shape.kind",
+                    type: "select",
+                  },
+                  count: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: 12,
+                    label: "Count",
+                    max: 40,
+                    min: 1,
+                    orderRole: "detail",
+                    target: "shape.count",
+                    type: "slider",
+                    variant: "continuous",
+                  },
                 },
-                count: {
-                  defaultValue: 12,
-                  label: "Count",
-                  max: 40,
-                  min: 1,
-                  orderRole: "detail",
-                  target: "shape.count",
-                  type: "slider",
-                  variant: "continuous",
-                },
+                id: "shape",
+                title: "Shape",
               },
-              id: "shape",
-              title: "Shape",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [],
     });
 
     expect(
@@ -59,6 +67,13 @@ describe("starter acceptance section dependency contract", () => {
           {
             entity: "Shape",
             entityId: "shape",
+            finiteSelectors: [
+              {
+                reason: "Shape kind changes its own rendered product outcome.",
+                role: "parameter",
+                target: "shape.kind",
+              },
+            ],
             groupingReason: "Shape setup",
             id: "shape",
             targets: ["shape.kind"],
@@ -74,55 +89,63 @@ describe("starter acceptance section dependency contract", () => {
     );
   });
 
-  it("rejects workflow splitting when one entity fits in one section", () => {
+  it("accepts justified workflow splitting even for a small entity", () => {
     const schemaWithWorkflowSplit = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                size: {
-                  defaultValue: 64,
-                  label: "Size",
-                  max: 128,
-                  min: 16,
-                  orderRole: "primary",
-                  target: "object.shape.size",
-                  type: "slider",
-                  unit: "px",
-                  variant: "continuous",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                controls: {
+                  size: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: 64,
+                    label: "Size",
+                    max: 128,
+                    min: 16,
+                    orderRole: "primary",
+                    target: "object.shape.size",
+                    type: "slider",
+                    unit: "px",
+                    variant: "continuous",
+                  },
                 },
+                id: "shape-structure",
+                title: "Shape Structure",
               },
-              id: "shape-structure",
-              title: "Shape Structure",
-            },
-            {
-              controls: {
-                count: {
-                  defaultValue: 12,
-                  label: "Count",
-                  max: 40,
-                  min: 1,
-                  orderRole: "detail",
-                  target: "object.shape.count",
-                  type: "slider",
-                  variant: "continuous",
+              {
+                controls: {
+                  count: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: 12,
+                    label: "Count",
+                    max: 40,
+                    min: 1,
+                    orderRole: "detail",
+                    target: "object.shape.count",
+                    type: "slider",
+                    variant: "continuous",
+                  },
                 },
+                id: "shape-density",
+                title: "Shape Density",
               },
-              id: "shape-density",
-              title: "Shape Density",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [],
     });
 
     const workflowSplitInventory = [
       {
         entity: "Object shape",
         entityId: "object-shape",
+        finiteSelectors: [],
         groupingReason:
           "Structure controls tune the physical footprint of the object.",
         id: "shape-structure",
@@ -135,6 +158,7 @@ describe("starter acceptance section dependency contract", () => {
       {
         entity: "Object shape",
         entityId: "object-shape",
+        finiteSelectors: [],
         groupingReason:
           "Density controls tune how many objects appear after structure is set.",
         id: "shape-density",
@@ -155,53 +179,61 @@ describe("starter acceptance section dependency contract", () => {
         ],
         transferMode: contractTransferModeFixture,
         sectionInventory: workflowSplitInventory,
-      }),
-    ).toContain(
-      'Control Section Inventory entity "object-shape" owns 2 controls across 2 sections (Shape Structure, Shape Density). Entities with 10 or fewer controls must stay in one section.',
-    );
+      }).filter((message) => message.includes("Control Section Inventory") || message.includes("split across sections")),
+    ).toEqual([]);
   });
 
   it("rejects mode-gated controls split away from their selector section", () => {
     const schemaWithSplitModeBranch = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                sourceMode: {
-                  defaultValue: "preset",
-                  label: "Source",
-                  options: [
-                    { label: "Preset", value: "preset" },
-                    { label: "Image", value: "image" },
-                  ],
-                  orderRole: "mode",
-                  target: "source.mode",
-                  type: "segmented",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "test-section-4",
+                controls: {
+                  sourceMode: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: "preset",
+                    label: "Source",
+                    options: [
+                      { label: "Preset", value: "preset" },
+                      { label: "Image", value: "image" },
+                    ],
+                    orderRole: "mode",
+                    target: "source.mode",
+                    type: "segmented",
+                  },
                 },
+                title: "Source",
               },
-              title: "Source",
-            },
-            {
-              controls: {
-                sourceUpload: {
-                  accept: "image/*",
-                  assetKind: "image",
-                  defaultValue: null,
-                  label: "Image",
-                  orderRole: "input",
-                  target: "source.upload",
-                  type: "fileDrop",
-                  visibleWhen: { equals: "image", target: "source.mode" },
+              {
+                id: "test-section-5",
+                controls: {
+                  sourceUpload: {
+                    accept: "image/*",
+                    assetKind: "image",
+                    defaultValue: null,
+                    label: "Image",
+                    orderRole: "input",
+                    target: "source.upload",
+                    type: "fileDrop",
+                    applicability: {
+                      all: [{ equals: "image", target: "source.mode" }],
+                      mode: "conditional" as const,
+                    },
+                  },
                 },
+                title: "Image",
               },
-              title: "Image",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
       },
+      modules: [mediaSourceModule()],
     });
 
     expect(
@@ -221,43 +253,53 @@ describe("starter acceptance section dependency contract", () => {
 
   it("rejects selector branch sections even when targets do not share a prefix", () => {
     const schemaWithSplitOptionBranch = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                shapeKind: {
-                  defaultValue: "generated",
-                  label: "Shape",
-                  options: [
-                    { label: "Generated", value: "generated" },
-                    { label: "Library", value: "library" },
-                  ],
-                  orderRole: "mode",
-                  target: "shape.kind",
-                  type: "segmented",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "test-section-6",
+                controls: {
+                  shapeKind: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: "generated",
+                    label: "Shape",
+                    options: [
+                      { label: "Generated", value: "generated" },
+                      { label: "Library", value: "library" },
+                    ],
+                    orderRole: "mode",
+                    target: "shape.kind",
+                    type: "segmented",
+                  },
                 },
+                title: "Shape",
               },
-              title: "Shape",
-            },
-            {
-              controls: {
-                libraryAsset: {
-                  defaultValue: null,
-                  label: "Library",
-                  orderRole: "input",
-                  target: "asset.upload",
-                  type: "fileDrop",
-                  visibleWhen: { equals: "library", target: "shape.kind" },
+              {
+                id: "test-section-7",
+                controls: {
+                  libraryAsset: {
+                    defaultValue: null,
+                    label: "Library",
+                    orderRole: "input",
+                    target: "asset.upload",
+                    type: "fileDrop",
+                    applicability: {
+                      all: [{ equals: "library", target: "shape.kind" }],
+                      mode: "conditional" as const,
+                    },
+                  },
                 },
+                title: "Library",
               },
-              title: "Library",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
       },
+      modules: [mediaSourceModule()],
     });
 
     expect(

@@ -23,6 +23,7 @@ export type ToolcraftVideoEncoderBackendFactoryRequest = Readonly<{
   durationSeconds: number;
   height: number;
   requestedFormat: ToolcraftVideoExportFormat;
+  signal: AbortSignal;
   width: number;
 }>;
 
@@ -33,7 +34,9 @@ export type ToolcraftVideoEncoderBackendFactory = (
 export async function createToolcraftVideoEncoderBackend(
   request: ToolcraftVideoEncoderBackendFactoryRequest,
 ): Promise<ToolcraftVideoEncoderBackend> {
+  request.signal.throwIfAborted();
   const mediabunny = await import("mediabunny");
+  request.signal.throwIfAborted();
   const codecs: readonly ToolcraftVideoCodec[] = ["avc", "vp9", "vp8"];
   const supportResults = await Promise.all(
     codecs.map((codec) =>
@@ -44,6 +47,7 @@ export async function createToolcraftVideoEncoderBackend(
       }),
     ),
   );
+  request.signal.throwIfAborted();
   const policy = resolveToolcraftVideoEncodingPolicy({
     durationSeconds: request.durationSeconds,
     height: request.height,
@@ -70,41 +74,58 @@ export async function createToolcraftVideoEncoderBackend(
     }
   });
   const output = new mediabunny.Output({ format, target });
-  const source = new mediabunny.CanvasSource(request.canvas, {
-    bitrate: policy.bitrate,
-    codec: policy.codec,
-    keyFrameInterval: 2,
-  });
-  output.addVideoTrack(source, { frameRate: 30 });
-  await output.start();
+  let source: InstanceType<typeof mediabunny.CanvasSource>;
+  try {
+    source = new mediabunny.CanvasSource(request.canvas, {
+      bitrate: policy.bitrate,
+      codec: policy.codec,
+      keyFrameInterval: 2,
+    });
+    output.addVideoTrack(source, { frameRate: 30 });
+    await output.start();
+    request.signal.throwIfAborted();
+  } catch (error) {
+    try {
+      // Output owns connected sources and can cancel even before start completed.
+      await output.cancel();
+    } catch (cleanupError) {
+      throw new AggregateError([error, cleanupError], "Video startup and cleanup failed.", { cause: error });
+    }
+    throw error;
+  }
   let closed = false;
   let finalized = false;
+  let cancellation: Promise<void> | undefined;
 
   function closeSource(): void {
     if (!closed) {
-      source.close();
       closed = true;
+      source.close();
     }
   }
 
   return Object.freeze({
     addFrame: async (timeSeconds, durationSeconds, keyFrame) => {
+      request.signal.throwIfAborted();
       await source.add(timeSeconds, durationSeconds, { keyFrame });
       if (overflowError) throw overflowError;
+      request.signal.throwIfAborted();
     },
-    cancel: async () => {
-      if (finalized || output.state === "canceled") {
-        return;
-      }
-      closeSource();
-      await output.cancel();
+    cancel: () => {
+      // Output.cancel force-closes its tracks; a second caller must await the same cleanup.
+      cancellation ??= finalized
+        ? Promise.resolve()
+        : Promise.resolve().then(() => output.cancel());
+      return cancellation;
     },
     extension: policy.extension,
     finalize: async () => {
+      request.signal.throwIfAborted();
       closeSource();
       await output.finalize();
       finalized = true;
       if (overflowError) throw overflowError;
+      request.signal.throwIfAborted();
       if (!target.buffer) {
         throw new ToolcraftArtifactExportError({
           code: "video-encode-failed",

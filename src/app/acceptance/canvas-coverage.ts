@@ -3,9 +3,16 @@ export type ToolcraftCanvasSizingCoverage =
   | "intrinsic-media-size";
 
 export type ToolcraftInfinityCanvasCoverage =
-  | "mode-and-restoration"
+  | "mode-continuity-and-restoration"
   | "scene-bounds-image-export"
+  | "scene-bounds-svg-export"
   | "scene-bounds-video-export";
+
+export type ToolcraftInfinityOverflowCoverage = Readonly<{
+  passIds: readonly string[];
+  controlValues: Readonly<Record<string, string | number | boolean>>;
+  edges: readonly ("left" | "right" | "top" | "bottom")[];
+}>;
 
 export type ToolcraftRenderScaleState =
   | "interaction"

@@ -1,13 +1,12 @@
 import {
   isToolcraftImageFile,
   readImportedImageFile,
-} from "../react/canvas/media-file";
+} from "./media-file";
 import { createToolcraftMediaResourceRef } from "./media-resource-ref";
 import {
   doesToolcraftControlAcceptBatch,
 } from "./file-source-asset-handler";
 import { prepareToolcraftSourceAssetBatch } from "./source-asset-batch-preparation";
-import { createToolcraftSourceAssetPresentation } from "./source-asset-presentation";
 import type {
   ToolcraftPreparedSourceAssetRecord,
   ToolcraftSourceAssetHandler,
@@ -94,12 +93,13 @@ export const toolcraftImageSourceAssetHandler: ToolcraftSourceAssetHandler<
         return {
           assetKind: "image" as const,
           fileName: file.name,
+          sourcePaths: [file.webkitRelativePath || file.name],
           lifecycle: "ready" as const,
           mimeType,
           position: context.batch.position
             ? { ...context.batch.position }
             : { x: 0, y: 0 },
-          size: imported.size,
+          sourceSize: imported.size,
           resourceRef,
           ...(context.plan.sourceTarget
             ? { sourceTarget: context.plan.sourceTarget }
@@ -113,11 +113,4 @@ export const toolcraftImageSourceAssetHandler: ToolcraftSourceAssetHandler<
       stagedResourceRefs: Object.freeze([...stagedResourceRefs].sort()),
     };
   },
-  present: ({ control, mediaAssets, operation }) =>
-    createToolcraftSourceAssetPresentation(
-      "image",
-      control,
-      mediaAssets,
-      operation,
-    ),
 };

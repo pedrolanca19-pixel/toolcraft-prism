@@ -3,7 +3,7 @@
 import * as React from "react";
 
 import type { ToolcraftSourceAssetOperation } from "../../source-assets/source-asset-types";
-import type { ToolcraftCanvasFrame } from "../../state/canvas-frame";
+import { getToolcraftSceneElementRect } from "../../scene";
 import { defaultToolcraftSceneElementFrame } from "../../state/scene-element-frame";
 import type {
   ToolcraftCommand,
@@ -12,7 +12,6 @@ import type {
 } from "../../state/types";
 import { useToolcraftStore } from "../app-shell/toolcraft-store-context";
 import { useToolcraftCommittedSelector } from "../app-shell/toolcraft-selectors";
-import { getSceneElementPresentationRect } from "../canvas/scene-element-presentation-rect";
 import { isToolcraftLayerVisibleInTree } from "../layers/layer-tree";
 import { readToolcraftOrientationPose } from "../orientation-gizmo/orientation-gizmo-math";
 import type {
@@ -262,7 +261,6 @@ const emptySubscribe = () => () => {};
 function ToolcraftModelTargetCanvasLayer({
   asset,
   canPrewarm,
-  canvasFrame,
   dispatch,
   observeOperation,
   operationSource,
@@ -274,7 +272,6 @@ function ToolcraftModelTargetCanvasLayer({
 }: {
   asset?: ToolcraftModelAsset;
   canPrewarm: boolean;
-  canvasFrame: ToolcraftCanvasFrame;
   dispatch: React.Dispatch<ToolcraftCommand>;
   observeOperation: boolean;
   operationSource?: ToolcraftModelOperationSource;
@@ -337,8 +334,7 @@ function ToolcraftModelTargetCanvasLayer({
   const phase = operation.phase === "idle"
     ? canvasAsset.lifecycle
     : operation.phase;
-  const presentationRect = getSceneElementPresentationRect(
-    canvasFrame,
+  const presentationRect = getToolcraftSceneElementRect(
     renderableAsset ?? defaultToolcraftSceneElementFrame,
   );
   const presentationViewport = {
@@ -384,13 +380,11 @@ function getConfiguredModelTargets(state: ToolcraftState): readonly string[] {
 }
 
 export function ToolcraftModelCanvasLayers({
-  canvasFrame,
   dispatch,
   operationTargets = [],
   operationSource,
   suppressedTargets = [],
 }: {
-  canvasFrame: ToolcraftCanvasFrame;
   dispatch: React.Dispatch<ToolcraftCommand>;
   operationTargets?: readonly string[];
   operationSource?: ToolcraftModelOperationSource;
@@ -435,7 +429,6 @@ export function ToolcraftModelCanvasLayers({
         <ToolcraftModelTargetCanvasLayer
           asset={asset}
           canPrewarm={configuredTargets.includes(target)}
-          canvasFrame={canvasFrame}
           dispatch={dispatch}
           key={target}
           observeOperation={

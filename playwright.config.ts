@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import { findAvailablePort, readPreferredPort } from "./scripts/toolcraft-port.mjs";
+import { parseToolcraftFeatureVerificationPlanSource } from "./scripts/toolcraft-feature-verification-plan.mjs";
 
 const resolvedTestPortEnvName = "TOOLCRAFT_RESOLVED_TEST_PORT";
 const resolvedTestPort = Number(process.env[resolvedTestPortEnvName]);
@@ -17,6 +18,11 @@ const testPort =
 const testBaseUrl = `http://localhost:${testPort}`;
 const browserServerMode =
   process.env.TOOLCRAFT_BROWSER_SERVER_MODE === "preview" ? "preview" : "dev";
+const featureVerificationPlanSource =
+  process.env.TOOLCRAFT_FEATURE_VERIFICATION_PLAN;
+if (featureVerificationPlanSource !== undefined) {
+  parseToolcraftFeatureVerificationPlanSource(featureVerificationPlanSource);
+}
 const browserExecutionLedgerValues = {
   directory: process.env.TOOLCRAFT_BROWSER_EXECUTION_LEDGER_DIRECTORY,
   nonce: process.env.TOOLCRAFT_BROWSER_EXECUTION_LEDGER_NONCE,
@@ -149,6 +155,9 @@ export default defineConfig({
         targetedPerformanceReport,
       },
     ],
+    ...(featureVerificationPlanSource === undefined
+      ? []
+      : [["./e2e/toolcraft-feature-verification-reporter.ts"]] as const),
   ],
   use: {
     ...devices["Desktop Chrome"],

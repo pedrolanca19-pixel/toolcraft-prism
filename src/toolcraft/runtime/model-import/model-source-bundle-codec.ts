@@ -9,8 +9,6 @@ import {
 
 export const TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_CONTENT_TYPE =
   "application/vnd.toolcraft.model-source-bundle.v2+json";
-export const TOOLCRAFT_MODEL_SOURCE_BUNDLE_LEGACY_DESCRIPTOR_CONTENT_TYPE =
-  "application/vnd.toolcraft.model-source-bundle.v1+json";
 export const TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_MAX_BYTES = 1_048_576;
 
 export type ToolcraftModelSourceBundleDescriptorCodecOptions = Readonly<{
@@ -30,7 +28,9 @@ const arrayBufferByteLengthGetter = Object.getOwnPropertyDescriptor(
   ArrayBuffer.prototype,
   "byteLength",
 )?.get;
-const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype) as object;
+const typedArrayPrototype = Object.getPrototypeOf(
+  Uint8Array.prototype,
+) as object;
 const typedArrayBufferGetter = Object.getOwnPropertyDescriptor(
   typedArrayPrototype,
   "buffer",
@@ -85,9 +85,21 @@ function descriptorBytes(value: ArrayBuffer | Uint8Array): Uint8Array {
   ) {
     try {
       if (Reflect.apply(typedArrayTagGetter, value, []) === "Uint8Array") {
-        const buffer = Reflect.apply(typedArrayBufferGetter, value, []) as ArrayBuffer;
-        const byteOffset = Reflect.apply(typedArrayByteOffsetGetter, value, []) as number;
-        const byteLength = Reflect.apply(typedArrayByteLengthGetter, value, []) as number;
+        const buffer = Reflect.apply(
+          typedArrayBufferGetter,
+          value,
+          [],
+        ) as ArrayBuffer;
+        const byteOffset = Reflect.apply(
+          typedArrayByteOffsetGetter,
+          value,
+          [],
+        ) as number;
+        const byteLength = Reflect.apply(
+          typedArrayByteLengthGetter,
+          value,
+          [],
+        ) as number;
         return new Uint8Array(buffer, byteOffset, byteLength);
       }
     } catch {
@@ -111,26 +123,6 @@ function descriptorBytes(value: ArrayBuffer | Uint8Array): Uint8Array {
 }
 
 function canonicalPayload(bundle: ToolcraftModelSourceBundle): unknown {
-  if (bundle.descriptorVersion === 1) {
-    return {
-      adapter: {
-        adapterVersion: bundle.adapter.adapterVersion,
-        format: bundle.adapter.format,
-        rootExtension: bundle.adapter.rootExtension,
-      },
-      aggregateByteLength: bundle.aggregateByteLength,
-      aggregateDigest: bundle.aggregateDigest,
-      rootPath: bundle.rootPath,
-      sourceFiles: bundle.sourceFiles.map((file) => ({
-        byteLength: file.byteLength,
-        contentDigest: file.contentDigest,
-        displayName: file.displayName,
-        mimeType: file.mimeType,
-        path: file.path,
-        resourceRef: file.resourceRef,
-      })),
-    };
-  }
   return {
     adapter: {
       adapterVersion: bundle.adapter.adapterVersion,
@@ -146,24 +138,25 @@ function canonicalPayload(bundle: ToolcraftModelSourceBundle): unknown {
       explanation: diagnostic.explanation,
       severity: diagnostic.severity,
     })),
-    packageSource: bundle.packageSource.kind === "selected-files"
-      ? { kind: "selected-files" }
-      : {
-          archive: {
-            byteLength: bundle.packageSource.archive.byteLength,
-            contentDigest: bundle.packageSource.archive.contentDigest,
-            displayName: bundle.packageSource.archive.displayName,
-            mimeType: bundle.packageSource.archive.mimeType,
-            resourceRef: bundle.packageSource.archive.resourceRef,
+    packageSource:
+      bundle.packageSource.kind === "selected-files"
+        ? { kind: "selected-files" }
+        : {
+            archive: {
+              byteLength: bundle.packageSource.archive.byteLength,
+              contentDigest: bundle.packageSource.archive.contentDigest,
+              displayName: bundle.packageSource.archive.displayName,
+              mimeType: bundle.packageSource.archive.mimeType,
+              resourceRef: bundle.packageSource.archive.resourceRef,
+            },
+            entries: bundle.packageSource.entries.map((entry) => ({
+              byteLength: entry.byteLength,
+              contentDigest: entry.contentDigest,
+              mimeType: entry.mimeType,
+              path: entry.path,
+            })),
+            kind: "zip",
           },
-          entries: bundle.packageSource.entries.map((entry) => ({
-            byteLength: entry.byteLength,
-            contentDigest: entry.contentDigest,
-            mimeType: entry.mimeType,
-            path: entry.path,
-          })),
-          kind: "zip",
-        },
     rootPath: bundle.rootPath,
     sourceFiles: bundle.sourceFiles.map((file) => ({
       byteLength: file.byteLength,
@@ -204,10 +197,10 @@ export function encodeToolcraftModelSourceBundleDescriptor(
   options: ToolcraftModelSourceBundleDescriptorCodecOptions = {},
 ): Uint8Array<ArrayBuffer> {
   const maximum = maximumByteLength(options.maxByteLength);
-  const candidate = bundle.descriptorVersion === 1
-    ? canonicalPayload(bundle)
-    : bundle;
-  return encodeValidated(validatedBundle(candidate, options), maximum);
+  return encodeValidated(
+    validatedBundle(canonicalPayload(bundle), options),
+    maximum,
+  );
 }
 
 export function decodeToolcraftModelSourceBundleDescriptor(
@@ -234,24 +227,25 @@ export function createToolcraftModelSourceBundleDescriptorResource(
   bundle: ToolcraftModelSourceBundle,
   options: ToolcraftModelSourceBundleDescriptorCodecOptions = {},
 ): ToolcraftModelSourceBundleDescriptorResource {
-  const validated = validatedBundle(
-    bundle.descriptorVersion === 1 ? canonicalPayload(bundle) : bundle,
-    options,
+  const validated = validatedBundle(canonicalPayload(bundle), options);
+  const bytes = encodeValidated(
+    validated,
+    maximumByteLength(options.maxByteLength),
   );
-  const bytes = encodeValidated(validated, maximumByteLength(options.maxByteLength));
   const dependencies = Object.freeze(
     validated.packageSource.kind === "zip"
       ? [validated.packageSource.archive.resourceRef]
-      : [...new Set(validated.sourceFiles.map(({ resourceRef }) => resourceRef))]
-          .sort(),
+      : [
+          ...new Set(
+            validated.sourceFiles.map(({ resourceRef }) => resourceRef),
+          ),
+        ].sort(),
   );
   return Object.freeze({
     bytes,
     sourceBundleRef: `toolcraft:model-source-bundle:${validated.aggregateDigest}`,
     stageOptions: Object.freeze({
-      contentType: validated.descriptorVersion === 1
-        ? TOOLCRAFT_MODEL_SOURCE_BUNDLE_LEGACY_DESCRIPTOR_CONTENT_TYPE
-        : TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_CONTENT_TYPE,
+      contentType: TOOLCRAFT_MODEL_SOURCE_BUNDLE_DESCRIPTOR_CONTENT_TYPE,
       dependencies,
       durable: true,
     }),

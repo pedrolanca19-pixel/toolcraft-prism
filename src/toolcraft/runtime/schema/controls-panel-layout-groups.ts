@@ -18,7 +18,9 @@ export function filterLayoutGroupsForControlIds(
       ...layoutGroup,
       controls: layoutGroup.controls.filter((controlId) => controlIds.has(controlId)),
     }))
-    .filter((layoutGroup) => layoutGroup.controls.length > 1);
+    .filter((layoutGroup) =>
+      layoutGroup.controls.length >= (layoutGroup.preserveColumns ? 1 : 2),
+    );
 }
 
 function isShortControlLabel(id: string, control: ToolcraftControlSchema): boolean {

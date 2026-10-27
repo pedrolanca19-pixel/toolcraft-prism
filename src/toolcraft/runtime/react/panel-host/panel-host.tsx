@@ -393,6 +393,7 @@ export function PanelContainer({
   dragMode,
   onPanelStateChange,
   panelClassName,
+  panelStyle,
   panelState,
   panelType,
   placement,
@@ -408,6 +409,7 @@ export function PanelContainer({
     return (
       <PanelHost
         className={panelClassName}
+        style={panelStyle}
         dragMode={dragMode}
         onPlacementChange={onPanelStateChange}
         panelType={panelType}
@@ -428,6 +430,7 @@ export function PanelContainer({
     >
       <PanelHost
         className={panelClassName}
+        style={panelStyle}
         dragMode={dragMode}
         onPlacementChange={onPanelStateChange}
         panelType={panelType}

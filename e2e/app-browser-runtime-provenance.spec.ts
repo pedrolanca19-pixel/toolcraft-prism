@@ -194,3 +194,39 @@ test("acceptance evidence is attached only after semantic verification succeeds"
   );
   expect(testInfo.attachments).toHaveLength(attachmentCount + 2);
 });
+
+test("command side-effect evidence inherits its protected action target", async ({
+  page,
+}, testInfo: TestInfo) => {
+  await page.goto("/");
+  const session = await createToolcraftBrowserProofSession(page);
+  await page.locator('[data-slot="toolcraft-runtime-app"]').evaluate((root) => {
+    root.setAttribute("data-selected-source", "source-a");
+  });
+  const attachmentCount = testInfo.attachments.length;
+
+  await expectToolcraftAcceptanceOutcome(
+    () =>
+      page
+        .locator('[data-slot="toolcraft-runtime-app"]')
+        .getAttribute("data-selected-source"),
+    session.targetAction("sources.selected", async (currentPage) => {
+      await currentPage
+        .locator('[data-slot="toolcraft-runtime-app"]')
+        .evaluate((root) => root.setAttribute("data-selected-source", "source-b"));
+    }),
+    {
+      evidenceType: "command-side-effect",
+      requirementId: "source.selection",
+      stabilityIntervalMs: 0,
+    },
+  );
+
+  expect(testInfo.attachments).toHaveLength(attachmentCount + 1);
+  expect(parseToolcraftBrowserRuntimeEvidence(testInfo.attachments.at(-1))).toEqual({
+    evidenceType: "command-side-effect",
+    requirementId: "source.selection",
+    target: "sources.selected",
+    version: 2,
+  });
+});

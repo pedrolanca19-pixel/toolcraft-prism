@@ -3,14 +3,16 @@ import {
   toolcraftTimelineDefaultDurationSeconds,
 } from "../state/timeline-values";
 import type {
-  ResolvedToolcraftAppSchema,
   ResolvedToolcraftTimelinePanelSchema,
-  ToolcraftAppSchema,
+  ToolcraftCanvasSchema,
   ToolcraftCanvasSize,
   ToolcraftCanvasSizingSchema,
+  ToolcraftExportSchema,
+  ToolcraftMediaSchema,
   ToolcraftTimelinePanelSchema,
   ToolcraftToolbarSchema,
 } from "./types";
+import type { ResolvedToolcraftAppSchema } from "./resolved-app-schema";
 
 export const defaultToolcraftCanvasSize = {
   height: 1080,
@@ -19,7 +21,7 @@ export const defaultToolcraftCanvasSize = {
 } satisfies ToolcraftCanvasSize;
 
 export function resolveToolcraftCanvasSizing(
-  canvas: ToolcraftAppSchema["canvas"],
+  canvas: ToolcraftCanvasSchema,
 ): ToolcraftCanvasSizingSchema {
   if (canvas.sizing) {
     return canvas.sizing;
@@ -37,7 +39,7 @@ export function resolveToolcraftCanvasSizing(
 }
 
 export function resolveToolcraftExport(
-  exportSchema: ToolcraftAppSchema["export"],
+  exportSchema: ToolcraftExportSchema | undefined,
 ): ResolvedToolcraftAppSchema["export"] {
   return {
     png: {
@@ -47,7 +49,7 @@ export function resolveToolcraftExport(
 }
 
 export function resolveToolcraftMedia(
-  mediaSchema: ToolcraftAppSchema["media"],
+  mediaSchema: ToolcraftMediaSchema | undefined,
 ): ResolvedToolcraftAppSchema["media"] {
   return {
     defaultAssets: mediaSchema?.defaultAssets ?? [],
@@ -83,7 +85,7 @@ export function resolveToolcraftToolbar({
   toolbar,
 }: {
   canvasEnabled: boolean;
-  toolbar: ToolcraftAppSchema["toolbar"];
+  toolbar: ToolcraftToolbarSchema | undefined;
 }): Required<ToolcraftToolbarSchema> {
   return {
     history: toolbar?.history ?? canvasEnabled,

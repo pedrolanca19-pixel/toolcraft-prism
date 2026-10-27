@@ -1,5 +1,4 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
-import { isToolcraftPersistenceRecord } from "../state/persistence-shared";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import {
   createToolcraftDataUrlResourceRef,
   type ToolcraftBinaryMediaKind,
@@ -20,36 +19,6 @@ export function getToolcraftBinaryMediaHydrationKey(
   return `${assetId}\u0000${resourceRef}`;
 }
 
-export function collectToolcraftBinaryMediaHydrationJobs(
-  value: unknown,
-): ToolcraftBinaryMediaHydrationJob[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value.flatMap((candidate) => {
-    if (
-      !isToolcraftPersistenceRecord(candidate) ||
-      typeof candidate.dataUrl !== "string" ||
-      typeof candidate.id !== "string" ||
-      typeof candidate.mimeType !== "string" ||
-      candidate.assetKind === "model"
-    ) {
-      return [];
-    }
-
-    const kind = candidate.assetKind === "file" ? "file" : "image";
-
-    return [{
-      assetId: candidate.id,
-      dataUrl: candidate.dataUrl,
-      kind,
-      mimeType: candidate.mimeType,
-      resourceRef: createToolcraftDataUrlResourceRef(kind, candidate.dataUrl),
-    }];
-  });
-}
-
 export function createToolcraftDefaultBinaryMediaHydrationJobs(
   schema: ResolvedToolcraftAppSchema,
 ): ToolcraftBinaryMediaHydrationJob[] {
@@ -60,14 +29,16 @@ export function createToolcraftDefaultBinaryMediaHydrationJobs(
 
     const kind = asset.assetKind === "file" ? "file" : "image";
 
-    return [{
-      assetId: asset.id ?? `default-media-${index + 1}`,
-      dataUrl: asset.dataUrl,
-      kind,
-      mimeType:
-        asset.mimeType ??
-        (kind === "file" ? "application/octet-stream" : "image/*"),
-      resourceRef: createToolcraftDataUrlResourceRef(kind, asset.dataUrl),
-    }];
+    return [
+      {
+        assetId: asset.id ?? `default-media-${index + 1}`,
+        dataUrl: asset.dataUrl,
+        kind,
+        mimeType:
+          asset.mimeType ??
+          (kind === "file" ? "application/octet-stream" : "image/*"),
+        resourceRef: createToolcraftDataUrlResourceRef(kind, asset.dataUrl),
+      },
+    ];
   });
 }

@@ -70,6 +70,8 @@ function samePath(
     left.interaction === right.interaction &&
     left.profile === right.profile &&
     sameStrings(left.invalidates, right.invalidates) &&
+    sameStrings(left.preparationInvalidates, right.preparationInvalidates) &&
+    sameStrings(left.retainedAccesses, right.retainedAccesses) &&
     sameStrings(left.runsOn, right.runsOn) &&
     sameStrings(left.targets, right.targets) &&
     sameStrings(left.workloadDimensions, right.workloadDimensions)

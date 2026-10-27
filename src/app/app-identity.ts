@@ -1,4 +1,4 @@
 export const appIdentity = {
-  id: "prism-flow",
-  title: "Prism Flow",
+  id: "prism-field",
+  title: "Prism Field",
 } as const;

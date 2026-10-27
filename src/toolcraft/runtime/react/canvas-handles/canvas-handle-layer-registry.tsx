@@ -1,5 +1,7 @@
 "use client";
 
+import { spatialHandleLayer } from "../../modules/built-ins/spatial-view/react/spatial-handle-layer";
+
 import * as React from "react";
 
 import type { ToolcraftBuiltInControlType } from "../../contracts/component-contracts";
@@ -9,14 +11,8 @@ type ToolcraftCanvasHandleLayer = React.LazyExoticComponent<
   React.ComponentType<Record<string, never>>
 >;
 
-const LazyOrientationGizmoLayer = React.lazy(async () => {
-  const module = await import("../orientation-gizmo/orientation-gizmo-layer");
-
-  return { default: module.ToolcraftOrientationGizmoLayer };
-});
-
 export const TOOLCRAFT_CANVAS_HANDLE_LAYER_REGISTRY = {
-  orientationGizmo: LazyOrientationGizmoLayer,
+  [spatialHandleLayer.controlType]: spatialHandleLayer.Layer,
 } as const satisfies Partial<
   Record<ToolcraftBuiltInControlType, ToolcraftCanvasHandleLayer>
 >;

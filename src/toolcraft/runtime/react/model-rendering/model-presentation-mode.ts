@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import type { ResolvedToolcraftAppSchema } from "../../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../../schema/resolved-app-schema";
 import type {
   ToolcraftModelPresentationConsumerDeclaration,
   ToolcraftModelPresentationMode,
@@ -9,6 +9,33 @@ import type {
 const RUNTIME_MODEL_PRESENTATION = Object.freeze({
   mode: "runtime" as const,
 });
+const resolvedCustomPresentationsBySchema = new WeakMap<
+  ResolvedToolcraftAppSchema,
+  WeakSet<object>
+>();
+const recursivelyFrozenSchemas = new WeakSet<ResolvedToolcraftAppSchema>();
+
+function isRecursivelyFrozen(
+  value: unknown,
+  visited = new WeakSet<object>(),
+): boolean {
+  if (value === null || typeof value !== "object") return true;
+  if (!Object.isFrozen(value)) return false;
+  if (visited.has(value)) return true;
+  visited.add(value);
+  return Object.values(value).every((child) =>
+    isRecursivelyFrozen(child, visited),
+  );
+}
+
+function supportsCanonicalIdentityReuse(
+  schema: ResolvedToolcraftAppSchema,
+): boolean {
+  if (recursivelyFrozenSchemas.has(schema)) return true;
+  if (!isRecursivelyFrozen(schema)) return false;
+  recursivelyFrozenSchemas.add(schema);
+  return true;
+}
 
 function assertTrimmed(value: string, field: string): void {
   if (value.length === 0 || value.trim() !== value) {
@@ -16,9 +43,7 @@ function assertTrimmed(value: string, field: string): void {
   }
 }
 
-function collectControlTargets(
-  schema: ResolvedToolcraftAppSchema,
-): Readonly<{
+function collectControlTargets(schema: ResolvedToolcraftAppSchema): Readonly<{
   modelTargetCounts: ReadonlyMap<string, number>;
   orientationTargets: ReadonlySet<string>;
 }> {
@@ -59,10 +84,24 @@ export function resolveToolcraftModelPresentationMode(
   if (!requested || requested.mode === "runtime") {
     return RUNTIME_MODEL_PRESENTATION;
   }
+  const schemaSupportsIdentityReuse = supportsCanonicalIdentityReuse(schema);
+  const resolvedForSchema = schemaSupportsIdentityReuse
+    ? resolvedCustomPresentationsBySchema.get(schema)
+    : undefined;
+  if (resolvedForSchema?.has(requested)) {
+    return requested;
+  }
+
+  if (requested.consumers.length === 0) {
+    throw new Error(
+      "Custom model presentation requires at least one consumer.",
+    );
+  }
 
   const ids = new Set<string>();
   const sourceTargets = new Set<string>();
-  const { modelTargetCounts, orientationTargets } = collectControlTargets(schema);
+  const { modelTargetCounts, orientationTargets } =
+    collectControlTargets(schema);
   const consumers = requested.consumers.map((consumer) => {
     assertTrimmed(consumer.id, "Model presentation consumer id");
     assertTrimmed(
@@ -73,7 +112,9 @@ export function resolveToolcraftModelPresentationMode(
       throw new Error("Model presentation consumer ids must be unique.");
     }
     if (sourceTargets.has(consumer.sourceTarget)) {
-      throw new Error("Model presentation consumer source targets must be unique.");
+      throw new Error(
+        "Model presentation consumer source targets must be unique.",
+      );
     }
     if (modelTargetCounts.get(consumer.sourceTarget) !== 1) {
       throw new Error(
@@ -96,10 +137,17 @@ export function resolveToolcraftModelPresentationMode(
     return snapshotConsumer(consumer);
   });
 
-  return Object.freeze({
+  const resolved = Object.freeze({
     consumers: Object.freeze(consumers),
     mode: "custom" as const,
   });
+  if (!schemaSupportsIdentityReuse) return resolved;
+  if (resolvedForSchema === undefined) {
+    resolvedCustomPresentationsBySchema.set(schema, new WeakSet([resolved]));
+  } else {
+    resolvedForSchema.add(resolved);
+  }
+  return resolved;
 }
 
 export const ToolcraftModelPresentationModeContext =

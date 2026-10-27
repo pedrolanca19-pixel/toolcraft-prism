@@ -1,26 +1,13 @@
 import type {
-  ToolcraftCommand,
+  ToolcraftCanonicalMediaImportAllocation,
   ToolcraftMediaAsset,
-  ToolcraftMediaImportAsset,
+  ToolcraftMediaAssetDraft,
   ToolcraftState,
 } from "./types";
 
-type MediaImportBatchCommand = Extract<
-  ToolcraftCommand,
-  { type: "media.importBatch" }
->;
-
-export type ToolcraftMediaImportAllocationItem = {
-  draft: ToolcraftMediaImportAsset;
-  layerId: string;
-  layerName: string;
-  mediaId: string;
-};
-
-export type ToolcraftMediaImportAllocation = {
-  baseLayers: ToolcraftState["layers"];
-  baseMediaAssets: ToolcraftMediaAsset[];
-  items: ToolcraftMediaImportAllocationItem[];
+export type ToolcraftCanonicalMediaImportAllocationInput = {
+  assets: readonly ToolcraftMediaAssetDraft[];
+  replaceExisting?: boolean;
 };
 
 function createIdAllocator(
@@ -67,8 +54,8 @@ function createReplacementQueues(mediaAssets: readonly ToolcraftMediaAsset[]) {
 
 export function createToolcraftMediaImportAllocation(
   state: ToolcraftState,
-  command: MediaImportBatchCommand,
-): ToolcraftMediaImportAllocation {
+  command: ToolcraftCanonicalMediaImportAllocationInput,
+): ToolcraftCanonicalMediaImportAllocation {
   const shouldReplaceSingleLayerMedia =
     !state.schema.panels.layers && command.replaceExisting !== false;
   const hasUntargetedDraft = command.assets.some(
@@ -87,7 +74,9 @@ export function createToolcraftMediaImportAllocation(
             replacementTargets.has(asset.sourceTarget)),
       )
     : [];
-  const replacedMediaIds = new Set(replacedMediaAssets.map((asset) => asset.id));
+  const replacedMediaIds = new Set(
+    replacedMediaAssets.map((asset) => asset.id),
+  );
   const replacedLayerIds = new Set(
     replacedMediaAssets.map((asset) => asset.layerId),
   );

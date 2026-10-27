@@ -1,8 +1,8 @@
+import type { ReadonlyToolcraftState } from "../state/readonly-state";
 import { isToolcraftLayerVisibleInTree } from "../state/layer-visibility";
 import type {
   ToolcraftImageAsset,
   ToolcraftSceneElementFrame,
-  ToolcraftState,
 } from "../state/types";
 
 export type ToolcraftSceneRect = Readonly<{
@@ -36,7 +36,7 @@ export function createToolcraftRuntimeSceneVisibility(
 
 export type ToolcraftProductSceneBoundsProvider = (
   context: Readonly<{
-    state: Readonly<ToolcraftState>;
+    state: ReadonlyToolcraftState;
   }>,
 ) => readonly ToolcraftSceneRect[];
 
@@ -87,11 +87,9 @@ function isFiniteSceneRect(value: unknown): value is ToolcraftSceneRect {
   );
 }
 
-function getImageSceneRect(image: ToolcraftImageAsset): ToolcraftSceneRect | null {
-  if (!image.size) {
-    return null;
-  }
-
+export function getToolcraftImageSceneRect(
+  image: ToolcraftImageAsset,
+): ToolcraftSceneRect {
   const quarterTurn =
     image.transform?.rotationDeg === 90 ||
     image.transform?.rotationDeg === 270;
@@ -104,7 +102,7 @@ function getImageSceneRect(image: ToolcraftImageAsset): ToolcraftSceneRect | nul
 }
 
 function getRuntimeSceneRects(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   visibility: ToolcraftRuntimeSceneVisibility,
 ): ToolcraftSceneRect[] {
   const suppressedTargets = new Set(visibility.suppressedModelTargets);
@@ -121,8 +119,7 @@ function getRuntimeSceneRects(
       ) {
         return [];
       }
-      const rect = getImageSceneRect(asset);
-      return rect ? [rect] : [];
+      return [getToolcraftImageSceneRect(asset)];
     }
 
     if (
@@ -147,6 +144,9 @@ export function unionToolcraftSceneRects(
 
   if (visibleRects.length === 0) {
     return null;
+  }
+  if (visibleRects.length === 1) {
+    return { ...visibleRects[0]! };
   }
 
   const minX = Math.min(...visibleRects.map((rect) => rect.x));
@@ -185,7 +185,7 @@ export function resolveToolcraftProductSceneBounds(
 }
 
 export function resolveToolcraftSceneBounds(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   productRects: unknown = [],
   visibility: ToolcraftRuntimeSceneVisibility = defaultToolcraftRuntimeSceneVisibility,
 ): ToolcraftSceneBoundsResult {

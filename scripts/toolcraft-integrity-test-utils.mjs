@@ -9,7 +9,7 @@ import {
 } from "./toolcraft-integrity-policy.mjs";
 
 const fixtureManifestSignature =
-  "qU2Tc5z8NqfzbGr7ZdcGhKtt6eLBkw+kJMvmTNq5cE3andSTf/tF3SUdwpNJ4nNSiSHn/x6FcP0/iKW98nEWDg==";
+  "JV0pADONxQKv6AjOFGYNoYzCPJShkehcq3s6EjPP8lWTlgsz4ovO7j5tF3SHrmYR/JNx2l1M0M12278zBlFSDQ==";
 const runtimeSource = "export const runtime = true;\n";
 
 const sha256 = (value) =>
@@ -21,6 +21,7 @@ const sortRecord = (value) =>
 
 export function createToolcraftIntegrityFixtureManifest() {
   return {
+    domain: "generated",
     files: { "runtime.mjs": sha256(runtimeSource) },
     packageScripts: sortRecord(Object.fromEntries(
       requiredPackageScriptNames.map((scriptName) => [
@@ -60,6 +61,8 @@ export async function installToolcraftIntegrityFixture(rootDir) {
   await fs.mkdir(path.join(rootDir, "src", "toolcraft"), {
     recursive: true,
   });
+  await fs.mkdir(path.join(rootDir, "src", "toolcraft", "runtime"));
+  await fs.mkdir(path.join(rootDir, "src", "toolcraft", "ui"));
   await fs.writeFile(
     path.join(rootDir, "src", "toolcraft", "runtime.mjs"),
     runtimeSource,
@@ -80,5 +83,24 @@ export async function createToolcraftIntegrityFixture() {
     path.join(os.tmpdir(), "toolcraft-integrity-"),
   );
   await installToolcraftIntegrityFixture(rootDir);
+  return rootDir;
+}
+
+// Stable signed test data: independent of a developer's edited starter package
+// and portable to generated apps, where ../package.json is a different product.
+export async function createToolcraftStarterIntegrityFixture() {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), "toolcraft-starter-domain-"));
+  const packageSource = '{"name":"toolcraft-starter-fixture"}\n';
+  const manifest = {
+    domain: "starter",
+    files: { "runtime.mjs": sha256(runtimeSource) },
+    packageScripts: {},
+    protectedFiles: { "package.json": sha256(packageSource) },
+    version: 3,
+    signature: "BFWnMevXoy6Ri1jPWA6F57awc9fmOg6EFTpt+1IGzdP0ktmrUa6TBuWsWSYrFs428Q/A6P2zOOUlADFGxGkjAQ==",
+  };
+  await fs.mkdir(path.join(rootDir, "src/toolcraft"), { recursive: true });
+  await fs.writeFile(path.join(rootDir, "package.json"), packageSource);
+  await fs.writeFile(path.join(rootDir, "src/toolcraft/.toolcraft-manifest.json"), JSON.stringify(manifest));
   return rootDir;
 }

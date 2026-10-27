@@ -1,6 +1,8 @@
+import { getToolcraftCollectionItemIdentity } from "../../../schema/collection-identity";
 import * as React from "react";
 import { CollectionItemGroups, type ControlChangeMeta } from "@/toolcraft/ui";
 
+import { getToolcraftScalarCollectionItemControl } from "../../../schema/collection-item-defaults";
 import type { ToolcraftControlSchema } from "../../../schema/types";
 import {
   getCollectionItemName,
@@ -19,8 +21,20 @@ export type ControlsPanelCollectionItemsProps = {
     nextValue: unknown,
     meta?: ControlChangeMeta,
     fieldName?: string,
+    fieldId?: string,
+    fieldValue?: unknown,
   ) => void;
+  onSelectItem?: (index: number) => void;
+  selectedIndex?: number | null;
   slotPrefix: "collection-actions" | "source-collection";
+  withFieldKeyframeAction?: (args: {
+    children: React.ReactNode;
+    field: NonNullable<ToolcraftControlSchema["itemControls"]>[string];
+    fieldId: string;
+    index: number;
+    name: string;
+    value: unknown;
+  }) => React.ReactNode;
 };
 
 function renderCollectionItemControl({
@@ -35,7 +49,7 @@ function renderCollectionItemControl({
   onItemChange: ControlsPanelCollectionItemsProps["onItemChange"];
 }): React.ReactNode {
   const itemName = getCollectionItemName(control, index);
-  const itemControl = control.itemControl ?? { type: "color" as const };
+  const itemControl = getToolcraftScalarCollectionItemControl(control);
 
   return (
     <ControlsPanelCollectionItemField
@@ -44,6 +58,7 @@ function renderCollectionItemControl({
       id={`${control.target}:${index}`}
       name={itemName}
       onChange={(nextValue, meta) => onItemChange(index, nextValue, meta)}
+      plainColorFullWidth={itemControl.type === "color"}
       target={control.target}
       value={item}
     />
@@ -55,6 +70,9 @@ export function ControlsPanelCollectionItems({
   items,
   onItemChange,
   slotPrefix,
+  onSelectItem,
+  selectedIndex,
+  withFieldKeyframeAction,
 }: ControlsPanelCollectionItemsProps): React.JSX.Element {
   const itemControls = control.itemControls;
 
@@ -62,16 +80,37 @@ export function ControlsPanelCollectionItems({
     return (
       <CollectionItemGroups>
         {items.map((item, index) => (
-          <ControlsPanelCollectionItemFields
-            controls={itemControls}
-            id={`${control.target}:${index}`}
-            key={index}
-            onChange={(nextValue, fieldName, meta) =>
-              onItemChange(index, nextValue, meta, fieldName)
-            }
-            target={control.target}
-            value={item}
-          />
+          <div
+            data-selected={selectedIndex === index ? "true" : undefined}
+            data-toolcraft-collection-item-index={index}
+            data-toolcraft-collection-item-id={control.identityField ? getToolcraftCollectionItemIdentity(control, item, index) : undefined}
+            key={getToolcraftCollectionItemIdentity(control, item, index)}
+            onFocusCapture={() => onSelectItem?.(index)}
+            onPointerDown={() => onSelectItem?.(index)}
+          >
+            <ControlsPanelCollectionItemFields
+              controls={itemControls}
+              id={`${control.target}:${getToolcraftCollectionItemIdentity(control, item, index)}`}
+              onChange={(nextValue, fieldName, meta) =>
+                onItemChange(index, nextValue, meta, fieldName)
+              }
+              onFieldChange={(fieldId, fieldValue, nextValue, fieldName, meta) =>
+                onItemChange(
+                  index,
+                  nextValue,
+                  meta,
+                  fieldName,
+                  fieldId,
+                  fieldValue,
+                )
+              }
+              target={control.target}
+              value={item}
+              withFieldKeyframeAction={(args) =>
+                withFieldKeyframeAction?.({ ...args, index }) ?? args.children
+              }
+            />
+          </div>
         ))}
       </CollectionItemGroups>
     );

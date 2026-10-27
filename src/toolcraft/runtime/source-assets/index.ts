@@ -1,11 +1,10 @@
-export { createToolcraftSourceAssetCoordinator } from "./source-asset-coordinator";
+export { createToolcraftSourceAssetCoordinator } from "../composition/source-asset-coordinator";
 export type {
   CreateToolcraftSourceAssetCoordinatorOptions,
   ToolcraftModelRepairCoordinator,
   ToolcraftSourceAssetCoordinator,
-} from "./source-asset-coordinator";
+} from "../composition/source-asset-coordinator";
 export type {
-  ToolcraftFileDropPresentation,
   ToolcraftPreparedSourceAsset,
   ToolcraftPreparedSourceAssetRecord,
   ToolcraftSourceAssetBatch,

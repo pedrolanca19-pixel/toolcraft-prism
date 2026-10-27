@@ -1,46 +1,27 @@
-import { defineToolcraft } from "@/toolcraft/runtime";
+import { defineToolcraft, mediaSourceModule } from "@/toolcraft/runtime";
 
+import appDefaults from "./app-defaults.json" with { type: "json" };
 import { appIdentity } from "./app-identity";
-import { dispersionControlSections } from "./dispersion/dispersion-schema-sections";
 
 export const appSchema = defineToolcraft({
-  canvas: {
-    enabled: true,
-    renderScale: true,
-    size: { height: 1080, unit: "px", width: 1920 },
-    sizing: { mode: "editable-output" },
-    upload: false,
-  },
-  export: {
-    png: { background: "include" },
-  },
-  identity: appIdentity,
-  panels: {
-    controls: {
-      sections: dispersionControlSections,
-      title: "Prism Flow",
-    },
-    timeline: {
-      defaultDurationSeconds: 60,
+  defaults: appDefaults,
+  base: {
+    canvas: {
       enabled: true,
-      mode: "playback",
+      upload: true,
+    },
+    identity: appIdentity,
+    panels: {
+      controls: {
+        sections: [],
+        title: "Controls",
+      },
+    },
+    toolbar: {
+      history: true,
+      radar: true,
+      zoom: true,
     },
   },
-  persistence: {
-    include: ["values", "canvas", "panels", "timeline"],
-    key: "toolcraft:prism-flow:state:v1",
-    storage: "localStorage",
-    version: 9,
-  },
-  settingsTransfer: {
-    appId: "prism-flow",
-    enabled: "auto",
-    fileName: "prism-flow-settings.json",
-  },
-  toolbar: {
-    history: true,
-    radar: true,
-    theme: true,
-    zoom: true,
-  },
+  modules: [mediaSourceModule()],
 });

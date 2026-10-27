@@ -3,8 +3,6 @@ import type { ResolvedToolcraftAppSchema } from "@/toolcraft/runtime";
 import type {
   ToolcraftProductReadiness,
   ToolcraftTransferMode,
-  ToolcraftViewInteractionEvidenceSource,
-  ToolcraftViewInteractionIntent,
 } from "./types";
 
 type ToolcraftViewInteractionValidationInput = {
@@ -12,11 +10,6 @@ type ToolcraftViewInteractionValidationInput = {
   schema: ResolvedToolcraftAppSchema;
   transferMode: ToolcraftTransferMode;
 };
-
-const viewInteractionEvidenceSources = new Set<ToolcraftViewInteractionEvidenceSource>([
-  "explicit-user-request",
-  "inspected-reference",
-]);
 
 function collectOrientationTargets(schema: ResolvedToolcraftAppSchema): string[] {
   return (schema.panels.controls?.sections ?? []).flatMap((section) =>
@@ -26,28 +19,54 @@ function collectOrientationTargets(schema: ResolvedToolcraftAppSchema): string[]
   );
 }
 
-function getEvidenceErrors({
-  evidence,
-  mode,
-  source,
-}: Extract<
-  ToolcraftViewInteractionIntent,
-  { mode: "fixed-camera" | "timeline-camera" }
->): string[] {
+function isUnknownRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getAuthorityErrors(
+  mode: "fixed-camera" | "timeline-camera",
+  authority: unknown,
+): string[] {
+  if (!isUnknownRecord(authority)) {
+    return [
+      `${mode} requires a positive authority object from a verbatim user request or an inspected behavioral reference.`,
+    ];
+  }
+
   const errors: string[] = [];
 
-  if (evidence.trim().length === 0) {
-    errors.push(
-      `${mode} evidence must be non-empty and identify the explicit request or inspected reference that owns the camera behavior.`,
-    );
+  if (authority.kind === "explicit-user-request") {
+    if (
+      typeof authority.requestQuote !== "string" ||
+      authority.requestQuote.trim().length === 0
+    ) {
+      errors.push(`${mode} authority requestQuote must be non-empty.`);
+    }
+
+    return errors;
   }
 
-  if (!viewInteractionEvidenceSources.has(source)) {
-    errors.push(
-      `${mode} source must be explicit-user-request or inspected-reference; an agent-authored fixed camera is not an accepted default.`,
-    );
+  if (authority.kind === "inspected-behavioral-reference") {
+    if (
+      typeof authority.referenceId !== "string" ||
+      authority.referenceId.trim().length === 0
+    ) {
+      errors.push(`${mode} authority referenceId must be non-empty.`);
+    }
+
+    if (
+      typeof authority.observedBehavior !== "string" ||
+      authority.observedBehavior.trim().length === 0
+    ) {
+      errors.push(`${mode} authority observedBehavior must be non-empty.`);
+    }
+
+    return errors;
   }
 
+  errors.push(
+    `${mode} authority kind must be explicit-user-request or inspected-behavioral-reference.`,
+  );
   return errors;
 }
 
@@ -125,7 +144,7 @@ export function getToolcraftViewInteractionErrors({
     return errors;
   }
 
-  errors.push(...getEvidenceErrors(intent));
+  errors.push(...getAuthorityErrors(intent.mode, intent.authority));
 
   if (intent.mode === "timeline-camera") {
     const animationMode = transferMode.animationIntent?.mode ?? "none";

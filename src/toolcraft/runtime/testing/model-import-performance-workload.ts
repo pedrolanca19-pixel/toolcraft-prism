@@ -1,11 +1,11 @@
 import type {
-  ResolvedToolcraftAppSchema,
   ResolvedToolcraftControlSchema,
   ResolvedToolcraftModelFileDropSchema,
   ToolcraftModelFormat,
   ToolcraftModelImportLimits,
   ToolcraftModelTopologyProfile,
 } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import { estimateToolcraftCanonicalEncodeWorkerBytesForShape } from "../model-import/canonical/model-document-worker-memory";
 import { estimateToolcraftTopologyResources } from "../model-import/topology/model-topology-resources";
 
@@ -42,8 +42,6 @@ export type ToolcraftModelPerformanceDimension = Readonly<{
   effectiveMaximumValue: number;
   id: ToolcraftModelPerformanceDimensionId;
   limit: ToolcraftModelPerformanceDimensionLimit;
-  /** @deprecated Use effectiveMaximumValue. */
-  maximumValue: number;
   targetPressure: number;
   unit: "bytes" | "files" | "nodes" | "primitives" | "triangles" | "vertices";
 }>;
@@ -51,7 +49,9 @@ export type ToolcraftModelPerformanceDimension = Readonly<{
 export type ToolcraftModelPerformanceCheckpoint = Readonly<{
   combinedPressureRatio: number;
   kind: "development" | "maximum";
-  values: Readonly<Partial<Record<ToolcraftModelPerformanceDimensionId, number>>>;
+  values: Readonly<
+    Partial<Record<ToolcraftModelPerformanceDimensionId, number>>
+  >;
 }>;
 
 export type ToolcraftModelAppearancePerformanceEnvelope = Readonly<{
@@ -157,7 +157,9 @@ function getDevelopmentValue(maximumValue: number): number {
     maximumValue,
     Math.max(
       1,
-      Math.ceil(maximumValue * TOOLCRAFT_MODEL_PERFORMANCE_DEVELOPMENT_PRESSURE),
+      Math.ceil(
+        maximumValue * TOOLCRAFT_MODEL_PERFORMANCE_DEVELOPMENT_PRESSURE,
+      ),
     ),
   );
 }
@@ -234,13 +236,15 @@ function isResourceCountFeasible(
     counts,
     formats,
   );
-  return counts.decodedBytes <= limits.maxDecodedBytes &&
+  return (
+    counts.decodedBytes <= limits.maxDecodedBytes &&
     counts.nodeCount <= limits.maxNodes &&
     counts.primitiveCount <= limits.maxPrimitives &&
     counts.triangleCount <= limits.maxTriangles &&
     counts.vertexCount <= limits.maxVertices &&
     estimate.estimatedPeakWorkerBytes <= limits.maxEstimatedWorkerBytes &&
-    canonicalEncodeWorkerBytes <= limits.maxEstimatedWorkerBytes;
+    canonicalEncodeWorkerBytes <= limits.maxEstimatedWorkerBytes
+  );
 }
 
 function getCountsForDimension(
@@ -293,10 +297,7 @@ function getEffectiveMaximumValue(
   if (limit === "maxBundleFiles") {
     return configuredMaximum;
   }
-  if (
-    limit === "maxSourceBytes" ||
-    limit === "maxEstimatedWorkerBytes"
-  ) {
+  if (limit === "maxSourceBytes" || limit === "maxEstimatedWorkerBytes") {
     return configuredMaximum;
   }
 
@@ -339,18 +340,20 @@ function createAppearanceEnvelope(
   const scale = Math.min(1, availableBytes / configuredAppearanceBytes);
   const textureBytes = Math.floor(limits.maxTextureBytes * scale);
   const texturePixels = Math.floor(limits.maxTexturePixels * scale);
-  const textureDimension = texturePixels === 0
-    ? 0
-    : Math.min(
-        limits.maxTextureDimension,
-        Math.max(1, Math.floor(Math.sqrt(texturePixels))),
-      );
+  const textureDimension =
+    texturePixels === 0
+      ? 0
+      : Math.min(
+          limits.maxTextureDimension,
+          Math.max(1, Math.floor(Math.sqrt(texturePixels))),
+        );
   const textureCount = Math.min(
     limits.maxTextureCount,
     texturePixels,
     textureBytes,
   );
-  const combinedWorkerBytes = baselineWorkerBytes + textureBytes + texturePixels * 4;
+  const combinedWorkerBytes =
+    baselineWorkerBytes + textureBytes + texturePixels * 4;
   const developmentTextureBytes = getDevelopmentValue(textureBytes);
   const developmentTexturePixels = getDevelopmentValue(texturePixels);
   return Object.freeze({
@@ -362,7 +365,9 @@ function createAppearanceEnvelope(
     }),
     development: Object.freeze({
       combinedWorkerBytes:
-        baselineWorkerBytes + developmentTextureBytes + developmentTexturePixels * 4,
+        baselineWorkerBytes +
+        developmentTextureBytes +
+        developmentTexturePixels * 4,
       textureBytes: developmentTextureBytes,
       textureCount: getDevelopmentValue(textureCount),
       textureDimension: getDevelopmentValue(textureDimension),
@@ -392,7 +397,6 @@ function createDimension(
     effectiveMaximumValue,
     id: dimensionIds[id],
     limit: id,
-    maximumValue: effectiveMaximumValue,
     targetPressure: TOOLCRAFT_MODEL_PERFORMANCE_DEVELOPMENT_PRESSURE,
     unit: dimensionUnits[id],
   });
@@ -429,7 +433,7 @@ function createPath(
 ): ToolcraftModelPerformancePath {
   const dimensions = Object.freeze(
     pathDimensions[kind].map((id) =>
-      createDimension(id, control.modelLimits, control.modelFormats)
+      createDimension(id, control.modelLimits, control.modelFormats),
     ),
   );
   return Object.freeze({
@@ -455,8 +459,10 @@ export function deriveToolcraftModelPerformancePaths(
   const controls = (schema.panels.controls?.sections ?? []).flatMap((section) =>
     Object.values(section.controls),
   );
-  const pathKinds = controls.some((control) => control.type === "orientationGizmo")
-    ? [...basePathKinds, "orbit"] as const
+  const pathKinds = controls.some(
+    (control) => control.type === "orientationGizmo",
+  )
+    ? ([...basePathKinds, "orbit"] as const)
     : basePathKinds;
 
   return Object.freeze(

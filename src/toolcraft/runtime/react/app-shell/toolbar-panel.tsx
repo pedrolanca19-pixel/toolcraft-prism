@@ -18,6 +18,7 @@ import type { PanelPlacement, PanelStateChange } from "../panel-host/panel-host-
 import { useToolcraftTheme } from "./theme-runtime";
 import { useToolcraftCommittedSelector } from "./toolcraft-selectors";
 import { useToolcraftDispatch } from "./use-toolcraft";
+import { useToolcraftHistory, requestToolcraftHistory } from './history-scope';
 
 export type ToolbarPanelProps = {
   className?: string;
@@ -38,8 +39,6 @@ type ToolbarIconButtonProps = {
 
 const toolbarIconButtonSize = "icon";
 const desktopToolbarTightButtonGapClassName = "-mr-px";
-const selectCanUndo = (state: ToolcraftState) => state.history.undo.length > 0;
-const selectCanRedo = (state: ToolcraftState) => state.history.redo.length > 0;
 const selectToolbar = (state: ToolcraftState) => state.schema.toolbar;
 const selectCommittedZoom = (state: ToolcraftState) => state.canvas.zoom;
 
@@ -116,8 +115,9 @@ export function ToolbarPanel({
   const resolvedPanelState = panelBinding.panelState;
   const { resolvedTheme, toggleResolvedTheme } = useToolcraftTheme();
   const nextTheme = resolvedTheme === "dark" ? "light" : "dark";
-  const canUndo = useToolcraftCommittedSelector(selectCanUndo);
-  const canRedo = useToolcraftCommittedSelector(selectCanRedo);
+  const { port: history, state: historyState } = useToolcraftHistory();
+  const canUndo = historyState.available && historyState.canUndo;
+  const canRedo = historyState.available && historyState.canRedo;
   const toolbar = useToolcraftCommittedSelector(selectToolbar);
   const zoom = useToolcraftCommittedSelector(selectCommittedZoom);
   const historyEnabled = toolbar.history;
@@ -144,7 +144,7 @@ export function ToolbarPanel({
             className={desktopToolbarTightButtonGapClassName}
             disabled={!canUndo}
             label="Undo"
-            onClick={() => dispatch({ type: "history.undo" })}
+            onClick={() => requestToolcraftHistory(history, 'undo')}
           >
             <Undo2 />
           </ToolbarIconButton>
@@ -152,7 +152,7 @@ export function ToolbarPanel({
             className={desktopToolbarTightButtonGapClassName}
             disabled={!canRedo}
             label="Redo"
-            onClick={() => dispatch({ type: "history.redo" })}
+            onClick={() => requestToolcraftHistory(history, 'redo')}
           >
             <Redo2 />
           </ToolbarIconButton>

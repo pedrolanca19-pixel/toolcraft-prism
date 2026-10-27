@@ -1,4 +1,4 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import type { ToolcraftPerformancePath } from "./performance-path-model";
 import { deriveToolcraftPerformancePathsFromParsedPipeline } from "./performance-paths";
 import {

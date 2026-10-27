@@ -1,25 +1,27 @@
 import { expect, test } from "@playwright/test";
-import { defineToolcraft } from "@/toolcraft/runtime";
+import {
+  defineToolcraft,
+  imageExportModule,
+  videoExportModule,
+} from "@/toolcraft/runtime";
 
 import { appAcceptance } from "../src/app/app-acceptance";
 import {
   deriveToolcraftBrowserRuntimeRequirements,
   deriveToolcraftPerformancePathRuntimeRequirements,
 } from "./browser-runtime-evidence-requirements";
+import { getToolcraftBrowserRequirementOwnershipErrors } from "./browser-runtime-requirement-ownership";
 
 test("runtime evidence requirements are derived from browser acceptance IDs", () => {
-  const requirements = deriveToolcraftBrowserRuntimeRequirements(appAcceptance);
+  const requirements =
+    deriveToolcraftBrowserRuntimeRequirements(appAcceptance);
 
-  for (const entry of appAcceptance.filter((item) => item.browser)) {
-    expect(
-      requirements.some(
-        (requirement) =>
-          requirement.requirementId === entry.id &&
-          requirement.testName === entry.browserTestName,
-      ),
-      `Browser acceptance row "${entry.id}" should derive runtime evidence.`,
-    ).toBe(true);
-  }
+  expect(
+    getToolcraftBrowserRequirementOwnershipErrors(
+      appAcceptance,
+      requirements,
+    ),
+  ).toEqual([]);
 });
 
 test("derived paths own one canonical browser evidence requirement set", () => {
@@ -28,7 +30,9 @@ test("derived paths own one canonical browser evidence requirement set", () => {
       id: "performance-path:export",
       interaction: "export",
       invalidates: ["export-pass"],
+      preparationInvalidates: [],
       profile: "batch-responsive",
+      retainedAccesses: [],
       runsOn: ["export-only"],
       targets: ["actions.output", "export.resolution"],
       workloadDimensions: ["export-width-px"],
@@ -37,7 +41,14 @@ test("derived paths own one canonical browser evidence requirement set", () => {
 
   const requirements = deriveToolcraftPerformancePathRuntimeRequirements(
     [path],
-    defineToolcraft({ canvas: { enabled: true }, panels: {} }),
+    defineToolcraft({
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {},
+      },
+      modules: [],
+    }),
   );
 
   expect(requirements.map(({ evidenceType }) => evidenceType)).toEqual([
@@ -46,9 +57,9 @@ test("derived paths own one canonical browser evidence requirement set", () => {
     "performance-compiled-fixture",
     "performance-output-completion",
   ]);
-  expect(new Set(requirements.map(({ requirementId }) => requirementId))).toEqual(
-    new Set([path.id]),
-  );
+  expect(
+    new Set(requirements.map(({ requirementId }) => requirementId)),
+  ).toEqual(new Set([path.id]));
   expect(new Set(requirements.map(({ testName }) => testName))).toEqual(
     new Set([`browser perf: toolcraft path ${path.id}`]),
   );
@@ -58,54 +69,67 @@ test("derived paths own one canonical browser evidence requirement set", () => {
 test("control schema derives segmented and discrete runtime evidence", () => {
   const acceptance = [
     {
-      browser: true,
-      browserTestName: "browser: mode layout",
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: mode layout",
+      },
       evidence: "product-output",
       id: "mode.layout",
       target: "mode.value",
     },
     {
-      browser: true,
-      browserTestName: "browser: density layout",
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: density layout",
+      },
       evidence: "product-output",
       id: "density.layout",
       target: "density.value",
     },
-  ];
+  ] as const;
   const schema = {
-    canvas: { enabled: true },
-    panels: {
-      controls: {
-        sections: [
-          {
-            controls: {
-              density: {
-                defaultValue: 2,
-                label: "Density",
-                max: 4,
-                min: 1,
-                step: 1,
-                target: "density.value",
-                type: "slider",
-                variant: "discrete",
+    base: {
+      canvas: { enabled: true },
+      identity: { id: "contract-fixture", title: "Contract fixture" },
+      panels: {
+        controls: {
+          sections: [
+            {
+              id: "test-section-1",
+              controls: {
+                density: {
+                  applicability: { mode: "always" as const },
+                  defaultValue: 2,
+                  label: "Density",
+                  max: 4,
+                  min: 1,
+                  step: 1,
+                  target: "density.value",
+                  type: "slider",
+                  variant: "discrete",
+                },
+                mode: {
+                  applicability: { mode: "always" as const },
+                  defaultValue: "one",
+                  label: "Mode",
+                  options: [
+                    { label: "One", value: "one" },
+                    { label: "Two", value: "two" },
+                  ],
+                  target: "mode.value",
+                  type: "segmented",
+                },
               },
-              mode: {
-                defaultValue: "one",
-                label: "Mode",
-                options: [
-                  { label: "One", value: "one" },
-                  { label: "Two", value: "two" },
-                ],
-                target: "mode.value",
-                type: "segmented",
-              },
+              title: "Behavior",
             },
-            title: "Behavior",
-          },
-        ],
-        title: "Controls",
+          ],
+          title: "Controls",
+        },
       },
     },
+    modules: [],
   } as const;
 
   expect(
@@ -135,36 +159,31 @@ test("control schema derives segmented and discrete runtime evidence", () => {
 
 test("typed background coverage derives dedicated semantic evidence", () => {
   const schema = defineToolcraft({
-    canvas: { enabled: true },
-    panels: {
-      controls: {
-        sections: [
-          {
-            controls: {
-              includeBackground: {
-                defaultValue: true,
-                label: "Include",
-                target: "export.includeBackground",
-                type: "switch",
+    base: {
+      identity: { id: "contract-fixture", title: "Contract fixture" },
+      canvas: { enabled: true },
+      panels: {
+        controls: {
+          sections: [
+            {
+              id: "test-section-2",
+              controls: {
+                includeBackground: {
+                  applicability: { mode: "always" as const },
+                  defaultValue: true,
+                  label: "Include",
+                  target: "export.includeBackground",
+                  type: "switch",
+                },
               },
-              outputActions: {
-                actions: [
-                  {
-                    label: "Export Video",
-                    role: "export-video",
-                    value: "export.video",
-                  },
-                ],
-                target: "actions.output",
-                type: "panelActions",
-              },
+              title: "Output",
             },
-            title: "Output",
-          },
-        ],
-        title: "Controls",
+          ],
+          title: "Controls",
+        },
       },
     },
+    modules: [imageExportModule(), videoExportModule()],
   });
   const requirements = deriveToolcraftBrowserRuntimeRequirements(
     [
@@ -175,8 +194,11 @@ test("typed background coverage derives dedicated semantic evidence", () => {
           "infinity-viewport-color-and-dependency",
           "video-background-preserved",
         ],
-        browser: true,
-        browserTestName: "browser: background output",
+        browser: {
+          budget: "standard",
+          file: "e2e/app-controls.spec.ts",
+          testName: "browser: background output",
+        },
         evidence: "rendered-pixels",
         id: "export.includeBackground",
         target: "export.includeBackground",
@@ -186,7 +208,10 @@ test("typed background coverage derives dedicated semantic evidence", () => {
   );
   expect(
     requirements
-      .filter((requirement) => requirement.requirementId === "export.includeBackground")
+      .filter(
+        (requirement) =>
+          requirement.requirementId === "export.includeBackground",
+      )
       .map((requirement) => requirement.evidenceType),
   ).toEqual(
     expect.arrayContaining([
@@ -198,23 +223,115 @@ test("typed background coverage derives dedicated semantic evidence", () => {
   );
 });
 
+test("typed SVG coverage derives only protected SVG artifact evidence", () => {
+  const requirements = deriveToolcraftBrowserRuntimeRequirements([
+    {
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: SVG export",
+      },
+      evidence: "exported-bytes",
+      exportArtifactCoverage: "all-required-svg-export-behavior",
+      id: "actions.svg",
+      target: "actions.output",
+    },
+  ]);
+
+  expect(requirements).toEqual([
+    {
+      evidenceType: "svg-export-artifact",
+      requirementId: "actions.svg",
+      target: "actions.output",
+      testName: "browser: SVG export",
+    },
+  ]);
+});
+
+test("selected-entity coverage adds protected selection isolation evidence", () => {
+  const requirements = deriveToolcraftBrowserRuntimeRequirements([
+    {
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: selected shape fill",
+      },
+      evidence: "product-output",
+      id: "shape.selected-fill",
+      selectionScopeCoverage: "two-entity-isolation",
+      target: "selectedShape.fill",
+    },
+  ]);
+
+  expect(requirements).toEqual([
+    {
+      evidenceType: "product-observable-change",
+      requirementId: "shape.selected-fill",
+      target: "selectedShape.fill",
+      testName: "browser: selected shape fill",
+    },
+    {
+      evidenceType: "selection-scoped-control",
+      requirementId: "shape.selected-fill",
+      target: "selectedShape.fill",
+      testName: "browser: selected shape fill",
+    },
+  ]);
+});
+
 test("typed Infinity canvas coverage derives dedicated semantic evidence", () => {
   const requirements = deriveToolcraftBrowserRuntimeRequirements([
     {
-      browser: true,
-      browserTestName: "browser: Infinity canvas mode",
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: Infinity canvas mode",
+      },
       evidence: "viewport-side-effect",
       id: "canvas.infinity.mode",
-      infinityCanvasCoverage: "mode-and-restoration",
+      infinityCanvasCoverage: "mode-continuity-and-restoration",
       target: "canvas.infinity",
     },
     {
-      browser: true,
-      browserTestName: "browser: Infinity canvas image export",
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: Infinity canvas image export",
+      },
       evidence: "exported-bytes",
       id: "canvas.infinity.imageExport",
       infinityCanvasCoverage: "scene-bounds-image-export",
       target: "actions.output",
+    },
+    {
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: Infinity canvas SVG export",
+      },
+      evidence: "exported-bytes",
+      id: "canvas.infinity.svgExport",
+      infinityCanvasCoverage: "scene-bounds-svg-export",
+      target: "actions.output",
+    },
+  ]);
+
+  expect(
+    requirements.filter(
+      ({ requirementId }) => requirementId === "canvas.infinity.mode",
+    ),
+  ).toEqual([
+    {
+      evidenceType: "viewport-side-effect",
+      requirementId: "canvas.infinity.mode",
+      target: "canvas.infinity",
+      testName: "browser: Infinity canvas mode",
+    },
+    {
+      evidenceType: "infinity-mode-continuity",
+      requirementId: "canvas.infinity.mode",
+      target: "canvas.infinity",
+      testName: "browser: Infinity canvas mode",
     },
   ]);
 
@@ -226,12 +343,16 @@ test("typed Infinity canvas coverage derives dedicated semantic evidence", () =>
   ).toEqual(
     expect.arrayContaining([
       {
-        evidenceType: "infinity-mode-restoration",
+        evidenceType: "infinity-mode-continuity",
         requirementId: "canvas.infinity.mode",
       },
       {
         evidenceType: "infinity-scene-bounds-image-export",
         requirementId: "canvas.infinity.imageExport",
+      },
+      {
+        evidenceType: "infinity-scene-bounds-svg-export",
+        requirementId: "canvas.infinity.svgExport",
       },
     ]),
   );
@@ -240,52 +361,48 @@ test("typed Infinity canvas coverage derives dedicated semantic evidence", () =>
 test("all-required background coverage derives video evidence only for video products", () => {
   const makeSchema = (withVideo: boolean) =>
     defineToolcraft({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                includeBackground: {
-                  defaultValue: true,
-                  label: "Include",
-                  target: "export.includeBackground",
-                  type: "switch",
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "test-section-3",
+                controls: {
+                  includeBackground: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: true,
+                    label: "Include",
+                    target: "export.includeBackground",
+                    type: "switch",
+                  },
                 },
-                outputActions: {
-                  actions: [
-                    { label: "Export PNG", role: "export-image", value: "export.png" },
-                    ...(withVideo
-                      ? [
-                          {
-                            label: "Export Video",
-                            role: "export-video" as const,
-                            value: "export.video",
-                          },
-                        ]
-                      : []),
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
+                title: "Output",
               },
-              title: "Output",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
       },
+      modules: [
+        imageExportModule(),
+        ...(withVideo ? [videoExportModule()] : []),
+      ],
     });
   const acceptance = [
     {
       backgroundOutputCoverage: "all-required-background-output" as const,
-      browser: true,
-      browserTestName: "browser: background output",
+      browser: {
+        budget: "standard",
+        file: "e2e/app-controls.spec.ts",
+        testName: "browser: background output",
+      },
       evidence: "rendered-pixels" as const,
       id: "export.includeBackground",
       target: "export.includeBackground",
     },
-  ];
+  ] as const;
 
   const imageEvidence = deriveToolcraftBrowserRuntimeRequirements(
     acceptance,
@@ -298,117 +415,4 @@ test("all-required background coverage derives video evidence only for video pro
 
   expect(imageEvidence).not.toContain("background-video-preserved");
   expect(videoEvidence).toContain("background-video-preserved");
-});
-
-test("orientation gizmo coverage derives behavior-specific runtime evidence", () => {
-  const schema = defineToolcraft({
-    canvas: { enabled: true },
-    panels: {
-      controls: {
-        sections: [
-          {
-            controls: {
-              orientation: {
-                defaultValue: {
-                  position: [0, 0, 5],
-                  up: [0, 1, 0],
-                },
-                keyframeable: false,
-                label: false,
-                target: "view.orbit",
-                type: "orientationGizmo",
-              },
-              scale: {
-                defaultValue: 1,
-                label: "Scale",
-                target: "model.scale",
-                type: "slider",
-              },
-            },
-            title: "Model",
-          },
-        ],
-        title: "Controls",
-      },
-    },
-  });
-  const requirements = deriveToolcraftBrowserRuntimeRequirements(
-    [
-      {
-        browser: true,
-        browserTestName: "browser: orientation behavior",
-        canvasHandle: {
-          exportCleanTestName: "browser: orientation export clean",
-          outputObservable: "The rendered model follows the pose.",
-          testId: "toolcraft-orientation-gizmo",
-          writesTarget: "view.orbit",
-        },
-        evidence: "product-output",
-        id: "model.orientation",
-        orientationGizmoCoverage:
-          "all-required-orientation-gizmo-behavior",
-      },
-    ],
-    schema,
-  );
-  const orientationRequirements = requirements
-    .filter(({ evidenceType }) => evidenceType.startsWith("orientation-"))
-    .map(({ evidenceType, requirementId, target, testName }) => ({
-      evidenceType,
-      requirementId,
-      target,
-      testName,
-    }));
-
-  expect(orientationRequirements).toEqual([
-    {
-      evidenceType: "orientation-axis-drag",
-      requirementId: "model.orientation#axis-drag",
-      target: "view.orbit",
-      testName: "browser: orientation behavior",
-    },
-    {
-      evidenceType: "orientation-axis-snap",
-      requirementId: "model.orientation#axis-snap",
-      target: "view.orbit",
-      testName: "browser: orientation behavior",
-    },
-    {
-      evidenceType: "orientation-canvas-miss-pan",
-      requirementId: "model.orientation#canvas-miss-pan",
-      target: "view.orbit",
-      testName: "browser: orientation behavior",
-    },
-    {
-      evidenceType: "orientation-model-drag",
-      requirementId: "model.orientation#model-drag",
-      target: "view.orbit",
-      testName: "browser: orientation behavior",
-    },
-    {
-      evidenceType: "orientation-shared-pose-output",
-      requirementId: "model.orientation#shared-pose-output",
-      target: "view.orbit",
-      testName: "browser: orientation behavior",
-    },
-    {
-      evidenceType: "orientation-undo-reset",
-      requirementId: "model.orientation#undo-reset",
-      target: "view.orbit",
-      testName: "browser: orientation behavior",
-    },
-  ]);
-  expect(requirements).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        evidenceType: "canvas-export-clean",
-        requirementId: "model.orientation#export-clean",
-        target: "view.orbit",
-        testName: "browser: orientation export clean",
-      }),
-    ]),
-  );
-  expect(requirements.map(({ evidenceType }) => evidenceType)).not.toContain(
-    "canvas-handle-interaction",
-  );
 });

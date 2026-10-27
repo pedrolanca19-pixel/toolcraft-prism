@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { appSchema } from "../app-schema";
+import { getToolcraftPersistenceCoverageResult } from "./runtime-coverage";
 import {
   appProductReadiness,
   appTransferMode,
@@ -16,6 +17,10 @@ const context: ToolcraftAcceptanceValidationContext = {
   controls: [],
   hasVideoExportAction: false,
   layersEnabled: false,
+  persistence: getToolcraftPersistenceCoverageResult({
+    acceptance: [],
+    schema: appSchema,
+  }),
   productReadiness: appProductReadiness,
   schema: appSchema,
   sectionInventory: [],

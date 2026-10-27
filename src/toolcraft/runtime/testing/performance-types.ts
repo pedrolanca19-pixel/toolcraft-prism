@@ -1,4 +1,5 @@
 import type { ToolcraftControlSchema } from "../schema/types";
+import type { ToolcraftGpuTechniqueSurfaces } from "../rendering";
 import type {
   AnyToolcraftRendererPipelineRegistration,
   ToolcraftPipelineInteraction,
@@ -6,8 +7,6 @@ import type {
 } from "../rendering/renderer-pipeline-registration";
 import type { ToolcraftPerformanceFixtureAdapterRegistry } from "./performance-fixture-adapter-types";
 import type {
-  ToolcraftRenderPassCost,
-  ToolcraftRenderPassLifecycle,
   ToolcraftWorkloadEnvelope,
 } from "./performance-workload-types";
 
@@ -222,6 +221,7 @@ export type ToolcraftRendererLayer = {
 export type ToolcraftRendererTechnique = {
   exportRenderer: ToolcraftExportRenderer;
   fidelityRisks: readonly string[];
+  gpu?: ToolcraftGpuTechniqueSurfaces;
   intentionalRasterizationReason?: string;
   layers?: readonly ToolcraftRendererLayer[];
   performanceRisks: readonly string[];

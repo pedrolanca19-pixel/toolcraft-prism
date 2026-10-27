@@ -1,10 +1,8 @@
 "use client";
-
 import * as React from "react";
 import { Panel, type ControlChangeMeta } from "@/toolcraft/ui";
 
 import type {
-  ToolcraftControlSchema,
   ResolvedToolcraftControlSectionSchema,
   ResolvedToolcraftControlsPanelSchema,
 } from "../../schema/types";
@@ -26,6 +24,7 @@ import type {
 } from "../panel-host/panel-host-types";
 import { useToolcraftDependencySelector } from "../app-shell/toolcraft-selectors";
 import { useToolcraftStore } from "../app-shell/toolcraft-store-context";
+import { ToolcraftThemeContext } from "../app-shell/theme-runtime";
 import { useToolcraftDispatch } from "../app-shell/use-toolcraft";
 import {
   type ToolcraftControlsSceneExport,
@@ -43,6 +42,7 @@ import {
 import { getControlsPanelTargetDependencies } from "./conditions/control-condition-dependencies";
 import type { ControlsPanelSetControlValue } from "./layout/controls-panel-control-group";
 import { ControlsPanelSectionNavigation } from "./layout/controls-panel-section-navigation";
+import { useControlsPanelScroll } from "./layout/use-controls-panel-scroll";
 import {
   type ControlEntry,
   countControlsByType,
@@ -64,6 +64,10 @@ export type ControlsPanelProps = {
   onPanelStateChange?: PanelStateChange;
   panelPlacement?: PanelPlacement;
   panelState?: ToolcraftPanelState;
+  /** A host presentation selects sections without replacing the canonical schema. */
+  sections?: readonly ResolvedToolcraftControlSectionSchema[];
+  resetTargets?: readonly string[];
+  keyframeControls?: boolean;
   sceneExport?: ToolcraftControlsSceneExport;
 };
 
@@ -158,9 +162,9 @@ function selectControlsPanel(
       )
       .filter(
         ({ entries, section }) =>
-          entries.some(([, control]) =>
-            isControlsPanelRenderableControl(control),
-          ) && isToolcraftSectionVisible(state, section),
+          (section.id === "runtime.setup" ||
+            entries.some(([, control]) => isControlsPanelRenderableControl(control))) &&
+          isToolcraftSectionVisible(state, section),
       ) ?? [];
   const visibleControlsPanelSections = visibleSections.map(
     ({ entries, section }) => ({
@@ -192,14 +196,24 @@ export function ControlsPanel({
   onPanelStateChange,
   panelPlacement,
   panelState,
+  sections,
+  resetTargets,
+  keyframeControls = true,
   sceneExport,
 }: ControlsPanelProps): React.JSX.Element | null {
   const dispatch = useToolcraftDispatch();
   const store = useToolcraftStore();
+  const theme = React.useContext(ToolcraftThemeContext);
+  const contentRef = useControlsPanelScroll();
   const schema = store.getCommittedState().schema;
-  const controlsPanel = schema.panels.controls;
+  const controlsPanel = React.useMemo(
+    () => schema.panels.controls && sections
+      ? { ...schema.panels.controls, sections }
+      : schema.panels.controls,
+    [schema.panels.controls, sections],
+  );
   const keyframesSupported =
-    schema.assembly.capabilities.includes("timeline.keyframes");
+    keyframeControls && schema.assembly.capabilities.includes("timeline.keyframes");
   const dependencies = React.useMemo(
     () => getPanelDependencies({ controlsPanel, keyframesSupported }),
     [controlsPanel, keyframesSupported],
@@ -245,9 +259,11 @@ export function ControlsPanel({
 
   const dispatchCommand = React.useCallback(
     (command: ToolcraftCommand): void => {
-      dispatch(command);
+      dispatch(command.type === "controls.resetTargets" && resetTargets
+        ? { ...command, targets: command.targets.filter((target) => resetTargets.includes(target)) }
+        : command);
     },
-    [dispatch],
+    [dispatch, resetTargets],
   );
   const setControlValue = React.useCallback<ControlsPanelSetControlValue>(
     (target, value, label, meta?: ControlChangeMeta): void => {
@@ -274,14 +290,13 @@ export function ControlsPanel({
   }
 
   const placement = panelPlacement ?? (framed ? "frame" : "surface");
-  const renderedSections = selection.visibleSections.map(
-    ({ entries, section }) => ({
+  const renderedSections = selection.visibleSections
+    .map(({ entries, section }) => ({
       entries,
       navigationId: `toolcraft-controls-section-${section.id}`,
       section,
       sectionCollapseKey: section.id,
-    }),
-  );
+    }));
   const navigationItems = renderedSections.flatMap(
     ({ navigationId, section }) =>
       section.actionGroup === undefined && section.title
@@ -301,6 +316,7 @@ export function ControlsPanel({
           className,
         )}
         collapsed={resolvedPanelState.collapsed}
+        contentRef={contentRef}
         contentTransitionSuppressionKey={
           selection.keyframeControlsEnabled ? "keyframes" : "plain"
         }
@@ -308,7 +324,13 @@ export function ControlsPanel({
         onCollapsedChange={(collapsed) =>
           panelBinding.onPanelStateChange({ collapsed })
         }
-        onResetControls={() => dispatchCommand({ type: "controls.reset" })}
+        onResetControls={() => {
+          const savedTheme = store.getCommittedState().schema.sourceDefaults?.theme;
+          if (!resetTargets && savedTheme) theme?.setThemePreference(savedTheme);
+          dispatchCommand(resetTargets
+            ? { type: "controls.resetTargets", targets: [...resetTargets] }
+            : { type: "controls.reset" });
+        }}
         stickyFooterActive={stickyFooterActive}
         stickyFooterProgress={stickyFooterProgress}
         title={controlsPanel.title}
@@ -342,8 +364,10 @@ export function ControlsPanel({
         )}
       </Panel>
       <PanelActionFeedback feedback={panelActionFeedback} />
+      {/* Reset replaces Panel; discard its navigation listeners and hover timers too. */}
       <ControlsPanelSectionNavigation
         items={navigationItems}
+        key={`navigation-${selection.controlsResetKey}`}
         rootElement={navigationRootElement}
       />
     </div>

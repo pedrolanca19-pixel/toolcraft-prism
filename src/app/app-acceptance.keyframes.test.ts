@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { ToolcraftControlSchema } from "@/toolcraft/runtime";
+import {
+  timelineModule,
+  type ToolcraftControlSchema,
+} from "@/toolcraft/runtime";
 
 import type { ToolcraftComponentAcceptance } from "./acceptance/types";
 import {
@@ -10,11 +13,15 @@ import {
 const timelinePlaybackAcceptance: ToolcraftComponentAcceptance = {
   automated: true,
   automatedTestName: "timeline playback controls drive rendered output",
-  browser: true,
-  browserTestName: "browser: timeline playback controls drive rendered output",
+  browser: {
+    budget: "standard",
+    file: "e2e/app-controls.spec.ts",
+    testName: "browser: timeline playback controls drive rendered output",
+  },
   componentType: "timeline",
   evidence: "timeline-output",
-  expectedObservable: "Playback and scrubbing affect the rendered timeline frame.",
+  expectedObservable:
+    "Playback and scrubbing affect the rendered timeline frame.",
   fixture: "timeline fixture",
   id: "timeline.playback",
   kind: "runtime",
@@ -43,8 +50,11 @@ function createTimelineKeyframesAcceptance(
   return {
     automated: true,
     automatedTestName: "timeline keyframes evaluate rendered output",
-    browser: true,
-    browserTestName: "browser: timeline keyframes evaluate rendered output",
+    browser: {
+      budget: "standard",
+      file: "e2e/app-controls.spec.ts",
+      testName: "browser: timeline keyframes evaluate rendered output",
+    },
     componentType: "timeline",
     evidence: "timeline-output",
     expectedObservable,
@@ -62,31 +72,30 @@ function createKeyframesSchema(
   title = "Style",
 ) {
   return defineContractSchemaFixture({
-    canvas: {
-      enabled: true,
-      upload: true,
-    },
-    panels: {
-      controls: {
-        sections: [
-          {
-            controls,
-            title,
-          },
-        ],
-        title: "Controls",
-      },
-      timeline: {
-        defaultDurationSeconds: 8,
+    base: {
+      identity: { id: "contract-fixture", title: "Contract fixture" },
+      canvas: {
         enabled: true,
-        mode: "keyframes",
+      },
+      panels: {
+        controls: {
+          sections: [
+            {
+              id: "test-section-1",
+              controls,
+              title,
+            },
+          ],
+          title: "Controls",
+        },
+      },
+      toolbar: {
+        history: true,
+        radar: true,
+        zoom: true,
       },
     },
-    toolbar: {
-      history: true,
-      radar: true,
-      zoom: true,
-    },
+    modules: [timelineModule({ mode: "keyframes" })],
   });
 }
 
@@ -94,6 +103,7 @@ describe("starter acceptance keyframes contract", () => {
   it("requires timeline keyframe coverage for every inferred keyframe-capable control", () => {
     const keyframesSchema = createKeyframesSchema({
       opacity: {
+        applicability: { mode: "always" },
         defaultValue: 75,
         label: "Opacity",
         max: 100,
@@ -103,6 +113,7 @@ describe("starter acceptance keyframes contract", () => {
         variant: "continuous",
       },
       mode: {
+        applicability: { mode: "always" },
         defaultValue: "normal",
         label: "Mode",
         options: [
@@ -123,8 +134,11 @@ describe("starter acceptance keyframes contract", () => {
           {
             automated: true,
             automatedTestName: "opacity changes rendered output",
-            browser: true,
-            browserTestName: "browser: opacity slider changes rendered output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: opacity slider changes rendered output",
+            },
             componentType: "slider",
             evidence: "rendered-pixels",
             expectedObservable: "Changing Opacity changes rendered output.",
@@ -137,8 +151,11 @@ describe("starter acceptance keyframes contract", () => {
           {
             automated: true,
             automatedTestName: "mode changes rendered output",
-            browser: true,
-            browserTestName: "browser: mode select changes rendered output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: mode select changes rendered output",
+            },
             componentType: "select",
             evidence: "rendered-pixels",
             expectedObservable: "Changing Mode changes blend behavior.",
@@ -161,6 +178,7 @@ describe("starter acceptance keyframes contract", () => {
   it("rejects opt-out keyframeable false on inferred keyframe-capable controls", () => {
     const keyframesSchema = createKeyframesSchema({
       blur: {
+        applicability: { mode: "always" },
         defaultValue: 2,
         keyframeable: false,
         label: "Blur",
@@ -177,12 +195,18 @@ describe("starter acceptance keyframes contract", () => {
         schema: keyframesSchema,
         acceptance: [
           timelinePlaybackAcceptance,
-          createTimelineKeyframesAcceptance("Keyframed opacity changes output at different timeline times.", "Create a Blur keyframe and scrub the timeline."),
+          createTimelineKeyframesAcceptance(
+            "Keyframed opacity changes output at different timeline times.",
+            "Create a Blur keyframe and scrub the timeline.",
+          ),
           {
             automated: true,
             automatedTestName: "blur changes rendered output",
-            browser: true,
-            browserTestName: "browser: blur slider changes rendered output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: blur slider changes rendered output",
+            },
             componentType: "slider",
             evidence: "rendered-pixels",
             expectedObservable: "Changing Blur changes edge softness.",
@@ -206,6 +230,7 @@ describe("starter acceptance keyframes contract", () => {
     const keyframesSchema = createKeyframesSchema(
       {
         mode: {
+          applicability: { mode: "always" },
           defaultValue: "normal",
           keyframeable: true,
           label: "Mode",
@@ -225,12 +250,18 @@ describe("starter acceptance keyframes contract", () => {
         schema: keyframesSchema,
         acceptance: [
           timelinePlaybackAcceptance,
-          createTimelineKeyframesAcceptance("Keyframed output changes at different timeline times.", "Create a keyframe and scrub the timeline."),
+          createTimelineKeyframesAcceptance(
+            "Keyframed output changes at different timeline times.",
+            "Create a keyframe and scrub the timeline.",
+          ),
           {
             automated: true,
             automatedTestName: "mode changes rendered output",
-            browser: true,
-            browserTestName: "browser: mode select changes rendered output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: mode select changes rendered output",
+            },
             componentType: "select",
             evidence: "rendered-pixels",
             expectedObservable: "Changing Mode changes blend behavior.",

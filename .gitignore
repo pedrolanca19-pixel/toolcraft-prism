@@ -4,10 +4,13 @@ node_modules
 # Build output
 dist
 dist-ssr
+build
+out
 .vite
 .turbo
 .output
 .next
+.vercel
 *.tsbuildinfo
 
 # Test output
@@ -15,6 +18,7 @@ coverage
 test-results
 playwright-report
 .playwright-mcp
+.playwright-*
 
 # Local environment
 .env
@@ -29,17 +33,6 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 
-# Local agent diagnostics
-.agents/*.pid
-.agents/*.started
-.agents/*probe*.mjs
-.agents/probe-shots/
-.agents/trace-frames/
-.agents/trace-*.jsonl
-
-# Local throwaway archives
-_to_delete/
-
 # OS and editor files
 .DS_Store
 Thumbs.db
@@ -47,4 +40,3 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 !.vscode/settings.json
-dist-artifact

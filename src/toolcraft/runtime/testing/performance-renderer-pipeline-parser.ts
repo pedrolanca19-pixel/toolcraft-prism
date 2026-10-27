@@ -7,6 +7,7 @@ import {
   isToolcraftRendererPipelineRegistration,
   type AnyToolcraftRendererPipelineRegistration,
 } from "../rendering/renderer-pipeline-registration";
+import { normalizeToolcraftGpuPassExecution } from "../rendering/renderer-pipeline-normalization";
 import { isRecord } from "./performance-render-plan-utils";
 
 export type ToolcraftRendererPipelineParseResult = {
@@ -73,6 +74,14 @@ function parsePass(
   const output = readRequiredString(value, "output", path, errors);
   const quality = readRequiredString(value, "quality", path, errors);
   const runsOn = readRequiredString(value, "runsOn", path, errors);
+  const gpuResult = value.gpu === undefined
+    ? null
+    : normalizeToolcraftGpuPassExecution(value.gpu);
+  for (const error of gpuResult?.errors ?? []) {
+    const field = error.field === null ? "" : `.${error.field}`;
+    errors.push(`${path}.gpu${field} ${error.message}`);
+  }
+  const gpu = gpuResult?.value ?? undefined;
   const cacheKey =
     value.cacheKey === undefined
       ? undefined
@@ -87,6 +96,7 @@ function parsePass(
     ...(value.cost === undefined
       ? {}
       : { cost: value.cost as ToolcraftRenderPass["cost"] }),
+    ...(gpu ? { gpu } : {}),
     id,
     inputs,
     invalidatedBy,
@@ -127,6 +137,22 @@ function parseInvalidation(
           `${path}.mustNotInvalidate`,
           errors,
         );
+  const preparationInvalidates =
+    value.preparationInvalidates === undefined
+      ? undefined
+      : readStringArray(
+          value.preparationInvalidates,
+          `${path}.preparationInvalidates`,
+          errors,
+        );
+  const retainedAccesses =
+    value.retainedAccesses === undefined
+      ? undefined
+      : readStringArray(
+          value.retainedAccesses,
+          `${path}.retainedAccesses`,
+          errors,
+        );
 
   if (errors.length !== errorCount) {
     return null;
@@ -136,6 +162,8 @@ function parseInvalidation(
     interaction: interaction as ToolcraftInteractionInvalidation["interaction"],
     invalidates,
     ...(mustNotInvalidate ? { mustNotInvalidate } : {}),
+    ...(preparationInvalidates ? { preparationInvalidates } : {}),
+    ...(retainedAccesses ? { retainedAccesses } : {}),
     targets,
   };
 }

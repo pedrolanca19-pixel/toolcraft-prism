@@ -1,61 +1,111 @@
+import { exportRequestFixture } from "./app-acceptance.export-request-test-fixtures";
 import { describe, expect, it } from "vitest";
 
-import { defineContractSchemaFixture, validateContractAcceptance } from "./app-acceptance.contract-fixtures";
 import {
-  makeBackgroundSection,
+  createContractSectionInventoryFixture,
+  defineContractSchemaFixture,
+  validateContractAcceptance,
+} from "./app-acceptance.contract-fixtures";
+import {
+  defineExportModuleSchemaFixture,
+  forgeResolvedExportSections,
   makeExportSettingsProductReadiness,
-  makeImageExportSection,
-  makeVideoExportSection,
 } from "./app-acceptance.export-test-utils";
 import { makeControlAcceptance } from "./app-acceptance.test-utils";
 
 const imageOnlyProductReadiness = makeExportSettingsProductReadiness({
   image: { mode: "toolcraft-default" },
+  svg: { mode: "not-requested" },
   video: { mode: "not-requested" },
 });
 
 const imageAndVideoProductReadiness = makeExportSettingsProductReadiness({
   image: { mode: "toolcraft-default" },
+  svg: { mode: "not-requested" },
   video: {
-    evidence: "The user explicitly requested video delivery.",
+    evidence: exportRequestFixture("Add video export."),
     mode: "user-requested",
   },
 });
 
+function createExportSectionInventory(
+  schema: ReturnType<typeof defineContractSchemaFixture>,
+  includeVideo: boolean,
+) {
+  return createContractSectionInventoryFixture(schema, [
+    {
+      entity: "Output background",
+      entityId: "output-background",
+      finiteSelectors: [
+        {
+          affectedTargets: ["appearance.background"],
+          reason:
+            "Background inclusion determines whether its color affects output.",
+          role: "branch",
+          target: "export.includeBackground",
+        },
+      ],
+      groupingReason:
+        "Inclusion and color define the exported product background.",
+      id: "background",
+      targets: ["export.includeBackground", "appearance.background"],
+      title: "Background",
+    },
+    {
+      entity: "Image delivery",
+      entityId: "image-delivery",
+      finiteSelectors: [
+        {
+          reason: "Image format changes its own exported artifact encoding.",
+          role: "parameter",
+          target: "export.image.format",
+        },
+        {
+          reason:
+            "Image resolution changes its own exported artifact dimensions.",
+          role: "parameter",
+          target: "export.image.resolution",
+        },
+      ],
+      groupingReason:
+        "Format and resolution configure one exported image artifact.",
+      id: "runtime.image-export",
+    },
+    ...(includeVideo
+      ? [
+          {
+            entity: "Video delivery",
+            entityId: "video-delivery",
+            finiteSelectors: [
+              {
+                reason:
+                  "Video format changes its own exported artifact container.",
+                role: "parameter" as const,
+                target: "export.video.format",
+              },
+              {
+                reason:
+                  "Video resolution changes its own exported artifact dimensions.",
+                role: "parameter" as const,
+                target: "export.video.resolution",
+              },
+            ],
+            groupingReason:
+              "Format and resolution configure one exported video artifact.",
+            id: "runtime.video-export",
+          },
+        ]
+      : []),
+  ]);
+}
+
 describe("Toolcraft image export settings acceptance contract", () => {
   it("requires still-output apps to expose image export format and resolution settings", () => {
-    const schemaWithoutImageExportSettings = defineContractSchemaFixture({
-      canvas: {
-        enabled: true,
-        sizing: { mode: "editable-output" },
-      },
-      panels: {
-        controls: {
-          sections: [
-            makeBackgroundSection(),
-            {
-              actionGroup: "secondary",
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      icon: "upload-simple",
-                      label: "Export PNG",
-                      role: "export-image",
-                      value: "export.png",
-                    },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-              title: "Export",
-            },
-          ],
-          title: "Controls",
-        },
-      },
-    });
+    const schemaWithoutImageExportSettings = forgeResolvedExportSections(
+      defineExportModuleSchemaFixture({ image: true }),
+      (sections) =>
+        sections.filter((section) => section.title !== "Image Export"),
+    );
 
     expect(
       validateContractAcceptance({
@@ -67,17 +117,22 @@ describe("Toolcraft image export settings acceptance contract", () => {
             actionCoverage: ["export.png"],
             automated: true,
             automatedTestName: "exports image output",
-            browser: true,
-            browserTestName: "browser: exports image output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: exports image output",
+            },
             componentType: "panelActions",
             evidence: "exported-bytes",
-            expectedObservable: "Export PNG creates output bytes and reads image format, image resolution, background color, and include-background state.",
+            expectedObservable:
+              "Export PNG creates output bytes and reads image format, image resolution, background color, and include-background state.",
             exportArtifactCoverage: "all-required-image-export-behavior",
             fixture: "export fixture",
             id: "actions.output",
             kind: "control",
             target: "actions.output",
-            userAction: "Toggle Include off, verify preview has no product background, export PNG with alpha, and verify the image artifact preserves transparency.",
+            userAction:
+              "Toggle Include off, verify preview has no product background, export PNG with alpha, and verify the image artifact preserves transparency.",
           },
         ],
         productReadiness: imageOnlyProductReadiness,
@@ -92,40 +147,13 @@ describe("Toolcraft image export settings acceptance contract", () => {
   });
 
   it("accepts still-output apps with image export settings", () => {
-    const schemaWithImageExportSettings = defineContractSchemaFixture({
-      canvas: {
-        enabled: true,
-        sizing: { mode: "editable-output" },
-      },
-      panels: {
-        controls: {
-          sections: [
-            makeBackgroundSection(),
-            makeImageExportSection(),
-            {
-              actionGroup: "secondary",
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      icon: "upload-simple",
-                      label: "Export PNG",
-                      role: "export-image",
-                      value: "export.png",
-                    },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-              title: "Export",
-            },
-          ],
-          title: "Controls",
-        },
-      },
+    const schemaWithImageExportSettings = defineExportModuleSchemaFixture({
+      image: true,
     });
-    const imageFormatAcceptance = makeControlAcceptance("export.image.format", "select");
+    const imageFormatAcceptance = makeControlAcceptance(
+      "export.image.format",
+      "select",
+    );
     imageFormatAcceptance.optionCoverage = ["png", "jpg"];
     imageFormatAcceptance.expectedObservable =
       "PNG and JPG choices change the exported image MIME/file extension.";
@@ -153,20 +181,29 @@ describe("Toolcraft image export settings acceptance contract", () => {
             actionCoverage: ["export.png"],
             automated: true,
             automatedTestName: "exports image output",
-            browser: true,
-            browserTestName: "browser: exports image output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: exports image output",
+            },
             componentType: "panelActions",
             evidence: "exported-bytes",
-            expectedObservable: "Export PNG creates output bytes and reads image format, image resolution, background color, and include-background state. JPG changes file type; 8K changes exported pixel dimensions to an 8192px long edge.",
+            expectedObservable:
+              "Export PNG creates output bytes and reads image format, image resolution, background color, and include-background state. JPG changes file type; 8K changes exported pixel dimensions to an 8192px long edge.",
             exportArtifactCoverage: "all-required-image-export-behavior",
             fixture: "export fixture",
             id: "actions.output",
             kind: "control",
             target: "actions.output",
-            userAction: "Set format to JPG and resolution to 8K, then export and decode the output image to verify file type and long-edge dimensions.",
+            userAction:
+              "Set format to JPG and resolution to 8K, then export and decode the output image to verify file type and long-edge dimensions.",
           },
         ],
         productReadiness: imageOnlyProductReadiness,
+        sectionInventory: createExportSectionInventory(
+          schemaWithImageExportSettings,
+          false,
+        ),
       }),
     ).not.toEqual(
       expect.arrayContaining([
@@ -178,45 +215,11 @@ describe("Toolcraft image export settings acceptance contract", () => {
   });
 
   it("requires explicit image-plus-video delivery to expose Image Export before Video Export", () => {
-    const schemaWithoutImageSettings = defineContractSchemaFixture({
-      canvas: {
-        enabled: true,
-        sizing: { mode: "editable-output" },
-      },
-      panels: {
-        controls: {
-          sections: [
-            makeBackgroundSection(),
-            makeVideoExportSection(),
-            {
-              actionGroup: "secondary",
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      icon: "upload-simple",
-                      label: "Export Video",
-                      role: "export-video",
-                      value: "export.video",
-                    },
-                    {
-                      icon: "upload-simple",
-                      label: "Export PNG",
-                      role: "export-image",
-                      value: "export.png",
-                    },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-              title: "Export",
-            },
-          ],
-          title: "Controls",
-        },
-      },
-    });
+    const schemaWithoutImageSettings = forgeResolvedExportSections(
+      defineExportModuleSchemaFixture({ image: true, video: true }),
+      (sections) =>
+        sections.filter((section) => section.title !== "Image Export"),
+    );
 
     expect(
       validateContractAcceptance({
@@ -229,12 +232,17 @@ describe("Toolcraft image export settings acceptance contract", () => {
           {
             actionCoverage: ["export.video", "export.png"],
             automated: true,
-            automatedTestName: "exports image and explicitly requested video output",
-            browser: true,
-            browserTestName: "browser: exports video and image output",
+            automatedTestName:
+              "exports image and explicitly requested video output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: exports video and image output",
+            },
             componentType: "panelActions",
             evidence: "exported-bytes",
-            expectedObservable: "Export Video and Export PNG both create output bytes and read their runtime export settings.",
+            expectedObservable:
+              "Export Video and Export PNG both create output bytes and read their runtime export settings.",
             exportArtifactCoverage: [
               "all-required-image-export-behavior",
               "all-required-video-export-behavior",
@@ -243,7 +251,8 @@ describe("Toolcraft image export settings acceptance contract", () => {
             id: "actions.output",
             kind: "control",
             target: "actions.output",
-            userAction: "Export video and PNG with their configured settings, then verify both files exist.",
+            userAction:
+              "Export video and PNG with their configured settings, then verify both files exist.",
           },
         ],
         productReadiness: imageAndVideoProductReadiness,
@@ -258,54 +267,24 @@ describe("Toolcraft image export settings acceptance contract", () => {
   });
 
   it("accepts explicit image-plus-video delivery with Image Export immediately before Video Export", () => {
-    const schemaWithDualExportSettings = defineContractSchemaFixture({
-      canvas: {
-        enabled: true,
-        sizing: { mode: "editable-output" },
-      },
-      panels: {
-        controls: {
-          sections: [
-            makeBackgroundSection(),
-            makeImageExportSection(),
-            makeVideoExportSection(),
-            {
-              actionGroup: "secondary",
-              controls: {
-                outputActions: {
-                  actions: [
-                    {
-                      icon: "upload-simple",
-                      label: "Export Video",
-                      role: "export-video",
-                      value: "export.video",
-                    },
-                    {
-                      icon: "upload-simple",
-                      label: "Export PNG",
-                      role: "export-image",
-                      value: "export.png",
-                    },
-                  ],
-                  target: "actions.output",
-                  type: "panelActions",
-                },
-              },
-              title: "Export",
-            },
-          ],
-          title: "Controls",
-        },
-      },
+    const schemaWithDualExportSettings = defineExportModuleSchemaFixture({
+      image: true,
+      video: true,
     });
-    const imageFormatAcceptance = makeControlAcceptance("export.image.format", "select");
+    const imageFormatAcceptance = makeControlAcceptance(
+      "export.image.format",
+      "select",
+    );
     imageFormatAcceptance.optionCoverage = ["png", "jpg"];
     const imageResolutionAcceptance = makeControlAcceptance(
       "export.image.resolution",
       "select",
     );
     imageResolutionAcceptance.optionCoverage = ["2k", "4k", "8k"];
-    const videoFormatAcceptance = makeControlAcceptance("export.video.format", "select");
+    const videoFormatAcceptance = makeControlAcceptance(
+      "export.video.format",
+      "select",
+    );
     videoFormatAcceptance.optionCoverage = ["mp4", "webm"];
     const videoResolutionAcceptance = makeControlAcceptance(
       "export.video.resolution",
@@ -326,12 +305,17 @@ describe("Toolcraft image export settings acceptance contract", () => {
           {
             actionCoverage: ["export.video", "export.png"],
             automated: true,
-            automatedTestName: "exports image and explicitly requested video output",
-            browser: true,
-            browserTestName: "browser: exports video and image output",
+            automatedTestName:
+              "exports image and explicitly requested video output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: exports video and image output",
+            },
             componentType: "panelActions",
             evidence: "exported-bytes",
-            expectedObservable: "Export Video and Export PNG both create output bytes and read their runtime export settings.",
+            expectedObservable:
+              "Export Video and Export PNG both create output bytes and read their runtime export settings.",
             exportArtifactCoverage: [
               "all-required-image-export-behavior",
               "all-required-video-export-behavior",
@@ -340,10 +324,15 @@ describe("Toolcraft image export settings acceptance contract", () => {
             id: "actions.output",
             kind: "control",
             target: "actions.output",
-            userAction: "Choose JPG and 8K, choose MP4 and Current, then export PNG and video and verify both outputs use their selected settings.",
+            userAction:
+              "Choose JPG and 8K, choose MP4 and Current, then export PNG and video and verify both outputs use their selected settings.",
           },
         ],
         productReadiness: imageAndVideoProductReadiness,
+        sectionInventory: createExportSectionInventory(
+          schemaWithDualExportSettings,
+          true,
+        ),
       }),
     ).not.toEqual(
       expect.arrayContaining([

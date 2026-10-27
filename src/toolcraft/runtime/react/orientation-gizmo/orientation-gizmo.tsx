@@ -4,7 +4,10 @@ import * as React from "react";
 import { createControlHistoryGroupId, type ControlChangeMeta } from "@/toolcraft/ui";
 
 import type { ToolcraftExternalStore } from "../../state/toolcraft-external-store";
-import { useToolcraftTheme } from "../app-shell/theme-runtime";
+import {
+  ToolcraftOrientationGizmoFrame,
+  toolcraftOrientationGizmoCssSize,
+} from "./orientation-gizmo-frame";
 import {
   beginToolcraftOrientationInteraction,
   type ToolcraftOrientationInteractionLease,
@@ -21,9 +24,6 @@ import {
   type ToolcraftOrientationAxisProjection,
   type ToolcraftOrientationPose,
 } from "./orientation-gizmo-math";
-
-export const toolcraftOrientationGizmoCssSize = 70;
-export const toolcraftOrientationGizmoInset = 16;
 
 const pixelRatio = 2;
 const center = toolcraftOrientationGizmoCssSize / 2;
@@ -42,6 +42,7 @@ const axisColors: Record<"x" | "y" | "z", string> = {
 
 export type ToolcraftOrientationGizmoProps = {
   defaultValue?: ToolcraftOrientationPose;
+  locked: boolean;
   onValueChange?: (
     value: ToolcraftOrientationPose,
     meta?: ControlChangeMeta,
@@ -53,6 +54,7 @@ export type ToolcraftOrientationGizmoProps = {
 };
 
 type GizmoGesture = {
+  axisLock: "x" | "y" | null;
   canvas: HTMLCanvasElement;
   clickAxis: ToolcraftOrientationAxis | null;
   dragged: boolean;
@@ -71,19 +73,13 @@ function isPositiveAxis(axis: ToolcraftOrientationAxis): boolean {
   return axis[0] === "+";
 }
 
-function isUnmodifiedPrimaryPointer(
+function isGizmoPrimaryPointer(
   event: Pick<
     React.PointerEvent<HTMLCanvasElement>,
-    "altKey" | "button" | "ctrlKey" | "metaKey" | "shiftKey"
+    "altKey" | "button" | "ctrlKey" | "metaKey"
   >,
 ): boolean {
-  return (
-    event.button === 0 &&
-    !event.altKey &&
-    !event.ctrlKey &&
-    !event.metaKey &&
-    !event.shiftKey
-  );
+  return event.button === 0 && !event.altKey && !event.ctrlKey && !event.metaKey;
 }
 
 function sortRearToFront(
@@ -190,24 +186,35 @@ function drawGizmo(
 
 export function ToolcraftOrientationGizmo({
   defaultValue,
+  locked,
   onValueChange,
   store,
   target,
   testId = "toolcraft-orientation-gizmo",
   value,
 }: ToolcraftOrientationGizmoProps): React.JSX.Element {
-  const { resolvedTheme } = useToolcraftTheme();
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = React.useRef(0);
   const pose = readToolcraftOrientationPose(value, defaultValue);
   const poseRef = React.useRef(pose);
   const gestureRef = React.useRef<GizmoGesture | null>(null);
+  const clickHistoryRef = React.useRef<{
+    current: string;
+    previous: string | null;
+  } | null>(null);
   const interactionRef =
     React.useRef<ToolcraftOrientationInteractionLease | null>(null);
   const [hoveredAxis, setHoveredAxis] =
     React.useState<ToolcraftOrientationAxis | null>(null);
 
   poseRef.current = pose;
+
+  React.useEffect(() => {
+    if (locked) {
+      setHoveredAxis(null);
+      clickHistoryRef.current = null;
+    }
+  }, [locked]);
 
   React.useLayoutEffect(() => {
     if (canvasRef.current) {
@@ -324,7 +331,7 @@ export function ToolcraftOrientationGizmo({
   );
 
   const beginInteraction = React.useCallback(() => {
-    let interaction: ToolcraftOrientationInteractionLease;
+    let interaction: ToolcraftOrientationInteractionLease | null;
     interaction = beginToolcraftOrientationInteraction({
       onCancel: () => {
         if (interactionRef.current !== interaction) {
@@ -340,8 +347,17 @@ export function ToolcraftOrientationGizmo({
     return interaction;
   }, [clearLocalInteraction, store, target]);
 
-  React.useEffect(
-    () => () => {
+  React.useEffect(() => {
+    const releaseAxisLock = (event: KeyboardEvent): void => {
+      // A release/repress can happen without any intervening pointer event.
+      if (event.key === "Shift" && !event.shiftKey && gestureRef.current) {
+        gestureRef.current.axisLock = null;
+      }
+    };
+    window.addEventListener("keyup", releaseAxisLock);
+
+    return () => {
+      window.removeEventListener("keyup", releaseAxisLock);
       window.cancelAnimationFrame(animationFrameRef.current);
       animationFrameRef.current = 0;
       const gesture = gestureRef.current;
@@ -353,31 +369,13 @@ export function ToolcraftOrientationGizmo({
       if (gesture?.canvas.hasPointerCapture?.(gesture.pointerId)) {
         gesture.canvas.releasePointerCapture?.(gesture.pointerId);
       }
-    },
-    [],
-  );
+    };
+  }, []);
 
   return (
-    <>
-      <div
-        aria-hidden="true"
-        data-slot="toolcraft-orientation-gizmo-backing"
-        style={{
-          backfaceVisibility: "hidden",
-          backgroundColor: resolvedTheme === "dark" ? "#000000" : "#ececef",
-          borderRadius: "50%",
-          bottom: toolcraftOrientationGizmoInset,
-          contain: "paint",
-          height: toolcraftOrientationGizmoCssSize,
-          left: toolcraftOrientationGizmoInset,
-          pointerEvents: "none",
-          position: "absolute",
-          transform: "translateZ(0)",
-          width: toolcraftOrientationGizmoCssSize,
-          zIndex: 20,
-        }}
-      />
+    <ToolcraftOrientationGizmoFrame locked={locked}>
       <canvas
+        aria-disabled={locked}
         aria-label="3D orientation gizmo"
         data-hovered-axis={hoveredAxis ?? ""}
         data-testid={testId}
@@ -385,6 +383,34 @@ export function ToolcraftOrientationGizmo({
         data-toolcraft-orientation-pose={JSON.stringify(pose)}
         data-toolcraft-orientation-target={target}
         height={toolcraftOrientationGizmoCssSize * pixelRatio}
+        onClick={(event) => {
+          // Native click detail resets the series without a guessed double-click timer.
+          if (event.detail === 1 && clickHistoryRef.current) {
+            clickHistoryRef.current.previous = null;
+          }
+        }}
+        onDoubleClick={(event) => {
+          const point = getLocalPointer(event.currentTarget, event.clientX, event.clientY);
+          if (
+            locked ||
+            !isGizmoPrimaryPointer(event) ||
+            Math.hypot(point.x - center, point.y - center) > center
+          ) {
+            return;
+          }
+          event.preventDefault();
+          event.stopPropagation();
+          const historyGroup =
+            clickHistoryRef.current?.previous ??
+            clickHistoryRef.current?.current ??
+            createControlHistoryGroupId("orientation-gizmo-reset");
+          clickHistoryRef.current = null;
+          // Cancels any pending axis-snap frame before writing the exact default.
+          const interaction = beginInteraction();
+          if (!interaction) return;
+          commitPose(readToolcraftOrientationPose(defaultValue), interaction, historyGroup);
+          releaseInteraction(interaction);
+        }}
         onPointerCancel={(event) => {
           const gesture = gestureRef.current;
 
@@ -398,8 +424,9 @@ export function ToolcraftOrientationGizmo({
         }}
         onPointerDown={(event) => {
           if (
+            locked ||
             gestureRef.current ||
-            !isUnmodifiedPrimaryPointer(event)
+            !isGizmoPrimaryPointer(event)
           ) {
             return;
           }
@@ -423,7 +450,9 @@ export function ToolcraftOrientationGizmo({
           window.cancelAnimationFrame(animationFrameRef.current);
           animationFrameRef.current = 0;
           const interaction = beginInteraction();
+          if (!interaction) return;
           gestureRef.current = {
+            axisLock: null,
             canvas,
             clickAxis: axis,
             dragged: false,
@@ -449,6 +478,7 @@ export function ToolcraftOrientationGizmo({
           }
         }}
         onPointerMove={(event) => {
+          if (locked) return;
           const point = getLocalPointer(
             event.currentTarget,
             event.clientX,
@@ -490,11 +520,23 @@ export function ToolcraftOrientationGizmo({
           const previous = gesture.dragged ? gesture.last : gesture.start;
           gesture.dragged = true;
           gesture.last = point;
+          const deltaX = point.x - previous.x;
+          const deltaY = point.y - previous.y;
+          if (!event.shiftKey) {
+            gesture.axisLock = null;
+          } else if (!gesture.axisLock && (deltaX !== 0 || deltaY !== 0)) {
+            gesture.axisLock = Math.abs(deltaX) >= Math.abs(deltaY) ? "x" : "y";
+          }
+          const yawDelta = gesture.axisLock === "y" ? 0 : deltaX;
+          const pitchDelta = gesture.axisLock === "x" ? 0 : deltaY;
+          if (yawDelta === 0 && pitchDelta === 0) {
+            return;
+          }
           commitPose(
             getToolcraftOrientationPoseFromPointerDelta(
               poseRef.current,
-              point.x - previous.x,
-              point.y - previous.y,
+              yawDelta,
+              pitchDelta,
             ),
             gesture.interaction,
             gesture.historyGroup,
@@ -509,6 +551,12 @@ export function ToolcraftOrientationGizmo({
 
           event.preventDefault();
           event.stopPropagation();
+          clickHistoryRef.current = gesture.dragged
+            ? null
+            : {
+                current: gesture.historyGroup,
+                previous: clickHistoryRef.current?.current ?? null,
+              };
           finishLocalGesture(gesture);
           if (gesture.dragged) {
             releaseInteraction(gesture.interaction);
@@ -527,11 +575,13 @@ export function ToolcraftOrientationGizmo({
         style={{
           backgroundColor: "transparent",
           borderRadius: "50%",
-          bottom: toolcraftOrientationGizmoInset,
+          bottom: 0,
+          cursor: locked ? "default" : undefined,
           display: "block",
           height: toolcraftOrientationGizmoCssSize,
-          left: toolcraftOrientationGizmoInset,
+          left: 0,
           outline: "none",
+          pointerEvents: "auto",
           position: "absolute",
           touchAction: "none",
           width: toolcraftOrientationGizmoCssSize,
@@ -539,6 +589,6 @@ export function ToolcraftOrientationGizmo({
         }}
         width={toolcraftOrientationGizmoCssSize * pixelRatio}
       />
-    </>
+    </ToolcraftOrientationGizmoFrame>
   );
 }

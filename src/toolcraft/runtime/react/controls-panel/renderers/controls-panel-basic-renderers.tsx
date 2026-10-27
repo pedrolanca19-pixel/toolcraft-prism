@@ -1,3 +1,4 @@
+import { ControlsPanelEditableSlider } from "./controls-panel-editable-slider";
 import * as React from "react";
 import {
   AnchorGrid,
@@ -15,15 +16,15 @@ import {
   type ControlChangeMeta,
 } from "@/toolcraft/ui";
 
-import { toolcraftCanvasAspectRatioPresets } from "../../../schema/canvas-aspect-ratio-presets";
+import { CanvasAspectRatioControl } from "./controls-panel-aspect-ratio";
 import type { ToolcraftControlSchema } from "../../../schema/types";
+import { isToolcraftBuiltInControlSchema } from "../../../schema/control-schema";
 import {
   getControlMarkerCount,
   shouldCommitTextControlOnBlur,
 } from "../layout/controls-panel-layout";
 import {
   asBoolean,
-  asCanvasAspectRatioValue,
   asNumber,
   asNumberArray,
   asRangeInputValue,
@@ -31,17 +32,7 @@ import {
   asVectorPadCoordinateMode,
   asVectorPadVariant,
   asVectorValue,
-  parseCanvasAspectRatioOption,
-  type CanvasAspectRatioValue,
 } from "../values/controls-panel-values";
-
-const canvasAspectRatioOptions = [
-  ...toolcraftCanvasAspectRatioPresets.map((preset) => ({
-    label: preset.value,
-    value: preset.value,
-  })),
-  { label: "Custom...", value: "custom" },
-] as const;
 
 export type BasicControlCommit = (
   nextValue: unknown,
@@ -68,110 +59,6 @@ export type BasicControlRenderArgs = {
   withKeyframeLabelAction: BasicControlKeyframeWrap;
 };
 
-function CanvasAspectRatioControl({
-  defaultValue,
-  name,
-  onValueChange,
-  value,
-}: {
-  defaultValue: unknown;
-  name: string;
-  onValueChange?: (
-    value: CanvasAspectRatioValue,
-    meta?: ControlChangeMeta,
-  ) => void;
-  value: unknown;
-}): React.JSX.Element {
-  const ratio = asCanvasAspectRatioValue(value, defaultValue);
-  const selectedValue = ratio.mode === "custom" ? "custom" : ratio.value;
-
-  function commitRatio(
-    nextRatio: CanvasAspectRatioValue,
-    meta?: ControlChangeMeta,
-  ): void {
-    onValueChange?.(nextRatio, meta);
-  }
-
-  function updatePreset(nextValue: string): void {
-    if (nextValue === "custom") {
-      commitRatio({
-        height: ratio.height,
-        mode: "custom",
-        value: `${ratio.width}:${ratio.height}`,
-        width: ratio.width,
-      });
-      return;
-    }
-
-    const nextRatio = parseCanvasAspectRatioOption(nextValue);
-
-    if (nextRatio) {
-      commitRatio(nextRatio);
-    }
-  }
-
-  function updateCustomDimension(
-    dimension: "height" | "width",
-    nextValue: string,
-    meta?: ControlChangeMeta,
-  ): void {
-    const numberValue = Number.parseFloat(nextValue);
-
-    if (!Number.isFinite(numberValue) || numberValue <= 0) {
-      return;
-    }
-
-    const width =
-      dimension === "width" ? Math.max(1, Math.round(numberValue)) : ratio.width;
-    const height =
-      dimension === "height" ? Math.max(1, Math.round(numberValue)) : ratio.height;
-
-    commitRatio(
-      {
-        height,
-        mode: "custom",
-        value: `${width}:${height}`,
-        width,
-      },
-      meta,
-    );
-  }
-
-  return (
-    <div className="min-w-0 space-y-2" data-slot="canvas-aspect-ratio-control">
-      <Select
-        name={name}
-        onValueChange={updatePreset}
-        options={canvasAspectRatioOptions}
-        value={selectedValue}
-      />
-      {ratio.mode === "custom" ? (
-        <TextInput
-          inputs={[
-            {
-              commitOnBlur: true,
-              defaultValue: String(ratio.width),
-              name: "Width",
-              onValueChange: (nextValue, meta) =>
-                updateCustomDimension("width", nextValue, meta),
-              value: String(ratio.width),
-            },
-            {
-              commitOnBlur: true,
-              defaultValue: String(ratio.height),
-              name: "Height",
-              onValueChange: (nextValue, meta) =>
-                updateCustomDimension("height", nextValue, meta),
-              value: String(ratio.height),
-            },
-          ]}
-          inputsPerRow={2}
-        />
-      ) : null}
-    </div>
-  );
-}
-
 export function renderBasicControl({
   commit,
   control,
@@ -182,6 +69,7 @@ export function renderBasicControl({
   vectorPadShape,
   withKeyframeLabelAction,
 }: BasicControlRenderArgs): React.ReactNode | null {
+  if (!isToolcraftBuiltInControlSchema(control)) return null;
   switch (control.type) {
     case "aspectRatio":
       return (
@@ -272,6 +160,7 @@ export function renderBasicControl({
     case "rangeSlider":
       return withKeyframeLabelAction({
         children: (
+          control.editableRange ? <ControlsPanelEditableSlider control={control} name={name} value={value} commit={commit} /> : (
           <RangeSlider
             baseValue={asNumberArray(control.defaultValue, [])}
             disabled={control.disabled}
@@ -287,6 +176,7 @@ export function renderBasicControl({
             valueLabel={control.valueLabel}
             variant={control.variant === "discrete" ? "discrete" : "continuous"}
           />
+          )
         ),
         control,
         disableAction: usesHeaderKeyframeAction,
@@ -317,6 +207,7 @@ export function renderBasicControl({
     case "select":
       return (
         <Select
+          disabled={control.disabled}
           key={id}
           name={name}
           onValueChange={commit}
@@ -341,6 +232,7 @@ export function renderBasicControl({
     case "slider":
       return withKeyframeLabelAction({
         children: (
+          control.editableRange ? <ControlsPanelEditableSlider control={control} name={name} value={value} commit={commit} /> : (
           <Slider
             baseValue={asNumber(control.defaultValue, control.min ?? 0)}
             disabled={control.disabled}
@@ -359,6 +251,7 @@ export function renderBasicControl({
             valueLabel={control.valueLabel}
             variant={control.variant === "discrete" ? "discrete" : "continuous"}
           />
+          )
         ),
         control,
         disableAction: usesHeaderKeyframeAction,
@@ -383,6 +276,7 @@ export function renderBasicControl({
       return withKeyframeLabelAction({
         children: (
           <TextInput
+            disabled={control.disabled}
             commitOnBlur={shouldCommitTextControlOnBlur(control)}
             defaultValue={asString(control.defaultValue, asString(value))}
             key={id}
@@ -406,6 +300,7 @@ export function renderBasicControl({
       return withKeyframeLabelAction({
         children: (
           <Vector
+            disabled={control.disabled}
             defaultValue={asVectorValue(control.defaultValue)}
             key={id}
             name={name}

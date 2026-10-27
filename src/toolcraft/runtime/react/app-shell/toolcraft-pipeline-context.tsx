@@ -8,9 +8,17 @@ import {
   type ToolcraftRendererPipelineClient,
 } from "../../rendering";
 import { ToolcraftPipelineEvidenceBridge } from "./toolcraft-pipeline-evidence";
+import { createToolcraftPipelineExportLifetime } from "./toolcraft-pipeline-export-lifetime";
 
 export const ToolcraftPipelineContext =
   React.createContext<ToolcraftRendererPipelineClient | null>(null);
+const PipelineExportRetentionContext = React.createContext<ReturnType<
+  typeof createToolcraftPipelineExportLifetime
+> | null>(null);
+
+export function useToolcraftPipelineExportRetention() {
+  return React.useContext(PipelineExportRetentionContext);
+}
 
 export function ToolcraftPipelineProvider({
   children,
@@ -23,21 +31,36 @@ export function ToolcraftPipelineProvider({
     () => createToolcraftRendererPipelineRuntimeOwner(registration),
     [registration],
   );
-  const committedOwner = React.useRef(owner);
+  const lifetime = React.useMemo(
+    () => createToolcraftPipelineExportLifetime(owner),
+    [owner],
+  );
+  const committedLifetime = React.useRef(lifetime);
+  const generationRef = React.useRef(0);
 
   React.useLayoutEffect(() => {
-    const previousOwner = committedOwner.current;
-    committedOwner.current = owner;
-    if (previousOwner !== owner) {
-      previousOwner.disposeAutomatically();
+    const previousLifetime = committedLifetime.current;
+    committedLifetime.current = lifetime;
+    if (previousLifetime !== lifetime) {
+      previousLifetime.retire();
     }
-  }, [owner]);
-
-  React.useLayoutEffect(() => owner.acquire(), [owner]);
+    const generation = ++generationRef.current;
+    const release = owner.acquire();
+    return () => {
+      release();
+      // Activity can reconnect effects; cancel exports without terminally
+      // retiring the reusable provider facade. Owner leases release resources.
+      queueMicrotask(() => {
+        if (generationRef.current === generation) lifetime.cancelExports();
+      });
+    };
+  }, [lifetime, owner]);
 
   return (
     <ToolcraftPipelineContext.Provider value={owner.client}>
-      {children}
+      <PipelineExportRetentionContext.Provider value={lifetime}>
+        {children}
+      </PipelineExportRetentionContext.Provider>
       <ToolcraftPipelineEvidenceBridge client={owner.client} />
     </ToolcraftPipelineContext.Provider>
   );

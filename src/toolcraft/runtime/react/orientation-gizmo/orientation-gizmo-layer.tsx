@@ -3,6 +3,8 @@
 import * as React from "react";
 import type { ControlChangeMeta } from "@/toolcraft/ui";
 
+import { toolcraftCanvasRotationLockedTarget } from "../../schema/runtime-targets";
+import { useToolcraftValue } from "../app-shell/use-toolcraft";
 import { useToolcraftStore } from "../app-shell/toolcraft-store-context";
 import { ToolcraftOrientationGizmo } from "./orientation-gizmo";
 import { readToolcraftOrientationPose } from "./orientation-gizmo-math";
@@ -11,6 +13,7 @@ import { useToolcraftOrientationControlSelection } from "./use-toolcraft-orienta
 export function ToolcraftOrientationGizmoLayer(): React.JSX.Element | null {
   const store = useToolcraftStore();
   const selection = useToolcraftOrientationControlSelection();
+  const locked = useToolcraftValue(toolcraftCanvasRotationLockedTarget) === true;
 
   if (!selection.control || !selection.id) {
     return null;
@@ -35,6 +38,7 @@ export function ToolcraftOrientationGizmoLayer(): React.JSX.Element | null {
     <ToolcraftOrientationGizmo
       defaultValue={readToolcraftOrientationPose(control.defaultValue)}
       key={`${selection.id}:${control.target}`}
+      locked={locked}
       onValueChange={commit}
       store={store}
       target={control.target}

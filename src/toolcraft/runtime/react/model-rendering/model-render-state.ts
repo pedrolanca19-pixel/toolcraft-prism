@@ -1,4 +1,5 @@
-import type { ToolcraftModelAsset, ToolcraftState } from "../../state/types";
+import type { ReadonlyToolcraftState } from "../../state/readonly-state";
+import type { ToolcraftModelAsset } from "../../state/types";
 import { isToolcraftLayerVisibleInTree } from "../../state/layer-visibility";
 import {
   getToolcraftOrientationControlEntries,
@@ -25,7 +26,7 @@ export function toolcraftModelAssetListsEqual(
 }
 
 export function selectToolcraftModelAssets(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): ToolcraftModelAsset[] {
   return state.mediaAssets.filter(
     (asset): asset is ToolcraftModelAsset => asset.assetKind === "model",
@@ -33,7 +34,7 @@ export function selectToolcraftModelAssets(
 }
 
 export function getVisibleToolcraftModelAssets(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): ToolcraftModelAsset[] {
   return selectToolcraftModelAssets(state).filter(
     (asset) =>
@@ -44,7 +45,7 @@ export function getVisibleToolcraftModelAssets(
 }
 
 export function getToolcraftActiveModelOrientation(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): ToolcraftOrientationPose | undefined {
   const entries = getToolcraftOrientationControlEntries(
     state.schema.panels.controls?.sections ?? [],
@@ -59,7 +60,7 @@ export function getToolcraftActiveModelOrientation(
 }
 
 export function getToolcraftVisibleModelExportRequests(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   options: Readonly<{
     suppressedTargets?: readonly string[];
     viewportForAsset?: (asset: ToolcraftModelAsset) => ToolcraftModelViewport;

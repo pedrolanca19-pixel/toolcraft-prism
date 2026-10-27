@@ -1,37 +1,46 @@
 import { expect, test } from "@playwright/test";
-import { defineToolcraft } from "@/toolcraft/runtime";
+import { defineToolcraft, model3dModule } from "@/toolcraft/runtime";
 
 import { deriveToolcraftBrowserRuntimeRequirements } from "./browser-runtime-evidence-requirements";
 
 test("model import coverage derives lifecycle-specific runtime evidence", () => {
   const schema = defineToolcraft({
-    canvas: { enabled: true },
-    panels: {
-      controls: {
-        sections: [
-          {
-            controls: {
-              model: {
-                assetKind: "model",
-                defaultValue: null,
-                label: "Model",
-                target: "media.model",
-                type: "fileDrop",
+    base: {
+      identity: { id: "contract-fixture", title: "Contract fixture" },
+      canvas: { enabled: true },
+      panels: {
+        controls: {
+          sections: [
+            {
+              id: "test-section-1",
+              controls: {
+                model: {
+                  applicability: { mode: "always" as const },
+                  assetKind: "model",
+                  defaultValue: null,
+                  label: "Model",
+                  target: "media.model",
+                  type: "fileDrop",
+                },
               },
+              title: "Model",
             },
-            title: "Model",
-          },
-        ],
-        title: "Controls",
+          ],
+          title: "Controls",
+        },
       },
     },
+    modules: [model3dModule()],
   });
 
   const requirements = deriveToolcraftBrowserRuntimeRequirements(
     [
       {
-        browser: true,
-        browserTestName: "browser: complete model import lifecycle",
+        browser: {
+          budget: "standard",
+          file: "e2e/app-controls.spec.ts",
+          testName: "browser: complete model import lifecycle",
+        },
         evidence: "media-lifecycle",
         id: "media.model",
         modelImportCoverage: "all-required-model-import-behavior",

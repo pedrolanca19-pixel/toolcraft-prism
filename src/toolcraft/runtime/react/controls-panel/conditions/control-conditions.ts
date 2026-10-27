@@ -1,3 +1,4 @@
+import type { ReadonlyToolcraftState, ToolcraftReadonly } from "../../../state/readonly-state";
 import {
   getToolcraftCanvasSizeTargetDimension,
   isToolcraftTimelinePanelExtendedTarget,
@@ -13,11 +14,10 @@ import type {
   ResolvedToolcraftControlSchema,
   ResolvedToolcraftControlSectionSchema,
 } from "../../../schema/types";
-import type { ToolcraftState } from "../../../state/types";
 import { readToolcraftCanvasRuntimeTarget } from "../../../state/canvas-frame";
 
 function getControlDefaultValueByTarget(
-  sections: readonly ResolvedToolcraftControlSectionSchema[],
+  sections: ToolcraftReadonly<readonly ResolvedToolcraftControlSectionSchema[]>,
   target: string,
 ): unknown {
   for (const section of sections) {
@@ -32,7 +32,7 @@ function getControlDefaultValueByTarget(
 }
 
 export function getToolcraftTargetValue(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   target: string,
 ): unknown {
   const canvasTarget = readToolcraftCanvasRuntimeTarget(state, target);
@@ -86,7 +86,7 @@ export function getToolcraftControlConditionTargets(
 }
 
 export function getToolcraftControlVisibilityTargets(
-  control: ResolvedToolcraftControlSchema,
+  control: ToolcraftReadonly<ResolvedToolcraftControlSchema>,
 ): string[] {
   return getToolcraftApplicabilityTargets(
     control.applicability,
@@ -94,13 +94,13 @@ export function getToolcraftControlVisibilityTargets(
 }
 
 export function getToolcraftSectionVisibilityTargets(
-  section: ResolvedToolcraftControlSectionSchema,
+  section: ToolcraftReadonly<ResolvedToolcraftControlSectionSchema>,
 ): string[] {
   return getToolcraftConditionTargets(section.visibleWhen);
 }
 
 export function toolcraftConditionMatches(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   condition: ToolcraftControlConditionSchema,
 ): boolean {
   return doesToolcraftPredicateMatchValue(
@@ -110,8 +110,8 @@ export function toolcraftConditionMatches(
 }
 
 export function isToolcraftSectionVisible(
-  state: ToolcraftState,
-  section: ResolvedToolcraftControlSectionSchema,
+  state: ReadonlyToolcraftState,
+  section: ToolcraftReadonly<ResolvedToolcraftControlSectionSchema>,
 ): boolean {
   return section.visibleWhen
     ? toolcraftConditionMatches(state, section.visibleWhen)
@@ -119,8 +119,8 @@ export function isToolcraftSectionVisible(
 }
 
 export function isToolcraftControlVisible(
-  state: ToolcraftState,
-  control: ResolvedToolcraftControlSchema,
+  state: ReadonlyToolcraftState,
+  control: ToolcraftReadonly<ResolvedToolcraftControlSchema>,
 ): boolean {
   return doesToolcraftApplicabilityMatch(
     control.applicability,
@@ -129,7 +129,7 @@ export function isToolcraftControlVisible(
 }
 
 export function isToolcraftControlDisabled(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
   control: ResolvedToolcraftControlSchema,
 ): boolean {
   if (control.disabled) {

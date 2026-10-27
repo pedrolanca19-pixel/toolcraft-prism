@@ -1,16 +1,18 @@
 import type { ToolcraftBinaryAssetRepository } from "../../source-assets/repository/binary-asset-repository";
+import { withToolcraftDefaultResources } from "../../source-assets/default-resource-repository";
 import { createIndexedDbToolcraftBinaryAssetRepository } from "../../source-assets/repository/indexeddb-binary-asset-repository";
 import { createMemoryToolcraftBinaryAssetRepository } from "../../source-assets/repository/memory-binary-asset-repository";
 import { createUnavailableToolcraftBinaryAssetRepository } from "../../source-assets/repository/unavailable-binary-asset-repository";
 import {
   createToolcraftSourceAssetCoordinator,
   type ToolcraftSourceAssetCoordinator,
-} from "../../source-assets/source-asset-coordinator";
+} from "../../composition/source-asset-coordinator";
 import {
   createToolcraftSourceAssetPresentationResources,
   type ToolcraftSourceAssetPresentationResources,
 } from "../../source-assets/source-asset-presentation-resources";
 import type { ToolcraftExternalStore } from "../../state/toolcraft-external-store";
+import { readToolcraftPersistedResourceRefs } from "../../state/persistence-resource-refs";
 
 type ToolcraftSourceAssetCoordinatorFactory = (
   store: ToolcraftExternalStore,
@@ -36,6 +38,7 @@ type ToolcraftSourceAssetOwnerLease = Readonly<{
   presentationResources: ToolcraftSourceAssetPresentationResources | null;
   release: () => void;
   reportError: (error: unknown) => void;
+  retain: () => () => void;
 }>;
 
 const sourceAssetOwners = new WeakMap<
@@ -44,15 +47,18 @@ const sourceAssetOwners = new WeakMap<
 >();
 
 function createRepository(): ToolcraftBinaryAssetRepository {
+  const collectionOptions = {
+    getPersistedResourceRefs: () => readToolcraftPersistedResourceRefs(() => window.localStorage),
+  };
   if (typeof globalThis.indexedDB === "undefined") {
     return typeof navigator !== "undefined" &&
       navigator.userAgent.toLowerCase().includes("jsdom")
-      ? createMemoryToolcraftBinaryAssetRepository()
+      ? createMemoryToolcraftBinaryAssetRepository(collectionOptions)
       : createUnavailableToolcraftBinaryAssetRepository();
   }
 
   try {
-    return createIndexedDbToolcraftBinaryAssetRepository();
+    return createIndexedDbToolcraftBinaryAssetRepository(collectionOptions);
   } catch {
     return createUnavailableToolcraftBinaryAssetRepository();
   }
@@ -64,7 +70,7 @@ function createDefaultCoordinator(
   return createToolcraftSourceAssetCoordinator({
     dispatch: store.dispatch,
     getState: store.getCommittedState,
-    repository: createRepository(),
+    repository: withToolcraftDefaultResources(createRepository(), store.getCommittedState().schema.sourceDefaults?.resources ?? []),
   });
 }
 
@@ -210,18 +216,25 @@ export function acquireToolcraftSourceAssetOwner({
     sourceAssetOwners.set(store, owner);
   }
 
-  owner.leases += 1;
-  owner.lifecycleGeneration += 1;
-  let released = false;
+  const release = retainOwner(owner);
   return Object.freeze({
     coordinator: owner.coordinator,
     presentationResources: owner.presentationResources,
-    release: () => {
-      if (released) return;
-      released = true;
-      owner.leases -= 1;
-      if (owner.leases === 0) scheduleOwnerDisposal(owner);
-    },
+    release,
     reportError: (error: unknown) => reportOwnerError(owner, error),
+    retain: () => retainOwner(owner),
   });
+}
+
+function retainOwner(owner: ToolcraftSourceAssetOwner): () => void {
+  if (owner.lifecycle !== "active") throw new Error("Toolcraft source asset owner is no longer active.");
+  owner.leases += 1;
+  owner.lifecycleGeneration += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    owner.leases -= 1;
+    if (owner.leases === 0) scheduleOwnerDisposal(owner);
+  };
 }

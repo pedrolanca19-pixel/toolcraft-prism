@@ -31,11 +31,29 @@ export function createToolcraftSourceAssetBinaryMediaHydrator({
   repository: ToolcraftBinaryAssetRepository;
 }): (jobs: readonly ToolcraftBinaryMediaHydrationJob[]) => Promise<void> {
   let sequence = 0;
+  const pendingAssets = new Map<string, Promise<void>>();
+  const isCurrentAsset = (asset: ToolcraftBinaryMediaAsset): boolean =>
+    getState().mediaAssets.some((candidate) =>
+      candidate.id === asset.id &&
+      isRestoringBinaryMedia(candidate) &&
+      candidate.resourceRef === asset.resourceRef
+    );
+
+  const markReady = (asset: ToolcraftBinaryMediaAsset): void => {
+    if (!isCurrentAsset(asset)) return;
+    dispatch({
+      assetId: asset.id,
+      expectedResourceRef: asset.resourceRef,
+      lifecycle: "ready",
+      type: "media.setBinaryResourceState",
+    });
+  };
 
   const markUnavailable = (
     asset: ToolcraftBinaryMediaAsset,
     error: unknown,
   ): void => {
+    if (!isCurrentAsset(asset)) return;
     dispatch({
       assetId: asset.id,
       error: {
@@ -55,7 +73,7 @@ export function createToolcraftSourceAssetBinaryMediaHydrator({
     asset: ToolcraftBinaryMediaAsset,
     job: ToolcraftBinaryMediaHydrationJob | undefined,
   ): Promise<void> => {
-    if (getState().mediaAssets.find((candidate) => candidate.id === asset.id) !== asset) {
+    if (!isCurrentAsset(asset)) {
       return;
     }
 
@@ -68,12 +86,7 @@ export function createToolcraftSourceAssetBinaryMediaHydrator({
         );
       }
 
-      dispatch({
-        assetId: asset.id,
-        expectedResourceRef: asset.resourceRef,
-        lifecycle: "ready",
-        type: "media.setBinaryResourceState",
-      });
+      markReady(asset);
       return;
     }
 
@@ -100,12 +113,25 @@ export function createToolcraftSourceAssetBinaryMediaHydrator({
       throw error;
     }
 
-    dispatch({
-      assetId: asset.id,
-      expectedResourceRef: resourceRef,
-      lifecycle: "ready",
-      type: "media.setBinaryResourceState",
-    });
+    markReady(asset);
+  };
+
+  const hydrateOnce = (
+    asset: ToolcraftBinaryMediaAsset,
+    job: ToolcraftBinaryMediaHydrationJob | undefined,
+  ): Promise<void> => {
+    const key = getToolcraftBinaryMediaHydrationKey(asset.id, asset.resourceRef);
+    const pending = pendingAssets.get(key);
+    if (pending) return pending;
+
+    // Ready notifications synchronously re-enter hydration for the remaining
+    // assets. Register before starting work so those callers share its lifetime.
+    const operation = Promise.resolve()
+      .then(() => hydrateAsset(asset, job))
+      .catch((error: unknown) => markUnavailable(asset, error))
+      .finally(() => pendingAssets.delete(key));
+    pendingAssets.set(key, operation);
+    return operation;
   };
 
   return async (jobs) => {
@@ -120,16 +146,12 @@ export function createToolcraftSourceAssetBinaryMediaHydrator({
     );
 
     await Promise.all(
-      restoringAssets.map(async (asset) => {
+      restoringAssets.map((asset) => {
         const job = jobsByAsset.get(
           getToolcraftBinaryMediaHydrationKey(asset.id, asset.resourceRef),
         );
 
-        try {
-          await hydrateAsset(asset, job);
-        } catch (error) {
-          markUnavailable(asset, error);
-        }
+        return hydrateOnce(asset, job);
       }),
     );
     await cleanupManager.collect();

@@ -15,9 +15,7 @@ type ToolcraftControlActionSchema = NonNullable<
   ToolcraftControlSchema["actions"]
 >[number];
 
-type ToolcraftPanelActionsControl = ResolvedToolcraftNonModelControlSchema & {
-  type: "panelActions";
-};
+type ToolcraftPanelActionsControl = Extract<ResolvedToolcraftNonModelControlSchema, { type: "panelActions" }>;
 
 type ResolvedControlEntry = [string, ResolvedToolcraftControlSchema];
 type PanelActionsEntry = [string, ToolcraftPanelActionsControl];
@@ -64,7 +62,8 @@ function orderPanelActions(
   }
 
   return [...actions].sort(
-    (left, right) => Number(isPrimaryPanelAction(left)) - Number(isPrimaryPanelAction(right)),
+    (left, right) =>
+      Number(isPrimaryPanelAction(left)) - Number(isPrimaryPanelAction(right)),
   );
 }
 
@@ -77,10 +76,13 @@ function createMergedPanelActionsControl(
     return null;
   }
 
-  const actions = entries.flatMap(([, control]) => [...(control.actions ?? [])]);
+  const actions = entries.flatMap(([, control]) => [
+    ...(control.actions ?? []),
+  ]);
 
   return {
     ...firstControl,
+    applicability: { mode: "always", origin: "explicit" },
     actions: orderPanelActions(actions),
     target: firstControl.target || "panel.actions",
     type: "panelActions",
@@ -100,10 +102,12 @@ function getBodySectionTitleAfterActionSplit(
 function isActionOrExportSectionTitle(title: string): boolean {
   const normalizedTitle = title.trim().toLowerCase();
 
-  return normalizedTitle === "action" ||
+  return (
+    normalizedTitle === "action" ||
     normalizedTitle === "actions" ||
     normalizedTitle === "export" ||
-    normalizedTitle === "exports";
+    normalizedTitle === "exports"
+  );
 }
 
 function getSectionIdAfterActionSplit(
@@ -128,6 +132,11 @@ export function splitControlsPanelActionSections(
 
   for (const section of sections) {
     const entries: ResolvedControlEntry[] = Object.entries(section.controls);
+    // Settings is mandatory even for hosts with no enabled canvas/timeline fields.
+    if (section.id === "runtime.setup" && entries.length === 0) {
+      bodySections.push(section);
+      continue;
+    }
     const { actionEntries, passthroughEntries } =
       partitionControlEntries(entries);
 
@@ -160,7 +169,10 @@ export function splitControlsPanelActionSections(
 
     if (passthroughEntries.length > 0) {
       const controlIds = new Set(passthroughEntries.map(([id]) => id));
-      const layoutGroups = filterLayoutGroupsForControlIds(section.layoutGroups, controlIds);
+      const layoutGroups = filterLayoutGroupsForControlIds(
+        section.layoutGroups,
+        controlIds,
+      );
       const title = getBodySectionTitleAfterActionSplit(section.title);
 
       const splitSection = {
@@ -190,7 +202,9 @@ export function splitControlsPanelActionSections(
     }
   }
 
-  const mergedActionsControl = createMergedPanelActionsControl(stickyFooterActionEntries);
+  const mergedActionsControl = createMergedPanelActionsControl(
+    stickyFooterActionEntries,
+  );
 
   if (mergedActionsControl) {
     stickyFooterSections.unshift(

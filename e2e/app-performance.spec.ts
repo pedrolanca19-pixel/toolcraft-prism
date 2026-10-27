@@ -11,8 +11,8 @@ import {
 import {
   compileToolcraftPerformancePathAdapterMatrix,
   getToolcraftPerformancePathTestName,
-  runToolcraftPerformancePath,
-} from "./performance-path-helpers";
+} from "./performance-path-adapter-matrix";
+import { runToolcraftPerformancePath } from "./performance-path-helpers";
 import { attachToolcraftPerformanceEnvironmentEvidence } from "./performance-environment-evidence";
 
 const performancePaths = deriveToolcraftPerformancePaths(

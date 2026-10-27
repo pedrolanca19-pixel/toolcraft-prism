@@ -57,6 +57,26 @@ async function beginCanvasQualityObservation(
   }, stateKey);
 }
 
+function matchesCanvasBackingScale(
+  observation: ToolcraftPerformanceCanvasQualityObservation,
+  scale: number,
+): boolean {
+  return (
+    Math.abs(
+      observation.metrics.backingWidth -
+        observation.metrics.cssWidth *
+          observation.metrics.devicePixelRatio *
+          scale,
+    ) <= 1 &&
+    Math.abs(
+      observation.metrics.backingHeight -
+        observation.metrics.cssHeight *
+          observation.metrics.devicePixelRatio *
+          scale,
+    ) <= 1
+  );
+}
+
 export async function createToolcraftPerformanceCanvasQualityGuard(
   page: Page,
   options: Readonly<{
@@ -64,6 +84,7 @@ export async function createToolcraftPerformanceCanvasQualityGuard(
     canvasSelector: string;
     cssSizePolicy: ToolcraftCanvasVisibleSizePolicy;
     pathId: string;
+    preparationScale?: number;
   }>,
 ): Promise<ToolcraftPerformanceCanvasQualityGuard> {
   if (!options.pathId.trim()) {
@@ -163,7 +184,15 @@ export async function createToolcraftPerformanceCanvasQualityGuard(
 
       try {
         await flushCanvasQualityObserver(page, stateKey);
+        let requiredScaleCommitted = false;
         for (const observation of observations) {
+          if (
+            options.preparationScale !== undefined &&
+            !requiredScaleCommitted &&
+            matchesCanvasBackingScale(observation, options.preparationScale)
+          ) {
+            continue;
+          }
           assertToolcraftCanvasBackingMetricsForRenderScale(
             observation.metrics,
             TOOLCRAFT_CANVAS_RENDER_SCALE.defaultValue,
@@ -174,6 +203,7 @@ export async function createToolcraftPerformanceCanvasQualityGuard(
               state: `performance-${phase}`,
             },
           );
+          requiredScaleCommitted = true;
         }
         await expectToolcraftCanvasBackingPixelsForRenderScale(
           page,

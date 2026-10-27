@@ -1,55 +1,13 @@
 "use client";
 
-import type { ReactElement, ReactNode } from "react";
-import {
-  ArrowClockwiseIcon,
-  ArrowCounterClockwiseIcon,
-  CheckIcon,
-  CopySimpleIcon,
-  DownloadSimpleIcon,
-  EraserIcon,
-  ExportIcon,
-  FlipHorizontalIcon,
-  FlipVerticalIcon,
-  MagicWandIcon,
-  ShuffleIcon,
-  UploadSimpleIcon,
-} from "@phosphor-icons/react";
-
+import { useState, type ReactElement, type ReactNode } from "react";
+import { renderActionIcon, type ActionControlIconName } from "../../action-icon-catalog";
 import { Button, Field } from "../../primitives";
 import { ControlFieldLabel } from "../../control-layout";
 import { cn } from "../../../lib/utils";
+import { ActionsControlNavigation } from "./actions-control-navigation";
 
-export type ActionControlIconName =
-  | "check"
-  | "copy"
-  | "download"
-  | "download-simple"
-  | "eraser"
-  | "export"
-  | "flip-horizontal"
-  | "flip-vertical"
-  | "rotate-cw"
-  | "rotate-ccw"
-  | "shuffle"
-  | "upload-simple"
-  | "wand-sparkles";
-
-const actionIconComponents = {
-  check: CheckIcon,
-  copy: CopySimpleIcon,
-  download: DownloadSimpleIcon,
-  "download-simple": DownloadSimpleIcon,
-  eraser: EraserIcon,
-  export: ExportIcon,
-  "flip-horizontal": FlipHorizontalIcon,
-  "flip-vertical": FlipVerticalIcon,
-  "rotate-cw": ArrowClockwiseIcon,
-  "rotate-ccw": ArrowCounterClockwiseIcon,
-  shuffle: ShuffleIcon,
-  "upload-simple": UploadSimpleIcon,
-  "wand-sparkles": MagicWandIcon,
-} as const;
+export type { ActionControlIconName } from "../../action-icon-catalog";
 
 export type ActionControlObjectOption = {
   ariaLabel?: string;
@@ -72,9 +30,7 @@ function getActionValue(action: ActionControlOption): string {
 }
 
 function getActionLabel(action: ActionControlOption): string {
-  return typeof action === "string"
-    ? action
-    : (action.ariaLabel ?? action.label ?? action.value);
+  return typeof action === "string" ? action : (action.ariaLabel ?? action.label ?? action.value);
 }
 
 function getActionContent(action: ActionControlOption): ReactNode {
@@ -94,15 +50,10 @@ function getActionIcon(action: ActionControlOption): ReactNode {
     return action.icon;
   }
 
-  const Icon = actionIconComponents[action.icon];
-
-  return <Icon data-icon="inline-start" />;
+  return renderActionIcon(action.icon, { "data-icon": "inline-start" });
 }
 
-function getActionAriaLabel(
-  action: ActionControlOption,
-  content: ReactNode,
-): string | undefined {
+function getActionAriaLabel(action: ActionControlOption, content: ReactNode): string | undefined {
   if (typeof action !== "string" && action.ariaLabel) {
     return action.ariaLabel;
   }
@@ -133,19 +84,27 @@ export function ActionsControl({
   showActionLabels = true,
   showLabel = true,
 }: ActionsControlProps): React.JSX.Element {
+  const [selectedAction, setSelectedAction] = useState<string | null>(null);
   const hasSingleAction = actions.length === 1;
+  const columns = buttonColumns ?? (hasSingleAction ? 1 : 2);
+  const useNavigation = Math.ceil(actions.length / columns) > 4;
+  function activateAction(value: string): void {
+    if (actionStates?.[value]?.disabled || actionStates?.[value]?.loading) return;
+    setSelectedAction(value);
+    onAction?.(value);
+  }
   const columnClass =
     buttonColumns === 4
       ? "w-full grid-cols-4"
       : buttonColumns === 3
         ? "w-full grid-cols-3"
-      : buttonColumns === 2
-        ? "w-full grid-cols-2"
-        : buttonColumns === 1
-          ? "w-full grid-cols-1"
-          : hasSingleAction
-            ? "w-1/2 grid-cols-1"
-            : "w-full grid-cols-2";
+        : buttonColumns === 2
+          ? "w-full grid-cols-2"
+          : buttonColumns === 1
+            ? "w-full grid-cols-1"
+            : hasSingleAction
+              ? "w-1/2 grid-cols-1"
+              : "w-full grid-cols-2";
 
   return (
     <Field
@@ -159,46 +118,58 @@ export function ActionsControl({
           {name}
         </ControlFieldLabel>
       ) : null}
-      <div
-        className={cn(
-          "grid max-w-full gap-1.5",
-          columnClass,
-        )}
-        data-actions-count={actions.length}
-        data-actions-columns={buttonColumns ?? (hasSingleAction ? 1 : 2)}
-        data-slot="actions-control-buttons"
-      >
-        {actions.map((action) => {
-          const actionContent = getActionContent(action);
-          const actionLabel = getActionLabel(action);
-          const actionValue = getActionValue(action);
-          const actionState = actionStates?.[actionValue];
-          const actionAriaLabel = showActionLabels
-            ? getActionAriaLabel(action, actionContent)
-            : actionLabel;
+      {useNavigation ? (
+        <ActionsControlNavigation
+          actionStates={actionStates}
+          items={actions.map((action) => ({
+            value: getActionValue(action),
+            label: getActionLabel(action),
+            content: getActionContent(action),
+            icon: getActionIcon(action),
+          }))}
+          name={name}
+          onAction={activateAction}
+          selectedValue={selectedAction}
+        />
+      ) : (
+        <div
+          className={cn("grid max-w-full gap-1.5", columnClass)}
+          data-actions-count={actions.length}
+          data-actions-columns={columns}
+          data-slot="actions-control-buttons"
+        >
+          {actions.map((action) => {
+            const actionContent = getActionContent(action);
+            const actionLabel = getActionLabel(action);
+            const actionValue = getActionValue(action);
+            const actionState = actionStates?.[actionValue];
+            const actionAriaLabel = showActionLabels
+              ? getActionAriaLabel(action, actionContent)
+              : actionLabel;
 
-          return (
-            <Button
-              aria-label={
-                actionState?.loading && actionState.loadingAriaLabel
-                  ? actionState.loadingAriaLabel
-                  : actionAriaLabel
-              }
-              disabled={actionState?.disabled}
-              key={actionValue}
-              loading={actionState?.loading}
-              onClick={() => onAction?.(actionValue)}
-              className="w-full"
-              size="sm"
-              type="button"
-              variant="outline"
-            >
-              {getActionIcon(action)}
-              {showActionLabels ? actionContent : null}
-            </Button>
-          );
-        })}
-      </div>
+            return (
+              <Button
+                aria-label={
+                  actionState?.loading && actionState.loadingAriaLabel
+                    ? actionState.loadingAriaLabel
+                    : actionAriaLabel
+                }
+                disabled={actionState?.disabled}
+                key={actionValue}
+                loading={actionState?.loading}
+                onClick={() => activateAction(actionValue)}
+                className="w-full"
+                size="sm"
+                type="button"
+                variant="outline"
+              >
+                {getActionIcon(action)}
+                {showActionLabels ? actionContent : null}
+              </Button>
+            );
+          })}
+        </div>
+      )}
     </Field>
   );
 }

@@ -18,8 +18,55 @@ const evidenceOptions = {
   requirementId: "model.source",
   stabilityIntervalMs: 0,
   target: "source.models",
-  timeoutMs: 100,
 } as const;
+const delayedSchedulingMs = 150;
+
+test("model appearance evidence tolerates scheduling beyond 100ms and stays fail closed", async ({
+  page,
+}, testInfo) => {
+  await page.goto("/");
+  const session = await createToolcraftBrowserProofSession(page);
+  const observation = session.observe((root) =>
+    JSON.parse(root.getAttribute("data-proof-model-import") ?? "null"),
+  );
+  const attachmentCount = testInfo.attachments.length;
+  const packageExtracted = state({ package: zipPackage });
+  await setProofState(page, "model-import", state());
+  await expectToolcraftModelAppearanceCoverage(
+    observation,
+    session.action(async (currentPage) => {
+      await currentPage.waitForTimeout(delayedSchedulingMs);
+      await setProofState(currentPage, "model-import", packageExtracted);
+    }),
+    packageExtracted,
+    "package-extraction",
+    evidenceOptions,
+  );
+  expect(modelEvidence(testInfo, attachmentCount)).toEqual([{
+    evidenceType: "model-package-extraction",
+    requirementId: "model.source#package-extraction",
+    target: "source.models",
+    version: 2,
+  }]);
+
+  const missingPackagePredicate = state({
+    package: { ...zipPackage, extractedFileCount: 1 },
+  });
+  await setProofState(page, "model-import", state());
+  await expect(
+    expectToolcraftModelAppearanceCoverage(
+      observation,
+      session.action(async (currentPage) => {
+        await currentPage.waitForTimeout(delayedSchedulingMs);
+        await setProofState(currentPage, "model-import", missingPackagePredicate);
+      }),
+      missingPackagePredicate,
+      "package-extraction",
+      evidenceOptions,
+    ),
+  ).rejects.toThrow();
+  expect(testInfo.attachments).toHaveLength(attachmentCount + 1);
+});
 
 test("model appearance recipes fail closed for metadata-only and incorrect output", async ({
   page,

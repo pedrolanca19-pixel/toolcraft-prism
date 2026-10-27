@@ -1,4 +1,5 @@
-import { expect, type Page } from "@playwright/test";
+import { expectToolcraftSelectorState } from "./browser-control-value-observation";
+import { expect } from "@playwright/test";
 
 import {
   getToolcraftApplicabilityRequirementId,
@@ -6,7 +7,6 @@ import {
 } from "../src/app/app-acceptance";
 import {
   countToolcraftControlOwnersByTarget,
-  getToolcraftControlFieldByTarget,
 } from "./browser-control-target-helpers";
 import {
   assertToolcraftBrowserActionForSession,
@@ -17,62 +17,6 @@ import {
   type ToolcraftBrowserProofSession,
 } from "./browser-proof-session";
 import { attachToolcraftBrowserRuntimeEvidence } from "./browser-runtime-evidence";
-
-function requireSelectorOptionLabel(
-  applicabilityCase: ToolcraftControlApplicabilityCase,
-): string {
-  if (!applicabilityCase.selectorOptionLabel) {
-    throw new Error(
-      `Applicability case for ${applicabilityCase.selectorTarget} requires a selector option label.`,
-    );
-  }
-
-  return applicabilityCase.selectorOptionLabel;
-}
-
-async function expectToolcraftApplicabilitySelectorState(
-  page: Page,
-  applicabilityCase: ToolcraftControlApplicabilityCase,
-): Promise<void> {
-  const control = await getToolcraftControlFieldByTarget(
-    page,
-    applicabilityCase.selectorTarget,
-  );
-
-  switch (applicabilityCase.selectorControlType) {
-    case "checkbox":
-    case "switch":
-      await expect(
-        control.getByRole(applicabilityCase.selectorControlType),
-      ).toHaveAttribute("aria-checked", String(applicabilityCase.selectorValue));
-      return;
-    case "imagePicker":
-    case "segmented":
-      await expect(
-        control.getByRole("button", {
-          name: requireSelectorOptionLabel(applicabilityCase),
-        }),
-      ).toHaveAttribute("aria-pressed", "true");
-      return;
-    case "select":
-      await expect(control.getByRole("combobox")).toContainText(
-        requireSelectorOptionLabel(applicabilityCase),
-      );
-      return;
-    case "slider":
-      await expect(control.getByRole("slider")).toHaveAttribute(
-        "aria-valuenow",
-        String(applicabilityCase.selectorValue),
-      );
-      return;
-    case "tabs":
-      await expect(
-        control.getByRole("tab", {
-          name: requireSelectorOptionLabel(applicabilityCase),
-        }),
-      ).toHaveAttribute("aria-selected", "true");
-  }
-}
 
 export async function expectToolcraftControlApplicabilityState(
   session: ToolcraftBrowserProofSession,
@@ -89,7 +33,7 @@ export async function expectToolcraftControlApplicabilityState(
 
   const page = await getToolcraftBrowserProofPage(session);
   await runToolcraftBrowserAction(selectBranch);
-  await expectToolcraftApplicabilitySelectorState(page, applicabilityCase);
+  await expectToolcraftSelectorState(page, applicabilityCase);
   await expect
     .poll(
       () => countToolcraftControlOwnersByTarget(page, applicabilityCase.target),

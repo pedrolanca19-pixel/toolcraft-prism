@@ -248,11 +248,9 @@ export function createToolcraftStaticStringResolver(
     if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
       return node.text;
     }
-
     if (ts.isParenthesizedExpression(node)) {
       return resolve(node.expression, resolvingDeclarations);
     }
-
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind === ts.SyntaxKind.PlusToken
@@ -272,6 +270,26 @@ export function createToolcraftStaticStringResolver(
       return value;
     }
 
+    const memberAccess = getStaticMemberAccess(node);
+    if (memberAccess && ts.isIdentifier(memberAccess.node.expression)) {
+      const declaration = getConstDeclaration(memberAccess.node.expression);
+      const initializer = declaration && unwrapStaticExpression(declaration.initializer);
+      if (declaration && ts.isObjectLiteralExpression(initializer) && !resolvingDeclarations.has(declaration)) {
+        const property = initializer.properties.find((candidate) => {
+          if (!ts.isPropertyAssignment(candidate) && !ts.isShorthandPropertyAssignment(candidate)) return false;
+          const name = unwrapStaticExpression(candidate.name);
+          return (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) && name.text === memberAccess.member;
+        });
+        if (property) {
+          resolvingDeclarations.add(declaration);
+          const resolved = ts.isShorthandPropertyAssignment(property)
+            ? resolve(property.name, resolvingDeclarations) : resolve(property.initializer, resolvingDeclarations);
+          resolvingDeclarations.delete(declaration);
+          return resolved;
+        }
+      }
+    }
+
     if (ts.isIdentifier(node)) {
       const declaration = getConstDeclaration(node);
       if (!declaration || resolvingDeclarations.has(declaration)) return undefined;
@@ -283,10 +301,33 @@ export function createToolcraftStaticStringResolver(
 
     return resolveConstantJoin(node, resolvingDeclarations);
   }
-
   return resolve;
 }
-
+export function createToolcraftStaticStringSetResolver(sourceFile, checker = createToolcraftTypeScriptChecker(sourceFile, ts)) {
+  const resolveString = createToolcraftStaticStringResolver(sourceFile, checker);
+  const declarations = new Map();
+  const index = (node) => { if (isConstVariableDeclaration(node)) declarations.set(node.name.text, node); ts.forEachChild(node, index); };
+  index(sourceFile);
+  const resolve = (input, seen = new Set()) => {
+    let node = input;
+    while (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isTypeAssertionExpression(node) || ts.isSatisfiesExpression(node) || ts.isNonNullExpression(node)) node = node.expression;
+    if (ts.isConditionalExpression(node)) {
+      const left = resolve(node.whenTrue, seen), right = resolve(node.whenFalse, seen);
+      return left === undefined || right === undefined ? undefined : [...left, ...right];
+    }
+    if (ts.isArrayLiteralExpression(node)) {
+      const parts = node.elements.map((element) => resolve(ts.isSpreadElement(element) ? element.expression : element, seen));
+      return parts.some((part) => part === undefined) ? undefined : parts.flat();
+    }
+    if (ts.isIdentifier(node)) {
+      const declaration = checker.getSymbolAtLocation(node)?.declarations?.find(isConstVariableDeclaration) ?? declarations.get(node.text);
+      if (declaration && !seen.has(declaration)) return resolve(declaration.initializer, new Set([...seen, declaration]));
+    }
+    const value = resolveString(node);
+    return value === undefined ? undefined : [value];
+  };
+  return resolve;
+}
 export function isToolcraftStringCompositionNode(node) {
   return (
     ts.isStringLiteralLike(node) ||
@@ -297,7 +338,6 @@ export function isToolcraftStringCompositionNode(node) {
       node.operatorToken.kind === ts.SyntaxKind.PlusToken)
   );
 }
-
 export function isNestedToolcraftStringComposition(node) {
   const parent = node.parent;
   return Boolean(

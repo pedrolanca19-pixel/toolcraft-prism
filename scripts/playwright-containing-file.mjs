@@ -4,6 +4,16 @@ function isTrimmedString(value) {
   return typeof value === "string" && value.length > 0 && value.trim() === value;
 }
 
+export function getToolcraftPlaywrightProjectRoot(config) {
+  const configFile = config?.configFile;
+  if (!isTrimmedString(configFile) || !path.isAbsolute(configFile)) {
+    throw new Error(
+      "Toolcraft Playwright project root requires an absolute configFile.",
+    );
+  }
+  return path.dirname(configFile);
+}
+
 function normalizeContainingFile(file, rootDir) {
   if (!isTrimmedString(file) || !isTrimmedString(rootDir)) {
     throw new Error("Playwright containing file metadata is malformed.");

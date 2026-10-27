@@ -7,6 +7,8 @@ import {
   type ToolcraftBinaryAssetLease,
   type ToolcraftBinaryAssetRepository,
   type ToolcraftBinaryAssetRepositoryEntry,
+  type ToolcraftBinaryAssetCollectionOptions,
+  type ToolcraftPersistedResourceRefsReader,
 } from "./binary-asset-repository";
 import { expandToolcraftBinaryAssetReachability } from "./binary-asset-reachability";
 
@@ -20,6 +22,8 @@ class MemoryToolcraftBinaryAssetRepository
     ToolcraftBinaryAssetRepositoryEntry
   >();
   private disposed = false;
+
+  constructor(private readonly getPersistedResourceRefs?: ToolcraftPersistedResourceRefsReader) {}
 
   async beginLease(jobId: string): Promise<ToolcraftBinaryAssetLease> {
     this.assertActive();
@@ -104,8 +108,10 @@ class MemoryToolcraftBinaryAssetRepository
 
   async collect(reachableRefs: ReadonlySet<string>): Promise<readonly string[]> {
     this.assertActive();
+    const persistedRefs = this.getPersistedResourceRefs?.();
+    if (persistedRefs === null) return [];
     const reachable = expandToolcraftBinaryAssetReachability(
-      reachableRefs,
+      new Set([...reachableRefs, ...(persistedRefs ?? [])]),
       this.entries.values(),
     );
     const deletedRefs = [...this.entries.keys()]
@@ -144,6 +150,8 @@ class MemoryToolcraftBinaryAssetRepository
   }
 }
 
-export function createMemoryToolcraftBinaryAssetRepository(): ToolcraftBinaryAssetRepository {
-  return new MemoryToolcraftBinaryAssetRepository();
+export function createMemoryToolcraftBinaryAssetRepository(
+  options: ToolcraftBinaryAssetCollectionOptions = {},
+): ToolcraftBinaryAssetRepository {
+  return new MemoryToolcraftBinaryAssetRepository(options.getPersistedResourceRefs);
 }

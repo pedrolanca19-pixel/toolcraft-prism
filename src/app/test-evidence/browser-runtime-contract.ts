@@ -12,6 +12,7 @@ export const TOOLCRAFT_BROWSER_PERFORMANCE_MARKER_TEST_NAME =
 
 export const TOOLCRAFT_BROWSER_RUNTIME_EVIDENCE_TYPES = [
   "background-image-transparency",
+  "background-finite-media-stacking",
   "background-infinity-viewport",
   "background-preview-exclusion",
   "background-video-preserved",
@@ -24,8 +25,10 @@ export const TOOLCRAFT_BROWSER_RUNTIME_EVIDENCE_TYPES = [
   "control-applicability-visible",
   "discrete-slider-layout",
   "exported-artifact",
-  "infinity-mode-restoration",
+  "infinity-mode-continuity",
+  "infinity-output-overflow",
   "infinity-scene-bounds-image-export",
+  "infinity-scene-bounds-svg-export",
   "infinity-scene-bounds-video-export",
   "image-export-artifact",
   "layer-grouping",
@@ -73,6 +76,8 @@ export const TOOLCRAFT_BROWSER_RUNTIME_EVIDENCE_TYPES = [
   "product-observable-change",
   "reference-parity",
   "segmented-control-layout",
+  "selection-scoped-control",
+  "svg-export-artifact",
   "timeline-duration",
   "timeline-keyframes",
   "timeline-loop",
@@ -80,6 +85,7 @@ export const TOOLCRAFT_BROWSER_RUNTIME_EVIDENCE_TYPES = [
   "timeline-rendered-frame",
   "timeline-scrub",
   "video-export-artifact",
+  "vector-screen-motion",
   "viewport-side-effect",
 ] as const;
 

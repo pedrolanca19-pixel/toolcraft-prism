@@ -8,13 +8,21 @@ export const requiredPackageScriptNames = [
   "docs:check",
   "preview",
   "preview:restart",
+  "reference:study",
   "test",
   "test:browser",
+  "test:feature",
   "typecheck",
   "verify:delivery",
   "verify:kernel",
   "verify:perf",
   "verify:receipt",
+];
+
+const requiredMotionReferenceTrustRootFilePaths = [
+  "scripts/create-toolcraft-motion-reference-study.mjs",
+  "src/app/acceptance/motion-reference-evidence.d.mts",
+  "src/app/acceptance/motion-reference-evidence.mjs",
 ];
 
 export const reservedGeneratedVerificationConfigPatterns = [
@@ -32,6 +40,7 @@ export const requiredProtectedTrustRootFilePaths = [
   "e2e/browser-performance-report.ts",
   "e2e/browser-runtime-evidence-reporter.ts",
   "e2e/browser-runtime-evidence-requirements.ts",
+  "e2e/toolcraft-feature-verification-reporter.ts",
   "e2e/performance-pipeline-evidence.ts",
   "e2e/toolcraft-product-test.ts",
   "playwright.config.ts",
@@ -40,8 +49,10 @@ export const requiredProtectedTrustRootFilePaths = [
   "scripts/run-browser-performance.mjs",
   "scripts/run-delivery-verification.mjs",
   "scripts/run-kernel-benchmarks.mjs",
+  "scripts/run-feature-verification.mjs",
   "scripts/toolcraft-integrity-manifest.mjs",
   "scripts/toolcraft-integrity-policy.mjs",
+  "scripts/toolcraft-renderer-provider-typecheck.mjs",
   "scripts/toolcraft-product-boundary.mjs",
   "scripts/toolcraft-performance-receipt-policy.mjs",
   "scripts/toolcraft-verification-inventory.mjs",
@@ -53,6 +64,7 @@ export const requiredProtectedTrustRootFilePaths = [
   "src/app/acceptance/validation-pipeline.ts",
   "src/app/app-automated-runtime-evidence.test.ts",
   "vite.config.ts",
+  ...requiredMotionReferenceTrustRootFilePaths,
 ];
 
 export const runtimeSurfaceComponentNames = Object.freeze([

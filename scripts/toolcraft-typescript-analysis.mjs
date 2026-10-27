@@ -1,5 +1,14 @@
 import { createToolcraftTypeScriptCallableInventory } from "./toolcraft-typescript-callables.mjs";
 
+export function createToolcraftTypeScriptProgram({
+  host,
+  options,
+  rootNames,
+  ts,
+}) {
+  return ts.createProgram({ host, options, rootNames });
+}
+
 function hasModifier(node, kind) {
   return node.modifiers?.some((modifier) => modifier.kind === kind);
 }

@@ -83,7 +83,7 @@ function freezeFacts(facts) {
   return Object.freeze(facts.map((fact) => Object.freeze({ ...fact })));
 }
 
-function parseToolcraftTypeScriptSource({ absolutePath, rawSource }) {
+export function parseToolcraftTypeScriptSource({ absolutePath, rawSource }) {
   const ts = getToolcraftTypeScriptCompiler();
   if (!ts) return undefined;
   return {
@@ -280,6 +280,7 @@ export async function createToolcraftTypeScriptDependencyRecord({
 
 export async function createToolcraftTypeScriptSourceRecord({
   absolutePath,
+  includeBoundaryEvidence = true,
   rawSource,
   repoPath,
   rootDir,
@@ -295,7 +296,9 @@ export async function createToolcraftTypeScriptSourceRecord({
   }
   const { sourceFile, ts } = parsed;
   const checker = createToolcraftTypeScriptChecker(sourceFile, ts);
-  const inspectors = await loadEvidenceInspectors();
+  const inspectors = includeBoundaryEvidence
+    ? await loadEvidenceInspectors()
+    : await import("./toolcraft-static-string.mjs");
   const resolveStaticString =
     inspectors.createToolcraftStaticStringResolver(sourceFile, checker);
   const inspectorInput = {
@@ -307,20 +310,21 @@ export async function createToolcraftTypeScriptSourceRecord({
     rootDir,
     sourceFile,
   };
-  const boundaryEvidence = Object.freeze({
-    moduleLoadingViolations: freezeFacts(
-      inspectors.inspectToolcraftModuleLoading(inspectorInput),
-    ),
-    playwrightAuthorityViolations: freezeFacts(
-      inspectors.inspectToolcraftPlaywrightEvidenceAuthority(inspectorInput),
-    ),
-    productSourceViolations: freezeFacts(
-      inspectors.inspectToolcraftProductSource(inspectorInput),
-    ),
-    reservedEvidenceViolations: freezeFacts(
-      inspectors.inspectToolcraftReservedEvidenceAccess(inspectorInput),
-    ),
-  });
+  const boundaryEvidence = !includeBoundaryEvidence
+    ? EMPTY_BOUNDARY_EVIDENCE : Object.freeze({
+      moduleLoadingViolations: freezeFacts(
+        inspectors.inspectToolcraftModuleLoading(inspectorInput),
+      ),
+      playwrightAuthorityViolations: freezeFacts(
+        inspectors.inspectToolcraftPlaywrightEvidenceAuthority(inspectorInput),
+      ),
+      productSourceViolations: freezeFacts(
+        inspectors.inspectToolcraftProductSource(inspectorInput),
+      ),
+      reservedEvidenceViolations: freezeFacts(
+        inspectors.inspectToolcraftReservedEvidenceAccess(inspectorInput),
+      ),
+    });
   return Object.freeze({
     boundaryEvidence,
     imports: collectToolcraftTypeScriptResolvedImportFacts({ resolveStaticString, sourceFile, ts }),

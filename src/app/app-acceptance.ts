@@ -1,9 +1,11 @@
+import { appPerformance } from "./app-performance";
 import {
   getToolcraftControlKeyframeCapability,
   type ResolvedToolcraftAppSchema,
 } from "@/toolcraft/runtime";
 
 import { getRequiredToolcraftControlPartCoverage } from "./acceptance/control-parts";
+export type { ToolcraftExportRequestEvidence } from "./acceptance/types";
 export {
   getToolcraftApplicabilitySelectorDomain,
   getToolcraftControlApplicabilityErrors,
@@ -15,6 +17,11 @@ export {
   getToolcraftControlApplicabilityCases,
   type ToolcraftControlApplicabilityCase,
 } from "./acceptance/control-applicability-cases";
+import {
+  createToolcraftFeatureVerificationSelection,
+  type ToolcraftFeatureVerificationSelection,
+  type ToolcraftFeatureVerificationRequest,
+} from "./acceptance/feature-verification-selection";
 import {
   getToolcraftControlOrder as getToolcraftControlOrderForSchema,
   getToolcraftControlOrderTargets as getToolcraftControlOrderTargetsForSchema,
@@ -32,6 +39,7 @@ import type {
   ToolcraftControlOrderItem,
   ToolcraftControlPartCoverage,
   ToolcraftControlSectionInventoryEntry,
+  ToolcraftFiniteSelectorInventoryEntry,
   ToolcraftCustomControlCoverage,
   ToolcraftExportArtifactCoverage,
   ToolcraftLayerCoverage,
@@ -40,13 +48,29 @@ import type {
   ToolcraftInteractionOwnershipEntry,
   ToolcraftInteractionSurface,
   ToolcraftInfinityCanvasCoverage,
+  ToolcraftInfinityOverflowCoverage,
   ToolcraftMediaLifecycleCoverage,
   ToolcraftModelImportCoverage,
+  ToolcraftOrientationGizmoCoverage,
+  ToolcraftMotionReferenceBehavior,
+  ToolcraftMotionReferenceCoverage,
+  ToolcraftMotionReferenceEvent,
+  ToolcraftMotionReferenceEvidence,
+  ToolcraftMotionReferenceEvidenceEvent,
+  ToolcraftMotionReferenceInput,
+  ToolcraftMotionReferenceOrdinalFrame,
+  ToolcraftMotionReferencePhase,
+  ToolcraftMotionReferenceSourceKind,
+  ToolcraftMotionReferenceStudy,
+  ToolcraftMotionReferenceTimedFrame,
+  ToolcraftMotionReferenceTimingClaim,
+  ToolcraftMotionReferenceTimingMode,
   ToolcraftPersistenceCoverage,
   ToolcraftProductReadiness,
   ToolcraftReferenceCoverage,
   ToolcraftReferenceFeatureInventoryItem,
   ToolcraftReferenceFeatureStatus,
+  ToolcraftReferenceInput,
   ToolcraftReferenceStudyEvidence,
   ToolcraftReferenceStudyStatus,
   ToolcraftReferenceTimelineContract,
@@ -55,16 +79,13 @@ import type {
   ToolcraftRenderScaleCoverage,
   ToolcraftRenderScaleState,
   ToolcraftSettingsTransferCoverage,
+  ToolcraftSelectionScopeCoverage,
   ToolcraftTimelineLoopDurationIntent,
   ToolcraftTimelineLoopDurationSource,
   ToolcraftTimelinePlaybackCoverage,
   ToolcraftTransferMode,
-  ToolcraftViewInteractionEvidenceSource,
+  ToolcraftViewInteractionAuthority,
   ToolcraftViewInteractionIntent,
-  ToolcraftVideoReferenceAcceptanceMapping,
-  ToolcraftVideoReferenceStoryboardFrame,
-  ToolcraftVideoReferenceStudyEvidence,
-  ToolcraftVideoReferenceTransition,
   ToolcraftVisibleControl,
 } from "./acceptance/types";
 import { TOOLCRAFT_REQUIRED_MODEL_IMPORT_COVERAGE } from "./acceptance/types";
@@ -84,6 +105,7 @@ import {
 import { appSchema } from "./app-schema";
 
 export {
+  createToolcraftFeatureVerificationSelection,
   getRequiredToolcraftControlPartCoverage,
   inferToolcraftControlOrderRole,
   appAcceptance,
@@ -105,21 +127,40 @@ export type {
   ToolcraftControlOrderItem,
   ToolcraftControlPartCoverage,
   ToolcraftControlSectionInventoryEntry,
+  ToolcraftFiniteSelectorInventoryEntry,
   ToolcraftCustomControlCoverage,
   ToolcraftExportArtifactCoverage,
+  ToolcraftFeatureVerificationRequest,
+  ToolcraftFeatureVerificationSelection,
   ToolcraftLayerCoverage,
   ToolcraftInteractionCapability,
   ToolcraftInteractionEvidenceSource,
   ToolcraftInteractionOwnershipEntry,
   ToolcraftInteractionSurface,
   ToolcraftInfinityCanvasCoverage,
+  ToolcraftInfinityOverflowCoverage,
   ToolcraftMediaLifecycleCoverage,
   ToolcraftModelImportCoverage,
+  ToolcraftOrientationGizmoCoverage,
+  ToolcraftMotionReferenceBehavior,
+  ToolcraftMotionReferenceCoverage,
+  ToolcraftMotionReferenceEvent,
+  ToolcraftMotionReferenceEvidence,
+  ToolcraftMotionReferenceEvidenceEvent,
+  ToolcraftMotionReferenceInput,
+  ToolcraftMotionReferenceOrdinalFrame,
+  ToolcraftMotionReferencePhase,
+  ToolcraftMotionReferenceSourceKind,
+  ToolcraftMotionReferenceStudy,
+  ToolcraftMotionReferenceTimedFrame,
+  ToolcraftMotionReferenceTimingClaim,
+  ToolcraftMotionReferenceTimingMode,
   ToolcraftPersistenceCoverage,
   ToolcraftProductReadiness,
   ToolcraftReferenceCoverage,
   ToolcraftReferenceFeatureInventoryItem,
   ToolcraftReferenceFeatureStatus,
+  ToolcraftReferenceInput,
   ToolcraftReferenceStudyEvidence,
   ToolcraftReferenceStudyStatus,
   ToolcraftReferenceTimelineContract,
@@ -128,18 +169,26 @@ export type {
   ToolcraftRenderScaleCoverage,
   ToolcraftRenderScaleState,
   ToolcraftSettingsTransferCoverage,
+  ToolcraftSelectionScopeCoverage,
   ToolcraftTimelineLoopDurationIntent,
   ToolcraftTimelineLoopDurationSource,
   ToolcraftTimelinePlaybackCoverage,
   ToolcraftTransferMode,
-  ToolcraftViewInteractionEvidenceSource,
+  ToolcraftViewInteractionAuthority,
   ToolcraftViewInteractionIntent,
-  ToolcraftVideoReferenceAcceptanceMapping,
-  ToolcraftVideoReferenceStoryboardFrame,
-  ToolcraftVideoReferenceStudyEvidence,
-  ToolcraftVideoReferenceTransition,
   ToolcraftVisibleControl,
 };
+
+export function createToolcraftFeaturePlanFromCurrentApp(
+  request: ToolcraftFeatureVerificationRequest,
+): ToolcraftFeatureVerificationSelection {
+  return createToolcraftFeatureVerificationSelection({
+    acceptance: appAcceptance,
+    request,
+    schema: appSchema,
+    sectionInventory: appControlSectionInventory,
+  });
+}
 
 export function validateToolcraftAcceptanceDiagnostics(
   input: ToolcraftAcceptanceValidationInput,
@@ -208,6 +257,7 @@ export function validateToolcraftAcceptanceCoverage(
     : {
         acceptance,
         productReadiness,
+        rendererPipeline: appPerformance.rendererPipeline,
         schema: inputOrSchema,
         sectionInventory,
         transferMode,
@@ -220,6 +270,7 @@ export function validateProductAcceptanceCoverage(): string[] {
   return validateToolcraftAcceptanceCoverage({
     acceptance: appAcceptance,
     productReadiness: appProductReadiness,
+    rendererPipeline: appPerformance.rendererPipeline,
     schema: appSchema,
     sectionInventory: appControlSectionInventory,
     transferMode: appTransferMode,

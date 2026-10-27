@@ -62,7 +62,7 @@ export function getToolcraftRenderScaleCoverageErrors({
     ];
   }
 
-  if (!entry.browser || !entry.browserTestName.trim()) {
+  if (entry.browser === false) {
     return [
       `${entry.id} must have browser coverage proving selected canvas backing pixels.`,
     ];

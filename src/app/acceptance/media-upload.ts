@@ -1,22 +1,16 @@
-import type { ToolcraftControlSchema } from "@/toolcraft/runtime";
+import type {
+  ToolcraftControlSchema,
+  ToolcraftPersistableStateSlice,
+} from "@/toolcraft/runtime";
 
 import {
-  TOOLCRAFT_REQUIRED_MODEL_IMPORT_COVERAGE,
   type ToolcraftComponentAcceptance,
   type ToolcraftProductReadiness,
+  type ToolcraftVisibleControl,
 } from "./types";
-
-function hasAllModelImportCoverage(
-  coverage: ToolcraftComponentAcceptance["modelImportCoverage"],
-): boolean {
-  return (
-    coverage === "all-required-model-import-behavior" ||
-    (Array.isArray(coverage) &&
-      TOOLCRAFT_REQUIRED_MODEL_IMPORT_COVERAGE.every((item) =>
-        coverage.includes(item),
-      ))
-  );
-}
+import { getControlAcceptanceByTarget } from "./control-acceptance-context";
+import { getToolcraftModelImportCoverageErrors } from "./model-import-coverage";
+import type { ToolcraftPersistenceCoverageResult } from "./runtime-coverage";
 
 function hasLayersOwnedMediaManagement({
   acceptance,
@@ -71,15 +65,7 @@ function hasSelectedLayerImageTransformCoverage(
   });
 }
 
-export function getFileDropLifecycleCoverageErrors({
-  acceptance,
-  control,
-  entry,
-  hasDefaultMediaAssets,
-  label,
-  layersEnabled,
-  productReadiness,
-}: {
+export type ToolcraftFileDropLifecycleCoverageInput = Readonly<{
   acceptance: readonly ToolcraftComponentAcceptance[];
   control: ToolcraftControlSchema;
   entry: ToolcraftComponentAcceptance;
@@ -87,8 +73,24 @@ export function getFileDropLifecycleCoverageErrors({
   label: string;
   layersEnabled: boolean;
   productReadiness: ToolcraftProductReadiness;
-}): string[] {
-  const errors: string[] = [];
+}>;
+
+export type ToolcraftFileDropMediaLifecycleCoverageResult = Readonly<{
+  lifecycleDiagnostics: readonly string[];
+  orderingDiagnostics: readonly string[];
+}>;
+
+export function getFileDropMediaLifecycleCoverageResult({
+  acceptance,
+  control,
+  entry,
+  hasDefaultMediaAssets,
+  label,
+  layersEnabled,
+  productReadiness,
+}: ToolcraftFileDropLifecycleCoverageInput): ToolcraftFileDropMediaLifecycleCoverageResult {
+  const lifecycleDiagnostics: string[] = [];
+  const orderingDiagnostics: string[] = [];
   const coverage = new Set(entry.mediaLifecycleCoverage ?? []);
   const layersOwnMediaManagement = hasLayersOwnedMediaManagement({
     acceptance,
@@ -98,20 +100,20 @@ export function getFileDropLifecycleCoverageErrors({
   });
 
   if (entry.evidence !== "media-lifecycle") {
-    errors.push(
+    lifecycleDiagnostics.push(
       `${label} fileDrop acceptance evidence must be "media-lifecycle" so upload, clear, and reset behavior cannot be replaced by generic product-output coverage.`,
     );
   }
 
   if (!coverage.has("upload") || !coverage.has("remove") || !coverage.has("reset")) {
-    errors.push(
+    lifecycleDiagnostics.push(
       `${label} fileDrop acceptance must prove upload/import, clear/remove, and section or global reset restore default source media or remove uploaded source media when no default exists.`,
     );
   }
 
   if (hasDefaultMediaAssets) {
     if (!coverage.has("default-remove") || !coverage.has("default-reset")) {
-      errors.push(
+      lifecycleDiagnostics.push(
         `${label} fileDrop acceptance must prove predefined media.defaultAssets render as attached files, can be removed to an empty source/canvas state, and are restored by section or global Reset.`,
       );
     }
@@ -123,7 +125,7 @@ export function getFileDropLifecycleCoverageErrors({
       !coverage.has("flip") ||
       !coverage.has("transform-output")
     ) {
-      errors.push(
+      lifecycleDiagnostics.push(
         `${label} image fileDrop acceptance must prove rotate and flip actions update runtime media transform metadata and that preview, renderer, or export consumes the transform.`,
       );
     }
@@ -134,17 +136,8 @@ export function getFileDropLifecycleCoverageErrors({
     layersOwnMediaManagement &&
     !hasSelectedLayerImageTransformCoverage(acceptance)
   ) {
-    errors.push(
+    lifecycleDiagnostics.push(
       `${label} Layers-owned image transforms require a runtime acceptance entry with layerCoverage "selected-layer-controls" and mediaLifecycleCoverage for rotate, flip, and transform-output.`,
-    );
-  }
-
-  if (
-    control.assetKind === "model" &&
-    !hasAllModelImportCoverage(entry.modelImportCoverage)
-  ) {
-    errors.push(
-      `${label} model fileDrop acceptance must declare modelImportCoverage for: ${TOOLCRAFT_REQUIRED_MODEL_IMPORT_COVERAGE.join(", ")}.`,
     );
   }
 
@@ -154,10 +147,114 @@ export function getFileDropLifecycleCoverageErrors({
     !layersOwnMediaManagement
   ) {
     if (!coverage.has("reorder") || !coverage.has("order-output")) {
-      errors.push(
+      orderingDiagnostics.push(
         `${label} multiple fileDrop acceptance must prove thumbnail/file reorder updates runtime media order and that preview, renderer, or export consumes that order.`,
       );
     }
+  }
+
+  return Object.freeze({
+    lifecycleDiagnostics: Object.freeze(lifecycleDiagnostics),
+    orderingDiagnostics: Object.freeze(orderingDiagnostics),
+  });
+}
+
+export function getFileDropMediaLifecycleCoverageErrors(
+  input: ToolcraftFileDropLifecycleCoverageInput,
+): string[] {
+  const result = getFileDropMediaLifecycleCoverageResult(input);
+  return [...result.lifecycleDiagnostics, ...result.orderingDiagnostics];
+}
+
+export function getFileDropLifecycleCoverageErrors(
+  input: ToolcraftFileDropLifecycleCoverageInput,
+): string[] {
+  const mediaLifecycle = getFileDropMediaLifecycleCoverageResult(input);
+  const modelImportDiagnostics = input.control.assetKind === "model"
+    ? getToolcraftModelImportCoverageErrors({
+        entry: input.entry,
+        label: input.label,
+      })
+    : [];
+  return [
+    ...mediaLifecycle.lifecycleDiagnostics,
+    ...modelImportDiagnostics,
+    ...mediaLifecycle.orderingDiagnostics,
+  ];
+}
+
+export function getToolcraftMediaSourceProofErrors({
+  acceptance,
+  capabilityActive,
+  controls,
+  layersEnabled,
+  persistence,
+  persistenceSlice,
+  productReadiness,
+  schema,
+}: Readonly<{
+  acceptance: readonly ToolcraftComponentAcceptance[];
+  capabilityActive: boolean;
+  controls: readonly ToolcraftVisibleControl[];
+  layersEnabled: boolean;
+  persistence: ToolcraftPersistenceCoverageResult;
+  persistenceSlice: ToolcraftPersistableStateSlice;
+  productReadiness: ToolcraftProductReadiness;
+  schema: Readonly<{
+    media: Readonly<{
+      defaultAssets: readonly Readonly<{ sourceTarget?: string }>[];
+    }>;
+  }>;
+}>): string[] {
+  if (!capabilityActive) {
+    return acceptance.flatMap((entry) =>
+      entry.mediaLifecycleCoverage === undefined
+        ? []
+        : [
+            `Acceptance "${entry.id}" claims media.source proof but that capability is absent.`,
+          ],
+    );
+  }
+
+  const fileDropControls = controls.filter(
+    ({ control }) => control.type === "fileDrop",
+  );
+  const controlAcceptance = getControlAcceptanceByTarget(
+    acceptance.filter((entry) => entry.kind === "control"),
+  );
+  const errors = fileDropControls.flatMap(
+    ({ control, controlId, sectionTitle }) => {
+      const label = `${sectionTitle ? `${sectionTitle} / ` : ""}${controlId} (${control.target})`;
+      const entry = controlAcceptance.get(control.target);
+      if (!entry) return [`${label} is missing media.source acceptance proof.`];
+
+      return getFileDropMediaLifecycleCoverageErrors({
+        acceptance,
+        control,
+        entry,
+        hasDefaultMediaAssets: schema.media.defaultAssets.some(
+          (asset) => asset.sourceTarget === control.target,
+        ),
+        label,
+        layersEnabled,
+        productReadiness,
+      });
+    },
+  );
+
+  if (fileDropControls.length === 0) {
+    errors.push(
+      "media.source requires a fileDrop acceptance row proving its media lifecycle.",
+    );
+  }
+
+  if (
+    !persistence.validatedSlices.includes(persistenceSlice) &&
+    persistence.diagnostics.length === 0
+  ) {
+    errors.push(
+      `media.source requires the prevalidated persistence reload fact for slice "${persistenceSlice}".`,
+    );
   }
 
   return errors;

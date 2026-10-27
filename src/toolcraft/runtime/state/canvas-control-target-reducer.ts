@@ -7,13 +7,11 @@ import {
   toolcraftCanvasInfinityTarget,
 } from "../schema/runtime-targets";
 import {
-  isToolcraftRuntimeBackgroundEnabled,
   normalizeToolcraftCanvasModeForBackground,
 } from "./canvas-background-state";
 import {
   applyToolcraftCanvasAspectRatioToSize,
   asToolcraftCanvasSizeDimension,
-  getToolcraftCanvasAspectRatioFromSize,
   getToolcraftCanvasAspectRatioPresetSize,
   getToolcraftResetCanvasSize,
   normalizeToolcraftCanvasAspectRatioValue,
@@ -73,7 +71,7 @@ function reduceCanvasModeControlValue(
 
   if (
     command.value &&
-    !isToolcraftRuntimeBackgroundEnabled(state)
+    normalizeToolcraftCanvasModeForBackground({ ...state, mode: "infinite" }) !== "infinite"
   ) {
     return { handled: true, state };
   }
@@ -97,6 +95,7 @@ function reduceCanvasBackgroundControlValue(
 
   if (
     !background ||
+    state.schema.canvas.infinityBackgroundPolicy === "optional" ||
     command.target !== toolcraftOutputBackgroundToggleTarget ||
     command.target !== background.include.target ||
     command.value !== false ||
@@ -143,14 +142,23 @@ function reduceCanvasAspectRatioControlValue(
     command.value,
     state.canvas.size,
   );
-  const size =
-    getToolcraftCanvasAspectRatioPresetSize(ratio) ??
-    applyToolcraftCanvasAspectRatioToSize({
-      anchor: "width",
-      ratio,
-      size: state.canvas.size,
-      value: state.canvas.size.width,
-    });
+  const currentRatio = normalizeToolcraftCanvasAspectRatioValue(
+    state.values[command.target],
+    state.canvas.size,
+  );
+  const keepsCustomRatio =
+    ratio.mode === "custom" &&
+    ratio.width === currentRatio.width &&
+    ratio.height === currentRatio.height;
+  const size = keepsCustomRatio
+    ? state.canvas.size
+    : getToolcraftCanvasAspectRatioPresetSize(ratio) ??
+      applyToolcraftCanvasAspectRatioToSize({
+        anchor: "width",
+        ratio,
+        size: state.canvas.size,
+        value: state.canvas.size.width,
+      });
 
   if (
     toolcraftCanvasSizesEqual(state.canvas.size, size) &&
@@ -201,11 +209,29 @@ function reduceCanvasDimensionControlValue(
     return { handled: true, state };
   }
 
+  // Recommitting a rounded side must not nudge the opposite side by one pixel.
+  if (
+    dimensionValue === state.canvas.size[dimension] &&
+    state.values[command.target] === dimensionValue
+  ) {
+    return { handled: true, state };
+  }
+
   const hasAspectRatioControl =
     toolcraftCanvasAspectRatioTarget in state.values ||
     toolcraftCanvasAspectRatioTarget in state.defaults;
-  const size = { ...state.canvas.size, [dimension]: dimensionValue };
-  const aspectRatio = getToolcraftCanvasAspectRatioFromSize(size);
+  const aspectRatio = normalizeToolcraftCanvasAspectRatioValue(
+    state.values[toolcraftCanvasAspectRatioTarget],
+    state.canvas.size,
+  );
+  const size = hasAspectRatioControl
+    ? applyToolcraftCanvasAspectRatioToSize({
+        anchor: dimension,
+        ratio: aspectRatio,
+        size: state.canvas.size,
+        value: dimensionValue,
+      })
+    : { ...state.canvas.size, [dimension]: dimensionValue };
   const otherTarget =
     dimension === "width"
       ? toolcraftCanvasSizeHeightTarget
@@ -289,6 +315,7 @@ export function getToolcraftCanvasResetPatch(
   const globalReset = targets === undefined;
   const background = getToolcraftRuntimeSetupBackgroundControls(state.schema);
   const resetsBackgroundToDisabled =
+    state.schema.canvas.infinityBackgroundPolicy !== "optional" &&
     targets !== undefined &&
     background !== undefined &&
     targets.has(background.include.target) &&
@@ -313,15 +340,6 @@ export function getToolcraftCanvasResetPatch(
   if (resetsMode && state.canvas.mode !== defaultMode) {
     before["canvas.mode"] = state.canvas.mode;
     after["canvas.mode"] = defaultMode;
-  }
-
-  if (
-    resetsMode &&
-    state.canvas.mode === "infinite" &&
-    (state.canvas.offset.x !== 0 || state.canvas.offset.y !== 0)
-  ) {
-    before["canvas.offset"] = state.canvas.offset;
-    after["canvas.offset"] = { x: 0, y: 0 };
   }
 
   if (resetsSize) {

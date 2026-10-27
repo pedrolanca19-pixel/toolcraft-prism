@@ -3,11 +3,10 @@ import path from "node:path";
 
 import {
   createToolcraftPerformanceRequestAuthorityHash,
-  getToolcraftDecisionTrailVerificationErrors,
   validateToolcraftPerformanceAuthorityIteration,
 } from "./toolcraft-performance-authority-policy.mjs";
 import {
-  parseToolcraftDecisionTrail,
+  selectToolcraftDecisionTrailIteration,
 } from "./toolcraft-worklog-decision-trail.mjs";
 
 function throwFirstError(errors) {
@@ -15,16 +14,13 @@ function throwFirstError(errors) {
 }
 
 export function createToolcraftPerformanceRequestAuthority(source) {
-  const decisionTrail = parseToolcraftDecisionTrail(source);
-  throwFirstError(decisionTrail.errors);
-  const latest = decisionTrail.iterations.at(-1);
+  const latest = selectToolcraftDecisionTrailIteration(source);
   if (!latest) {
     throw new Error(
       "agent-worklog.md Decision Trail must include at least one iteration heading.",
     );
   }
 
-  throwFirstError(getToolcraftDecisionTrailVerificationErrors(latest));
   const validation =
     validateToolcraftPerformanceAuthorityIteration(latest);
   throwFirstError(validation.errors);

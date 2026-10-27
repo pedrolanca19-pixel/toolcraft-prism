@@ -8,11 +8,12 @@ import {
   type IndexedDbOwnerLivenessProvider,
 } from "./indexeddb-binary-asset-liveness";
 import type { IndexedDbRepositoryMetadataContext } from "./indexeddb-binary-asset-metadata";
+import type { ToolcraftBinaryAssetCollectionOptions } from "./binary-asset-repository";
 
 export const DEFAULT_OWNER_TTL_MS = 30_000;
 export const DEFAULT_STALE_LEASE_MS = 5 * 60_000;
 
-export type IndexedDbToolcraftBinaryAssetRepositoryOptions = {
+export type IndexedDbToolcraftBinaryAssetRepositoryOptions = ToolcraftBinaryAssetCollectionOptions & {
   databaseName?: string;
   heartbeatIntervalMs?: number;
   heartbeatScheduler?: IndexedDbHeartbeatScheduler;

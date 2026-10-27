@@ -42,6 +42,7 @@ type OrientationProofUiState = Readonly<{
   playbackActions?: readonly ("pause" | "play")[];
   renderScales?: readonly Readonly<{
     maximum: string;
+    native?: boolean;
     value: string;
   }>[];
 }>;
@@ -71,12 +72,22 @@ async function installOrientationProofUiState(
         const field = document.createElement("div");
         field.dataset.toolcraftControlTarget = "canvas.renderScale";
         field.dataset.orientationProofRenderScale = String(index);
-        const slider = document.createElement("div");
+        const slider = document.createElement(
+          renderScale.native ? "input" : "div",
+        );
         slider.dataset.slot = "slider";
-        slider.setAttribute("aria-valuemax", renderScale.maximum);
-        slider.setAttribute("aria-valuemin", "1");
-        slider.setAttribute("aria-valuenow", renderScale.value);
-        slider.setAttribute("role", "slider");
+        if (renderScale.native) {
+          slider.setAttribute("aria-label", "Render scale");
+          slider.setAttribute("max", renderScale.maximum);
+          slider.setAttribute("min", "1");
+          slider.setAttribute("type", "range");
+          slider.setAttribute("value", renderScale.value);
+        } else {
+          slider.setAttribute("aria-valuemax", renderScale.maximum);
+          slider.setAttribute("aria-valuemin", "1");
+          slider.setAttribute("aria-valuenow", renderScale.value);
+          slider.setAttribute("role", "slider");
+        }
         Object.assign(slider.style, { height: "20px", width: "120px" });
         slider.textContent = "Render scale";
         field.append(slider);
@@ -87,6 +98,18 @@ async function installOrientationProofUiState(
     },
     state,
   );
+}
+
+async function installLiveProductPlaybackProbe(page: Page): Promise<void> {
+  await page.locator('[data-slot="toolcraft-runtime-app"]').evaluate((root) => {
+    root.querySelector('[data-orientation-live-playback-probe]')?.remove();
+    const button = document.createElement("button");
+    button.dataset.orientationLivePlaybackProbe = "";
+    button.setAttribute("aria-label", "Pause playback");
+    button.textContent = "Pause playback";
+    button.type = "button";
+    root.append(button);
+  });
 }
 
 async function installOrientationGizmoPointerProbe(
@@ -283,6 +306,51 @@ test("orientation axis drag retains proof for products without optional playback
   await installOrientationGizmoPointerProbe(page, orientationBaseline, {
     outcomes: { drag: orientationDragged },
   });
+  await installOrientationProofUiState(page, {});
+
+  await expectToolcraftOrientationAxisDrag(observation, session, {
+    ...orientationOptions,
+    dragDelta: { x: 18, y: 12 },
+  });
+});
+
+test("orientation axis drag accepts native range value semantics", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const session = await createToolcraftBrowserProofSession(page);
+  await setProofState(page, "orientation", orientationBaseline);
+  const observation = session.observe((root) =>
+    JSON.parse(root.getAttribute("data-proof-orientation") ?? "null"),
+  );
+  await installOrientationGizmoPointerProbe(page, orientationBaseline, {
+    outcomes: { drag: orientationDragged },
+  });
+  await installOrientationProofUiState(page, {
+    playbackActions: ["play"],
+    renderScales: [{ maximum: "2", native: true, value: "2" }],
+  });
+
+  await expectToolcraftOrientationAxisDrag(observation, session, {
+    ...orientationOptions,
+    dragDelta: { x: 18, y: 12 },
+  });
+});
+
+test("synthetic orientation playback remains isolated from a live product timeline", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const session = await createToolcraftBrowserProofSession(page);
+  await setProofState(page, "orientation", orientationBaseline);
+  await installOrientationProofUiState(page, { playbackActions: ["play"] });
+  await installLiveProductPlaybackProbe(page);
+  await installOrientationGizmoPointerProbe(page, orientationBaseline, {
+    outcomes: { drag: orientationDragged },
+  });
+  const observation = session.observe((root) =>
+    JSON.parse(root.getAttribute("data-proof-orientation") ?? "null"),
+  );
 
   await expectToolcraftOrientationAxisDrag(observation, session, {
     ...orientationOptions,
@@ -301,6 +369,7 @@ test("orientation recipes require shared pose/output changes and correct canvas 
   const options = orientationOptions;
 
   await setProofState(page, "orientation", baseline);
+  await installOrientationProofUiState(page, {});
   const observation = session.observe((root) =>
     JSON.parse(root.getAttribute("data-proof-orientation") ?? "null"),
   );

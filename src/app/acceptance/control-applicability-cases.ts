@@ -2,16 +2,15 @@ import {
   doesToolcraftApplicabilityMatch,
   doesToolcraftPredicateMatchValue,
   getToolcraftApplicabilityPredicates,
+  isToolcraftBuiltInControlType,
   type ResolvedToolcraftAppSchema,
   type ResolvedToolcraftControlSchema,
   type ToolcraftControlPredicateSchema,
 } from "@/toolcraft/runtime";
 
 import { getToolcraftApplicabilitySelectorDomain } from "./control-applicability";
-import {
-  isToolcraftProductSectionControl,
-  isToolcraftVisibleAcceptanceControl,
-} from "./controls";
+import { createToolcraftControlSelectorCaseDependencyIndex } from "./control-selector-inventory";
+import { isToolcraftVisibleAcceptanceControl } from "./controls";
 import type { ToolcraftControlSectionInventoryEntry } from "./types";
 
 export type ToolcraftControlApplicabilityCase = Readonly<{
@@ -34,7 +33,6 @@ export type ToolcraftControlApplicabilityCase = Readonly<{
 type IndexedControl = Readonly<{
   control: ResolvedToolcraftControlSchema;
   id: string;
-  sectionId: string;
 }>;
 
 type ApplicabilitySelectorControlType =
@@ -47,7 +45,7 @@ function indexControls(
 
   for (const section of schema.panels.controls?.sections ?? []) {
     for (const [id, control] of Object.entries(section.controls)) {
-      controls.set(control.target, { control, id, sectionId: section.id });
+      controls.set(control.target, { control, id });
     }
   }
 
@@ -57,7 +55,9 @@ function indexControls(
 function getApplicabilitySelectorControlType(
   control: ResolvedToolcraftControlSchema,
 ): ApplicabilitySelectorControlType | null {
-  switch (control.type) {
+  const type = control.type;
+  if (!isToolcraftBuiltInControlType(type)) return null;
+  switch (type) {
     case "checkbox":
     case "imagePicker":
     case "segmented":
@@ -65,7 +65,7 @@ function getApplicabilitySelectorControlType(
     case "slider":
     case "switch":
     case "tabs":
-      return control.type;
+      return type;
     default:
       return null;
   }
@@ -89,53 +89,6 @@ function getSelectorOptionLabel(
   }
 
   return undefined;
-}
-
-function getSemanticPeerTargets({
-  dependent,
-  sectionInventory,
-  schema,
-}: {
-  dependent: IndexedControl;
-  sectionInventory: readonly ToolcraftControlSectionInventoryEntry[];
-  schema: Pick<ResolvedToolcraftAppSchema, "panels">;
-}): readonly string[] {
-  const inventoryEntry = sectionInventory.find((entry) =>
-    entry.targets.includes(dependent.control.target),
-  );
-
-  if (inventoryEntry) {
-    return inventoryEntry.targets;
-  }
-
-  if (dependent.sectionId !== "runtime.setup") {
-    return [];
-  }
-
-  const setupSection = schema.panels.controls?.sections.find(
-    (section) => section.id === "runtime.setup",
-  );
-
-  return Object.values(setupSection?.controls ?? {})
-    .filter(isToolcraftProductSectionControl)
-    .map((control) => control.target);
-}
-
-function getPredicatesTargeting(
-  controlsByTarget: ReadonlyMap<string, IndexedControl>,
-  peerTargets: readonly string[],
-  selectorTarget: string,
-): ToolcraftControlPredicateSchema[] {
-  return peerTargets.flatMap((target) => {
-    const applicabilityControl = controlsByTarget.get(target)?.control;
-    const applicability = applicabilityControl?.applicability;
-
-    return applicability
-      ? getToolcraftApplicabilityPredicates(applicability).filter(
-          (predicate) => predicate.target === selectorTarget,
-        )
-      : [];
-  });
 }
 
 function getSatisfyingBaseline(
@@ -191,6 +144,11 @@ export function getToolcraftControlApplicabilityCases(
     target: string;
   }>,
 ): ToolcraftControlApplicabilityCase[] {
+  const selectorDependencies =
+    createToolcraftControlSelectorCaseDependencyIndex(
+      input.schema,
+      input.sectionInventory,
+    );
   const controlsByTarget = indexControls(input.schema);
   const dependent = controlsByTarget.get(input.target);
 
@@ -201,15 +159,15 @@ export function getToolcraftControlApplicabilityCases(
     return [];
   }
 
-  const peerTargets = getSemanticPeerTargets({
-    dependent,
-    schema: input.schema,
-    sectionInventory: input.sectionInventory,
-  });
+  const dependentPredicates = getToolcraftApplicabilityPredicates(
+    dependent.control.applicability,
+  );
+  const selectorTargets =
+    selectorDependencies.selectorsByDependent.get(dependent.control.target) ?? [];
   const baseline = getSatisfyingBaseline(dependent.control, controlsByTarget);
   const cases: ToolcraftControlApplicabilityCase[] = [];
 
-  for (const selectorTarget of peerTargets) {
+  for (const selectorTarget of selectorTargets) {
     if (selectorTarget === dependent.control.target) {
       continue;
     }
@@ -221,19 +179,13 @@ export function getToolcraftControlApplicabilityCases(
     }
     const { control: selector } = indexedSelector;
 
-    const peerPredicates = getPredicatesTargeting(
-      controlsByTarget,
-      peerTargets,
-      selectorTarget,
+    const selectorPredicates = dependentPredicates.filter(
+      (predicate) => predicate.target === selectorTarget,
     );
-
-    if (selector.type === "slider" && peerPredicates.length === 0) {
-      continue;
-    }
 
     const domain = getToolcraftApplicabilitySelectorDomain(
       selector,
-      peerPredicates,
+      selectorPredicates,
     );
 
     if (domain.status !== "supported") {

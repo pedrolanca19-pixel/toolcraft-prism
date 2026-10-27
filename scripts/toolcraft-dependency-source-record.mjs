@@ -14,6 +14,7 @@ import {
 
 export async function createToolcraftDependencySourceRecord({
   entry,
+  includeBoundaryEvidence = true,
   importsOnly,
   rootDir,
 }) {
@@ -35,6 +36,7 @@ export async function createToolcraftDependencySourceRecord({
       })
     : createToolcraftTypeScriptSourceRecord({
         absolutePath: entry.absolutePath,
+        includeBoundaryEvidence,
         rawSource,
         repoPath: entry.repoPath,
         rootDir,

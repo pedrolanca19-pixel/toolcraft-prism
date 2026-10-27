@@ -151,76 +151,6 @@ function snapshotsMatch(
   });
 }
 
-function snapshotsPreserveContinuousAnimation(
-  left: ToolcraftPerformancePipelineSnapshot,
-  right: ToolcraftPerformancePipelineSnapshot,
-  invalidatedPassIds: ReadonlySet<string>,
-): boolean {
-  if (
-    left.disposed !== right.disposed ||
-    left.runtimeId !== right.runtimeId ||
-    left.passes.length !== right.passes.length
-  ) {
-    return false;
-  }
-  const rightByPass = pipelinePassMap(right);
-  return left.passes.every((leftPass) => {
-    const rightPass = rightByPass.get(leftPass.passId);
-    if (!rightPass) return false;
-    if (!invalidatedPassIds.has(leftPass.passId)) {
-      return TOOLCRAFT_PERFORMANCE_PIPELINE_METRIC_KEYS.every(
-        (key) => leftPass[key] === rightPass[key],
-      );
-    }
-    return TOOLCRAFT_PERFORMANCE_PIPELINE_METRIC_KEYS.every((key) =>
-      key === "activeResources"
-        ? leftPass[key] === rightPass[key]
-        : leftPass[key] <= rightPass[key],
-    );
-  });
-}
-
-export function getPipelinePhaseContinuityErrors({
-  cold,
-  path,
-  sustained,
-  warm,
-}: {
-  cold: ToolcraftPerformancePipelineEvidence;
-  path: ToolcraftPerformancePath;
-  sustained: ToolcraftPerformancePipelineEvidence;
-  warm: ToolcraftPerformancePipelineEvidence;
-}): string[] {
-  if (path.interaction === "initial-render") return [];
-
-  const continuousAnimation = path.interaction === "animation-frame";
-  const invalidatedPassIds = new Set(path.invalidates);
-  const snapshotsPreservePhaseBoundary =
-    continuousAnimation
-      ? (left: ToolcraftPerformancePipelineSnapshot, right: ToolcraftPerformancePipelineSnapshot) =>
-          snapshotsPreserveContinuousAnimation(
-            left,
-            right,
-            invalidatedPassIds,
-          )
-      : snapshotsMatch;
-  const continuityRequirement = continuousAnimation
-    ? "monotonic invalidated-pass and exact non-invalidated-pass"
-    : "exact";
-  const errors: string[] = [];
-  if (!snapshotsPreservePhaseBoundary(cold.after, warm.before)) {
-    errors.push(
-      `Path "${path.id}" must preserve ${continuityRequirement} pipeline counters from cold.after to warm.before.`,
-    );
-  }
-  if (!snapshotsPreservePhaseBoundary(warm.after, sustained.before)) {
-    errors.push(
-      `Path "${path.id}" must preserve ${continuityRequirement} pipeline counters from warm.after to sustained.before.`,
-    );
-  }
-  return errors;
-}
-
 export function getPipelineObservationInvariantErrors({
   canonicalPassIds,
   evidence,
@@ -275,6 +205,7 @@ export function getPipelineObservationInvariantErrors({
   const beforeByPass = pipelinePassMap(evidence.before);
   const afterByPass = pipelinePassMap(evidence.after);
   const invalidatedPassIds = new Set(path.invalidates);
+  const retainedAccessPassIds = new Set(path.retainedAccesses);
   for (const passId of canonicalPassIds) {
     const before = beforeByPass.get(passId);
     const after = afterByPass.get(passId);
@@ -286,7 +217,11 @@ export function getPipelineObservationInvariantErrors({
           `${label} pass "${passId}" counter "${key}" decreased from ${before[key]} to ${after[key]}.`,
         );
       }
-      if (!invalidatedPassIds.has(passId) && delta[key] !== 0) {
+      if (
+        !invalidatedPassIds.has(passId) &&
+        !retainedAccessPassIds.has(passId) &&
+        delta[key] !== 0
+      ) {
         errors.push(
           `${label} pass "${passId}" changed ${key} outside canonical path.invalidates (${before[key]} -> ${after[key]}).`,
         );
@@ -316,7 +251,56 @@ export function getPipelineObservationInvariantErrors({
         `${label} pass "${passId}" without retained-resource lifecycle cannot create or dispose resources.`,
       );
     }
+    if (retainedAccessPassIds.has(passId)) {
+      const forbiddenMetric = TOOLCRAFT_PERFORMANCE_PIPELINE_METRIC_KEYS.find(
+        (key) => key !== "cacheHits" && delta[key] !== 0,
+      );
+      if (cache !== "retained-resource") {
+        errors.push(
+          `${label} retained access pass "${passId}" must use retained-resource lifecycle.`,
+        );
+      }
+      if (delta.cacheHits <= 0 || forbiddenMetric !== undefined) {
+        errors.push(
+          `${label} retained access pass "${passId}" permits a cache hit only; observed cacheHits=${delta.cacheHits}${
+            forbiddenMetric === undefined
+              ? ""
+              : ` and ${forbiddenMetric}=${delta[forbiddenMetric]}`
+          }.`,
+        );
+      }
+      continue;
+    }
     if (!invalidatedPassIds.has(passId)) continue;
+
+    if (
+      cache === "retained-resource" &&
+      delta.resourceDisposals > 0 &&
+      delta.resourceCreations === 0
+    ) {
+      const forbiddenRetirementMetric =
+        TOOLCRAFT_PERFORMANCE_PIPELINE_METRIC_KEYS.find(
+          (key) =>
+            key !== "activeResources" &&
+            key !== "resourceDisposals" &&
+            delta[key] !== 0,
+        );
+      const activeResourceDecrease = before.activeResources - after.activeResources;
+      if (
+        delta.resourceDisposals > before.activeResources ||
+        activeResourceDecrease !== delta.resourceDisposals ||
+        forbiddenRetirementMetric !== undefined
+      ) {
+        errors.push(
+          `${label} retained-resource pass "${passId}" retirement-only invalidation requires zero cache, execution, allocation, transfer, and duration activity plus one matching bounded activeResources decrease; observed resourceDisposals=${delta.resourceDisposals}, activeResources decrease=${activeResourceDecrease}${
+            forbiddenRetirementMetric === undefined
+              ? ""
+              : `, and ${forbiddenRetirementMetric}=${delta[forbiddenRetirementMetric]}`
+          }.`,
+        );
+      }
+      continue;
+    }
 
     if (cache === "none" && delta.executions === 0) {
       errors.push(

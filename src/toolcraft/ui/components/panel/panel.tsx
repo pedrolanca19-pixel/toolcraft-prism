@@ -7,11 +7,13 @@ import { cn } from "../../lib/utils";
 import { PanelHeader } from "./panel-header";
 import { PanelContentSurface, PanelSurface } from "./panel-surface";
 import { PanelSection } from "./panel-section";
+import { scheduleBrowserAnimationFrames } from "../primitives/browser-transport";
 
 export type PanelProps = {
   children: React.ReactNode;
   className?: string;
   collapsed?: boolean;
+  contentRef?: React.Ref<HTMLDivElement>;
   contentTransitionSuppressionKey?: unknown;
   defaultCollapsed?: boolean;
   onCollapsedChange?: (collapsed: boolean) => void;
@@ -25,10 +27,11 @@ export function Panel({
   children,
   className,
   collapsed,
+  contentRef,
   contentTransitionSuppressionKey,
   defaultCollapsed = false,
   onCollapsedChange,
-  onResetControls = noop,
+  onResetControls,
   stickyFooterActive = false,
   stickyFooterProgress = null,
   title,
@@ -72,6 +75,7 @@ export function Panel({
       />
       {resolvedCollapsed ? null : (
         <PanelContentSurface
+          ref={contentRef}
           data-toolcraft-controls-mounting={
             suppressContentTransitions ? "true" : undefined
           }
@@ -89,8 +93,6 @@ export function Panel({
   );
 }
 
-function noop(): void {}
-
 function useInitialPanelContentTransitionSuppression(
   dependency: unknown,
 ): boolean {
@@ -101,30 +103,10 @@ function useInitialPanelContentTransitionSuppression(
 
   React.useEffect(() => {
     setSuppressionState({ dependency, isSuppressing: true });
-
-    if (typeof window === "undefined") {
-      return undefined;
-    }
-
-    if (typeof window.requestAnimationFrame !== "function") {
-      const timeout = window.setTimeout(() => {
-        setSuppressionState({ dependency, isSuppressing: false });
-      }, 0);
-
-      return () => window.clearTimeout(timeout);
-    }
-
-    let secondFrame = 0;
-    const firstFrame = window.requestAnimationFrame(() => {
-      secondFrame = window.requestAnimationFrame(() => {
-        setSuppressionState({ dependency, isSuppressing: false });
-      });
-    });
-
-    return () => {
-      window.cancelAnimationFrame(firstFrame);
-      window.cancelAnimationFrame(secondFrame);
-    };
+    return scheduleBrowserAnimationFrames(
+      () => setSuppressionState({ dependency, isSuppressing: false }),
+      2,
+    );
   }, [dependency]);
 
   return (

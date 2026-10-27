@@ -1,4 +1,4 @@
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
 import { getToolcraftPerformanceProfile } from "../performance/profile-catalog";
 import { requiresConcreteUiTarget } from "./performance-scenario-validation";
 import { hasOutputDeliveryActionReference } from "./performance-schema-queries";
@@ -22,7 +22,9 @@ export function getToolcraftPerformanceScenarioBaseErrors(
     errors.push(`${scenario.id} must name a representative fixture.`);
   }
   if (!scenario.expectedObservable.trim()) {
-    errors.push(`${scenario.id} must describe a product-level performance observable.`);
+    errors.push(
+      `${scenario.id} must describe a product-level performance observable.`,
+    );
   }
   if (!scenario.automated || !scenario.automatedTestName.trim()) {
     errors.push(`${scenario.id} must point to an automated performance test.`);
@@ -73,8 +75,9 @@ export function getToolcraftPerformanceScenarioInteractionErrors(
     );
   }
 
-  const centralDeadline = getToolcraftPerformanceProfile("batch-responsive")
-    .thresholds.maxBatchCompletionMs;
+  const centralDeadline =
+    getToolcraftPerformanceProfile("batch-responsive").thresholds
+      .maxBatchCompletionMs;
   if (
     scenario.completionDeadlineMs !== undefined &&
     (!Number.isFinite(scenario.completionDeadlineMs) ||

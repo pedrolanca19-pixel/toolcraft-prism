@@ -15,7 +15,7 @@ import {
   threeStaticGeometryFailure,
   throwIfThreeStaticGeometryAborted,
   ToolcraftThreeStaticGeometryError,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 import { readThreeStaticGeometryBundle } from "./three-static-source-bundle";
 import { canonicalizeThreeStaticGeometry } from "./three-static-geometry-canonicalizer";
 import { TOOLCRAFT_FBX_ADAPTER_VERSION } from "./production-model-format-manifest";

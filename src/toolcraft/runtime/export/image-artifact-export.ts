@@ -11,7 +11,7 @@ import {
 import type { ToolcraftArtifactExportRequest } from "./artifact-export-request";
 import { resolveToolcraftImageExportSettings } from "./artifact-export-settings";
 import { renderToolcraftArtifactFrame } from "./artifact-frame-renderer";
-import { resolveToolcraftImageArtifactFrame } from "./artifact-scene-frame";
+import { resolveToolcraftStillArtifactContentFrame } from "./still-artifact-content-frame";
 import { createToolcraftArtifactFrameState } from "./artifact-frame-state";
 import {
   ToolcraftSceneExportError,
@@ -75,19 +75,23 @@ function encodeCanvas(
 export async function exportToolcraftImageArtifact(
   request: ToolcraftImageArtifactExportRequest,
 ): Promise<ToolcraftImageArtifactExportResult> {
+  request.signal.throwIfAborted();
   const settings = resolveToolcraftImageExportSettings(request.state);
   const frameState = createToolcraftArtifactFrameState(
     request.state,
     request.state.timeline.currentTimeSeconds,
   );
-  const frame = resolveToolcraftImageArtifactFrame({
+  const scenePlan = await resolveToolcraftStillArtifactContentFrame({
     boundsProvider: request.boundsProvider,
-    productSceneRequired: request.productSceneRequired,
-    state: frameState,
+    getContentBounds: request.exportRenderer?.getContentBounds,
+    rendererPipeline: request.rendererPipeline,
+    signal: request.signal,
     visibility: request.visibility,
+    productSceneRequired: request.exportRenderer !== undefined,
+    state: frameState,
   });
   const size = getToolcraftImageExportSize({
-    frame,
+    frame: scenePlan.outputFrame,
     resolution: settings.resolution,
     state: frameState,
   });
@@ -111,18 +115,23 @@ export async function exportToolcraftImageArtifact(
       backgroundColor:
         getToolcraftRuntimeBackgroundColor(frameState) ?? "#000000",
       canvas,
-      frame,
       includeBackground,
+      outputFrame: scenePlan.outputFrame,
       pixelRatio: size.pixelRatio,
+      productFrame: scenePlan.productFrame,
       renderProductFrame: request.exportRenderer?.renderFrame ?? null,
       renderRuntimeScene: request.renderRuntimeScene,
       rendererPipeline: request.rendererPipeline,
+      signal: request.signal,
       state: frameState,
     });
     request.reportProgress(0.75);
+    request.signal.throwIfAborted();
 
     const blob = await encodeCanvas(canvas, mediaType);
+    request.signal.throwIfAborted();
     request.reportProgress(0.9);
+    request.signal.throwIfAborted();
     (request.downloadArtifact ?? downloadToolcraftArtifact)({
       blob,
       extension,

@@ -1,4 +1,3 @@
-import { getToolcraftCanvasHandleAcceptanceErrors } from "./canvas-handle-acceptance";
 import { getControlAcceptanceCoverageErrors } from "./control-acceptance-coverage";
 import {
   getAcceptanceEntryTargetErrors,
@@ -66,8 +65,8 @@ export function getToolcraftControlAcceptanceErrors({
     );
   }
 
-  errors.push(...getAcceptanceEntryTargetErrors({ acceptance, controlTargets }));
-  errors.push(...getToolcraftCanvasHandleAcceptanceErrors({ acceptance, controlTargets }));
-
+  errors.push(
+    ...getAcceptanceEntryTargetErrors({ acceptance, controlTargets }),
+  );
   return errors;
 }

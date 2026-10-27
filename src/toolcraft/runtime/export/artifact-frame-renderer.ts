@@ -1,45 +1,36 @@
 import type { ToolcraftRendererPipelineClient } from "../rendering";
-import type { ToolcraftState } from "../state/types";
+import type { ToolcraftProductSceneFrame } from "../scene";
+import type { ReadonlyToolcraftState } from "../state/readonly-state";
 import type { ToolcraftExportFrame } from "./export-frame";
 import {
   normalizeToolcraftExportError,
   ToolcraftArtifactExportError,
 } from "./export-error";
 import type { ToolcraftProductExportFrameRenderer } from "./product-export-renderer";
+import { getToolcraftArtifactTimelineProgress } from "./artifact-frame-state";
 
 export type ToolcraftArtifactFrameRenderRequest = Readonly<{
   backgroundColor: string;
   canvas: HTMLCanvasElement;
-  frame: ToolcraftExportFrame;
+  outputFrame: ToolcraftExportFrame;
   includeBackground: boolean;
   pixelRatio: number;
+  productFrame: ToolcraftProductSceneFrame;
   renderProductFrame: ToolcraftProductExportFrameRenderer | null;
   renderRuntimeScene: (
     canvas: HTMLCanvasElement,
     frame: ToolcraftExportFrame,
-    state: ToolcraftState,
+    state: ReadonlyToolcraftState,
   ) => Promise<unknown>;
   rendererPipeline: ToolcraftRendererPipelineClient | null;
-  state: ToolcraftState;
+  signal: AbortSignal;
+  state: ReadonlyToolcraftState;
 }>;
-
-function getTimelineProgress(state: ToolcraftState): number {
-  if (state.timeline.durationSeconds <= 0) {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    Math.min(
-      1,
-      state.timeline.currentTimeSeconds / state.timeline.durationSeconds,
-    ),
-  );
-}
 
 export async function renderToolcraftArtifactFrame(
   request: ToolcraftArtifactFrameRenderRequest,
 ): Promise<void> {
+  request.signal.throwIfAborted();
   const context = request.canvas.getContext("2d");
   if (!context) {
     throw new ToolcraftArtifactExportError({
@@ -55,41 +46,54 @@ export async function renderToolcraftArtifactFrame(
     context.fillRect(0, 0, request.canvas.width, request.canvas.height);
   }
 
-  try {
-    await request.renderRuntimeScene(
-      request.canvas,
-      request.frame,
-      request.state,
-    );
-  } catch (error) {
-    throw normalizeToolcraftExportError(error, {
-      code: "runtime-scene-render-failed",
-      message: "Toolcraft could not render runtime scene layers for export.",
-    });
-  }
-
-  if (!request.renderProductFrame) {
-    return;
-  }
-
+  const scaleX = request.canvas.width / request.outputFrame.width;
+  const scaleY = request.canvas.height / request.outputFrame.height;
   context.save();
-  context.scale(request.pixelRatio, request.pixelRatio);
-  context.translate(-request.frame.x, -request.frame.y);
   try {
-    await request.renderProductFrame({
-      context,
-      frame: request.frame,
-      pixelRatio: request.pixelRatio,
-      rendererPipeline: request.rendererPipeline,
-      state: request.state,
-      timeSeconds: request.state.timeline.currentTimeSeconds,
-      timelineProgress: getTimelineProgress(request.state),
-    });
-  } catch (error) {
-    throw normalizeToolcraftExportError(error, {
-      code: "product-frame-render-failed",
-      message: "Toolcraft could not render product pixels for export.",
-    });
+    context.setTransform(
+      scaleX,
+      0,
+      0,
+      scaleY,
+      -request.outputFrame.x * scaleX,
+      -request.outputFrame.y * scaleY,
+    );
+    try {
+      await request.renderRuntimeScene(
+        request.canvas,
+        request.outputFrame,
+        request.state,
+      );
+    } catch (error) {
+      if (request.signal.aborted && error === request.signal.reason) throw error;
+      throw normalizeToolcraftExportError(error, {
+        code: "runtime-scene-render-failed",
+        message: "Toolcraft could not render runtime scene layers for export.",
+      });
+    }
+    request.signal.throwIfAborted();
+
+    if (request.renderProductFrame && request.productFrame.kind === "ready") {
+      try {
+        await request.renderProductFrame({
+          context,
+          frame: request.productFrame.rect,
+          pixelRatio: request.pixelRatio,
+          rendererPipeline: request.rendererPipeline,
+          signal: request.signal,
+          state: request.state,
+          timeSeconds: request.state.timeline.currentTimeSeconds,
+          timelineProgress: getToolcraftArtifactTimelineProgress(request.state),
+        });
+      } catch (error) {
+        if (request.signal.aborted && error === request.signal.reason) throw error;
+        throw normalizeToolcraftExportError(error, {
+          code: "product-frame-render-failed",
+          message: "Toolcraft could not render product pixels for export.",
+        });
+      }
+      request.signal.throwIfAborted();
+    }
   } finally {
     context.restore();
   }

@@ -8,7 +8,11 @@ export function getToolcraftOutputExportLayoutErrors({
   delivery: ToolcraftArtifactExportDelivery;
   facts: ToolcraftOutputExportFacts;
 }): string[] {
-  if (!delivery.imageEnabled && !delivery.videoEnabled) {
+  if (
+    !delivery.imageEnabled &&
+    !delivery.svgEnabled &&
+    !delivery.videoEnabled
+  ) {
     return [];
   }
 
@@ -20,8 +24,8 @@ export function getToolcraftOutputExportLayoutErrors({
     );
   }
 
-  if (!facts.setupSection || facts.setupSectionIndex !== 0) {
-    errors.push("Runtime Setup must remain the first controls block.");
+  if (!facts.setupSection || facts.setupSectionIndex !== 1) {
+    errors.push("Runtime Settings must follow the defaults action block and precede product sections.");
   }
 
   if (

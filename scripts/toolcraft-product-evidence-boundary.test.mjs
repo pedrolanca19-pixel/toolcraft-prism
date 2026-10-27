@@ -310,6 +310,7 @@ test("rejects product access to the reserved unavailable-resource bridge", async
     [
       "reserved-runtime-evidence",
       "reserved-runtime-evidence",
+      "native-control-recreation",
       "reserved-runtime-evidence",
     ],
   );
@@ -330,7 +331,11 @@ test("rejects product selectors and JSX attributes that access the pipeline evid
 
   assert.deepEqual(
     result.violations.map((violation) => violation.kind),
-    ["reserved-runtime-evidence", "reserved-runtime-evidence"],
+    [
+      "reserved-runtime-evidence",
+      "native-control-recreation",
+      "reserved-runtime-evidence",
+    ],
   );
 });
 

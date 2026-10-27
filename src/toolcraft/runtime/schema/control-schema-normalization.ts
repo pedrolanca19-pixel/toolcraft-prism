@@ -1,26 +1,36 @@
+import { assertToolcraftEditableSliderRange } from "./slider-range";
+import { isToolcraftRuntimeOwnedTarget } from "./runtime-targets";
 import { getToolcraftSegmentedStaticFitError } from "../contracts/segmented-control-fit";
+import type { DistributiveOmit } from "./control-schema-common";
+import { isToolcraftBuiltInControlSchema } from "./control-schema";
 import { normalizeToolcraftModelFileDrop } from "../model-import/model-import-limits";
 import { isToolcraftCollectionItemControlType } from "./collection-item-controls";
+import {
+  assertToolcraftCollectionItemKeyframe,
+  assertToolcraftProductTargetNamespace,
+} from "./collection-actions";
 import { resolveToolcraftControlApplicability } from "./control-applicability";
+import {
+  getToolcraftSliderStepPositionCount,
+  getToolcraftVisualDiscreteSliderMarkerIssue,
+} from "./slider-marker-policy";
 import type {
   ResolvedToolcraftControlSchema,
+  ToolcraftCollectionItemControlSchema,
+  ToolcraftControlSchema,
   ToolcraftModelFileDropSchema,
   ToolcraftNonModelControlSchema,
   ToolcraftResolvedControlApplicabilitySchema,
-  ToolcraftControlSchema,
 } from "./types";
 
 type ControlWithResolvedApplicability =
-  | (Omit<
+  | (DistributiveOmit<
       ToolcraftNonModelControlSchema,
       "applicability" | "visibleWhen"
     > & {
       applicability: ToolcraftResolvedControlApplicabilitySchema;
     })
-  | (Omit<
-      ToolcraftModelFileDropSchema,
-      "applicability" | "visibleWhen"
-    > & {
+  | (Omit<ToolcraftModelFileDropSchema, "applicability" | "visibleWhen"> & {
       applicability: ToolcraftResolvedControlApplicabilitySchema;
     });
 
@@ -102,10 +112,7 @@ function assertFileDropHardMaxItems(control: ToolcraftControlSchema): void {
 }
 
 function assertFileDropVariant(control: ToolcraftControlSchema): void {
-  if (
-    control.type !== "fileDrop" ||
-    control.variant !== "collection-actions"
-  ) {
+  if (control.type !== "fileDrop" || control.variant !== "collection-actions") {
     return;
   }
 
@@ -150,6 +157,7 @@ function isPlainRecord(value: unknown): boolean {
 }
 
 function assertItemControls(control: ToolcraftControlSchema): void {
+  const target = control.target;
   if (!control.itemControls) {
     return;
   }
@@ -164,7 +172,7 @@ function assertItemControls(control: ToolcraftControlSchema): void {
 
   if (control.itemControl) {
     throw new Error(
-      `Toolcraft control validation [collection-item-template] for target "${control.target}": itemControl and itemControls are mutually exclusive.`,
+      `Toolcraft control validation [collection-item-template] for target "${target}": itemControl and itemControls are mutually exclusive.`,
     );
   }
 
@@ -192,6 +200,7 @@ function assertItemControls(control: ToolcraftControlSchema): void {
         `Toolcraft control validation [collection-item-controls] for target "${control.target}" itemControls.${id}: defaultValue is required.`,
       );
     }
+    assertToolcraftCollectionItemKeyframe(control, id, itemControl);
 
     const fitError = getToolcraftSegmentedStaticFitError(itemControl);
     if (fitError) {
@@ -254,44 +263,36 @@ function assertCollectionItemControl(control: ToolcraftControlSchema): void {
   }
 }
 
-function isSliderLikeControl(
-  control: ControlWithResolvedApplicability,
-): boolean {
-  return control.type === "slider" || control.type === "rangeSlider";
-}
+type SliderNormalizableControl =
+  | ControlWithResolvedApplicability
+  | ToolcraftCollectionItemControlSchema
+  | ToolcraftControlSchema;
 
-function getStepMarkerCount(
-  control: ControlWithResolvedApplicability,
-): number | undefined {
-  if (
-    typeof control.step !== "number" ||
-    typeof control.min !== "number" ||
-    typeof control.max !== "number" ||
-    !Number.isFinite(control.step) ||
-    !Number.isFinite(control.min) ||
-    !Number.isFinite(control.max) ||
-    control.step <= 0 ||
-    control.max <= control.min
-  ) {
-    return undefined;
+function normalizeSliderControlSchema<T extends SliderNormalizableControl>(
+  control: T,
+  location: string,
+  owner: "product" | "collection",
+): T {
+  assertToolcraftEditableSliderRange(control, location);
+  if (control.editableRange && (owner === "collection" || !("target" in control) || typeof control.target !== "string" || isToolcraftRuntimeOwnedTarget(control.target))) {
+    throw new Error(`Toolcraft editableRange ${location}: requires a top-level product slider target.`);
+  }
+  const issue = getToolcraftVisualDiscreteSliderMarkerIssue(control);
+
+  if (issue?.kind === "domain") {
+    throw new Error(
+      `Toolcraft control validation [slider-marker-domain] ${location}: variant "discrete" requires finite min and max plus a finite positive step with max greater than min.`,
+    );
   }
 
-  const rawStepCount = (control.max - control.min) / control.step;
-  const roundedStepCount = Math.round(rawStepCount);
-  const stepCount =
-    Math.abs(rawStepCount - roundedStepCount) < Number.EPSILON * 100
-      ? roundedStepCount
-      : Math.floor(rawStepCount) + 1;
+  if (issue?.kind === "budget") {
+    throw new Error(
+      `Toolcraft control validation [slider-marker-budget] ${location}: variant "discrete" has ${issue.positionCount} positions; maximum is ${issue.limit}. Keep sliderValueKind "discrete" and step, but use variant "continuous" or another built-in control.`,
+    );
+  }
 
-  return Math.max(2, stepCount + 1);
-}
-
-function normalizeSliderControlSchema(
-  control: ControlWithResolvedApplicability,
-): ControlWithResolvedApplicability {
   if (
-    !isSliderLikeControl(control) ||
-    typeof control.step !== "number" ||
+    (control.type !== "slider" && control.type !== "rangeSlider") ||
     control.variant !== "discrete"
   ) {
     return control;
@@ -299,8 +300,72 @@ function normalizeSliderControlSchema(
 
   return {
     ...control,
-    markerCount: getStepMarkerCount(control) ?? control.markerCount,
+    markerCount: getToolcraftSliderStepPositionCount(control),
     variant: "discrete",
+  };
+}
+
+function snapshotOwnedCollectionControls<T extends ToolcraftControlSchema>(
+  control: T,
+): T {
+  const ownsItemControl =
+    control.type === "collectionActions" || control.type === "sourceCollection";
+  const ownsItemControls = getItemControlsOwner(control) !== null;
+  const itemControlSnapshot = ownsItemControl
+    ? control.itemControl
+      ? { ...control.itemControl }
+      : undefined
+    : undefined;
+  const itemControlsSnapshot =
+    ownsItemControls && control.itemControls
+      ? Object.fromEntries(
+          Object.entries(control.itemControls).map(([id, field]) => [
+            id,
+            { ...field },
+          ]),
+        )
+      : undefined;
+
+  return {
+    ...control,
+    ...(control.editableRange ? { editableRange: { ...control.editableRange } } : {}),
+    ...(itemControlSnapshot ? { itemControl: itemControlSnapshot } : {}),
+    ...(itemControlsSnapshot ? { itemControls: itemControlsSnapshot } : {}),
+  };
+}
+
+function normalizeCollectionSliderControls<T extends ToolcraftControlSchema>(
+  control: T,
+): T {
+  const ownsItemControl =
+    control.type === "collectionActions" || control.type === "sourceCollection";
+  const ownsItemControls = getItemControlsOwner(control) !== null;
+  const itemControl =
+    ownsItemControl && control.itemControl
+      ? normalizeSliderControlSchema(
+          control.itemControl,
+          `for target "${control.target}" itemControl`,
+          "collection",
+        )
+      : undefined;
+  const itemControls =
+    ownsItemControls && control.itemControls
+      ? Object.fromEntries(
+          Object.entries(control.itemControls).map(([id, field]) => [
+            id,
+            normalizeSliderControlSchema(
+              field,
+              `for target "${control.target}" itemControls.${id}`,
+              "collection",
+            ),
+          ]),
+        )
+      : undefined;
+
+  return {
+    ...control,
+    ...(itemControl ? { itemControl } : {}),
+    ...(itemControls ? { itemControls } : {}),
   };
 }
 
@@ -311,14 +376,16 @@ function normalizeFileDropControlSchema(
     return normalizeToolcraftModelFileDrop(control);
   }
 
-  if (control.type !== "fileDrop") {
+  if (
+    !isToolcraftBuiltInControlSchema(control) ||
+    control.type !== "fileDrop"
+  ) {
     return control;
   }
 
-  return {
-    ...control,
-    assetKind: control.assetKind ?? "image",
-  };
+  return control.assetKind === undefined
+    ? { ...control, assetKind: "image" }
+    : control;
 }
 
 function normalizeControlSchema(
@@ -328,28 +395,41 @@ function normalizeControlSchema(
 
   assertRequiredControlStringField(controlSnapshot, "type");
   assertRequiredControlStringField(controlSnapshot, "target");
+  assertToolcraftProductTargetNamespace(
+    controlSnapshot.target,
+    `control target "${controlSnapshot.target}"`,
+  );
   assertControlRuntimeBoundary(controlSnapshot);
   assertFileDropHardMaxItems(controlSnapshot);
   assertFileDropVariant(controlSnapshot);
-  assertItemControls(controlSnapshot);
-  assertSegmentedControlFit(controlSnapshot);
-  assertCollectionItemControl(controlSnapshot);
 
+  const nestedControlSnapshot =
+    snapshotOwnedCollectionControls(controlSnapshot);
+  assertItemControls(nestedControlSnapshot);
+  assertSegmentedControlFit(nestedControlSnapshot);
+  assertCollectionItemControl(nestedControlSnapshot);
+  const normalizedControlSnapshot = normalizeCollectionSliderControls(
+    nestedControlSnapshot,
+  );
   const {
     applicability: authoredApplicability,
     visibleWhen,
     ...controlWithoutApplicability
-  } = controlSnapshot;
+  } = normalizedControlSnapshot;
   const applicability = resolveToolcraftControlApplicability({
     applicability: authoredApplicability,
-    visibleWhen,
+    ...(visibleWhen === undefined ? {} : { visibleWhen }),
   });
 
   return normalizeFileDropControlSchema(
-    normalizeSliderControlSchema({
-      ...controlWithoutApplicability,
-      applicability,
-    }),
+    normalizeSliderControlSchema(
+      {
+        ...controlWithoutApplicability,
+        applicability,
+      },
+      `for target "${controlSnapshot.target}"`,
+      "product",
+    ),
   );
 }
 

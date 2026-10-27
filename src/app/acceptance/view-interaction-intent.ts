@@ -1,6 +1,13 @@
-export type ToolcraftViewInteractionEvidenceSource =
-  | "explicit-user-request"
-  | "inspected-reference";
+export type ToolcraftViewInteractionAuthority =
+  | Readonly<{
+      kind: "explicit-user-request";
+      requestQuote: string;
+    }>
+  | Readonly<{
+      kind: "inspected-behavioral-reference";
+      observedBehavior: string;
+      referenceId: string;
+    }>;
 
 export type ToolcraftViewInteractionIntent =
   | {
@@ -12,12 +19,10 @@ export type ToolcraftViewInteractionIntent =
       orientationTargets: readonly string[];
     }
   | {
-      evidence: string;
+      authority: ToolcraftViewInteractionAuthority;
       mode: "fixed-camera";
-      source: ToolcraftViewInteractionEvidenceSource;
     }
   | {
-      evidence: string;
+      authority: ToolcraftViewInteractionAuthority;
       mode: "timeline-camera";
-      source: ToolcraftViewInteractionEvidenceSource;
     };

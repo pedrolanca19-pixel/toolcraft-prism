@@ -2,6 +2,8 @@
 
 import { CloudArrowUpIcon } from "@phosphor-icons/react";
 
+import { Button } from "../../primitives";
+
 type FileDropEmptyStateProps = {
   description: string;
   onActivate: () => void;
@@ -38,20 +40,22 @@ export function FileDropEmptyState({
       <div className="flex w-full min-w-0 flex-col items-center justify-center gap-2 px-3 py-3 text-center">
         <FileDropEmptyStateContent description={description} title={title} />
         <div className="flex flex-wrap items-center justify-center gap-1.5">
-          <button
-            className="rounded-md border border-[color:var(--border)] bg-transparent px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+          <Button
             onClick={onActivate}
+            size="sm"
             type="button"
+            variant="outline"
           >
             Choose files
-          </button>
-          <button
-            className="rounded-md border border-[color:var(--border)] bg-transparent px-2.5 py-1 text-xs font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+          </Button>
+          <Button
             onClick={onFolderActivate}
+            size="sm"
             type="button"
+            variant="outline"
           >
             Choose folder
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -60,6 +64,7 @@ export function FileDropEmptyState({
   return (
     <button
       className="flex w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-[calc(var(--radius-lg)-4px)] border-0 bg-transparent px-3 py-3 text-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+      data-slot="file-upload-empty-activation"
       onClick={onActivate}
       type="button"
     >

@@ -4,12 +4,29 @@ import * as React from "react";
 
 import type {
   ToolcraftRendererPipelinePassCacheInput,
+  ToolcraftRendererPipelinePassExecutionContext,
   ToolcraftRendererPipelinePassHandle,
   ToolcraftRendererPipelinePassResult,
 } from "../../rendering";
 import { useToolcraftPipeline } from "./use-toolcraft-pipeline";
 
-type AnyPassHandle = ToolcraftRendererPipelinePassHandle<string, any, any>;
+type AnyPassHandle = ToolcraftRendererPipelinePassHandle<
+  string,
+  any,
+  any,
+  any
+>;
+
+const emptyPipelineInvalidation = Object.freeze({ cleanup: Promise.resolve() });
+const fallbackPipelinePassContext = Object.freeze({
+  getOrCreateResource: () => {
+    throw new Error(
+      "rendererPipelineRegistration is required for retained renderer resources",
+    );
+  },
+  invalidatePass: () => emptyPipelineInvalidation,
+  invalidateSource: (_sourceKey: unknown) => emptyPipelineInvalidation,
+});
 
 export type ToolcraftPipelinePassState<Result> =
   | Readonly<{
@@ -85,7 +102,9 @@ function useStableCacheInput<Input>(cacheInput: Input): Input {
 export function useToolcraftPipelinePass<Handle extends AnyPassHandle>(
   pass: Handle,
   cacheInput: NoInfer<ToolcraftRendererPipelinePassCacheInput<Handle>>,
-  compute: () =>
+  compute: (
+    context: ToolcraftRendererPipelinePassExecutionContext<Handle>,
+  ) =>
     | PromiseLike<NoInfer<ToolcraftRendererPipelinePassResult<Handle>>>
     | NoInfer<ToolcraftRendererPipelinePassResult<Handle>>,
 ): ToolcraftPipelinePassState<ToolcraftRendererPipelinePassResult<Handle>> {
@@ -107,8 +126,10 @@ export function useToolcraftPipelinePass<Handle extends AnyPassHandle>(
     let active = true;
     let hasSynchronousResult = false;
     let synchronousResult: ToolcraftRendererPipelinePassResult<Handle>;
-    const execute = () => {
-      const result = computeRef.current();
+    const execute = (
+      context: ToolcraftRendererPipelinePassExecutionContext<Handle>,
+    ) => {
+      const result = computeRef.current(context);
       if (!isPromiseLike(result)) {
         hasSynchronousResult = true;
         synchronousResult = result;
@@ -120,7 +141,11 @@ export function useToolcraftPipelinePass<Handle extends AnyPassHandle>(
     try {
       result = pipeline
         ? pipeline.runPass(request.pass, request.cacheInput, execute)
-        : Promise.resolve(execute());
+        : Promise.resolve(
+            execute(
+              fallbackPipelinePassContext as ToolcraftRendererPipelinePassExecutionContext<Handle>,
+            ),
+          );
     } catch (error) {
       setResolved({
         request,

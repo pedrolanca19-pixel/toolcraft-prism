@@ -141,6 +141,10 @@ export function openIndexedDbBinaryAssetDatabase(
         request.transaction?.abort();
         return;
       }
+      if (event.oldVersion !== 0) {
+        request.transaction?.abort();
+        return;
+      }
       const database = request.result;
       if (!database.objectStoreNames.contains(ENTRIES_STORE)) {
         database.createObjectStore(ENTRIES_STORE, { keyPath: "ref" });
@@ -157,10 +161,6 @@ export function openIndexedDbBinaryAssetDatabase(
       if (!leaseStore.indexNames.contains(LEASE_ID_INDEX)) {
         leaseStore.createIndex(LEASE_ID_INDEX, "leaseId", { unique: false });
       }
-      if (event.oldVersion === 1) {
-        leaseStore.clear();
-      }
-
       if (!database.objectStoreNames.contains(METADATA_STORE)) {
         database.createObjectStore(METADATA_STORE, { keyPath: "key" });
       }
@@ -181,7 +181,9 @@ export function openIndexedDbBinaryAssetDatabase(
     request.addEventListener("error", () => {
       if (settled) return;
       settled = true;
-      reject(request.error ?? new Error("Unable to open binary asset repository"));
+      reject(
+        request.error ?? new Error("Unable to open binary asset repository"),
+      );
     });
   });
 }

@@ -5,10 +5,57 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createToolcraftPrivateEvidenceImportViolation } from "./toolcraft-product-evidence-import-policy.mjs";
+import { getToolcraftResolvedUiModuleKind } from
+  "./toolcraft-product-boundary-module-policy.mjs";
 import { isToolcraftTypeScriptCompilerAvailable } from "./toolcraft-typescript-source-evidence.mjs";
 
 function compareCodeUnits(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+const capabilityProofPathPattern =
+  /^src\/app\/acceptance\/capability-proofs(?:\/|$)/u;
+const runtimeProductionPathPattern = /^src\/toolcraft\/runtime(?:\/|$)/u;
+const starterVerificationPathPattern =
+  /^src\/app\/(?:acceptance(?:\/|$)|app-acceptance(?:[./]|$)|test-evidence(?:\/|$))/u;
+const runtimeForbiddenImportPathPattern =
+  /^(?:src\/app(?:\/|$)|e2e(?:\/|$))/u;
+
+function createCapabilityProofBoundaryViolation(entry, moduleImport) {
+  if (
+    starterVerificationPathPattern.test(entry.repoPath) ||
+    !capabilityProofPathPattern.test(moduleImport.resolvedRepoPath ?? "")
+  ) {
+    return null;
+  }
+
+  return {
+    column: 1,
+    kind: "capability-proof-boundary",
+    line: 1,
+    message:
+      "Capability proof recipes are verification-owned. Product and runtime production source must not import or bridge them.",
+    repoPath: entry.repoPath,
+  };
+}
+
+function createRuntimeProductBoundaryViolation(entry, moduleImport) {
+  const importedPath = moduleImport.resolvedRepoPath ?? "";
+  if (
+    !runtimeForbiddenImportPathPattern.test(importedPath) ||
+    capabilityProofPathPattern.test(importedPath)
+  ) {
+    return null;
+  }
+
+  return {
+    column: 1,
+    kind: "starter-verification-boundary",
+    line: 1,
+    message:
+      "Runtime production source must not import starter app or browser verification source.",
+    repoPath: entry.repoPath,
+  };
 }
 
 export async function evaluateToolcraftProductBoundary({
@@ -39,11 +86,13 @@ export async function evaluateToolcraftProductBoundary({
     { createToolcraftLocalDependencyGraph },
     dependencyResolution,
     { collectToolcraftFrameworkOwnedLocalPaths },
+    { collectToolcraftProductProgramBoundaryEvidence },
     { collectToolcraftSourceInventory },
   ] = await Promise.all([
     import("./toolcraft-local-dependency-graph.mjs"),
     import("./toolcraft-product-dependency-resolution.mjs"),
     import("./toolcraft-source-ownership.mjs"),
+    import("./toolcraft-product-program-boundary-evidence.mjs"),
     import("./toolcraft-source-inventory.mjs"),
   ]);
   const resolvedProtectedFilePaths =
@@ -63,16 +112,23 @@ export async function evaluateToolcraftProductBoundary({
       rootDir: resolvedRootDir,
       tsconfigPaths: ["tsconfig.json"],
     }));
+  const localAliases = [
+    ...configuredAliases,
+    ...dependencyResolution.createToolcraftDefaultSourceAliases(
+      resolvedRootDir,
+    ),
+  ];
   const localDependencyGraph =
     providedLocalDependencyGraph ??
     (await createToolcraftLocalDependencyGraph({
-      aliases: [
-        ...configuredAliases,
-        ...dependencyResolution.createToolcraftDefaultSourceAliases(
-          resolvedRootDir,
-        ),
-      ],
+      aliases: localAliases,
       entries: inventory.entries,
+      // Framework files participate in import resolution, but product-only AST
+      // policy must not be evaluated against every copied framework module.
+      sourceRecordMode: "imports-only",
+      fullEvidenceEntryPaths: inventory.entries
+        .filter((entry) => entry.owner === "product")
+        .map((entry) => entry.repoPath),
       rootDir: resolvedRootDir,
     }));
   const productEntries = localDependencyGraph.entries.filter(
@@ -85,6 +141,17 @@ export async function evaluateToolcraftProductBoundary({
       ) ||
         /\.css$/u.test(entry.repoPath)),
   );
+  const productProgramViolations =
+    collectToolcraftProductProgramBoundaryEvidence({
+      aliases: localAliases,
+      entries: localDependencyGraph.entries,
+      inspectedEntries: productEntries.filter((entry) =>
+        /\.[cm]?[jt]sx?$/u.test(entry.repoPath)
+      ),
+      rootDir: resolvedRootDir,
+      moduleImports: localDependencyGraph.moduleImports,
+      sourceRecords: localDependencyGraph.sourceRecords,
+    });
   const violations = [];
   const entryByRepoPath = new Map(
     localDependencyGraph.entries.map((entry) => [entry.repoPath, entry]),
@@ -118,13 +185,38 @@ export async function evaluateToolcraftProductBoundary({
         `Canonical dependency graph is missing TypeScript boundary evidence for ${entry.repoPath}.`,
       );
     }
+    const productSourceViolations =
+      productProgramViolations.get(entry.repoPath) ??
+      boundaryEvidence.productSourceViolations;
     violations.push(
-      ...boundaryEvidence.productSourceViolations,
+      ...productSourceViolations,
       ...boundaryEvidence.reservedEvidenceViolations,
       ...boundaryEvidence.playwrightAuthorityViolations,
     );
     appendPrivateEvidenceImportViolations(entry);
     for (const evidence of importsByImporter.get(entry.repoPath) ?? []) {
+      const uiModuleKind = getToolcraftResolvedUiModuleKind({
+        moduleSpecifier: evidence.specifier ?? "",
+        resolvedRepoPath: evidence.resolvedRepoPath,
+      });
+      const uiModuleAlreadyReported = uiModuleKind &&
+        productSourceViolations.some((violation) =>
+          violation.kind === "private-ui-implementation" &&
+          violation.line === evidence.line
+        );
+      if (uiModuleKind && !uiModuleAlreadyReported) {
+        violations.push({
+          column: evidence.column,
+          kind: "private-ui-implementation",
+          line: evidence.line,
+          message:
+            "Product source may import Toolcraft UI only from the exact public @/toolcraft/ui root target.",
+          repoPath: entry.repoPath,
+        });
+      }
+      const capabilityProofViolation =
+        createCapabilityProofBoundaryViolation(entry, evidence);
+      if (capabilityProofViolation) violations.push(capabilityProofViolation);
       if (evidence.resolution === "outside-inventory") {
         violations.push({
           column: 1,
@@ -177,6 +269,27 @@ export async function evaluateToolcraftProductBoundary({
       ...boundaryEvidence.moduleLoadingViolations,
     );
     appendPrivateEvidenceImportViolations(entry);
+  }
+
+  for (const entry of localDependencyGraph.entries) {
+    if (
+      entry.owner !== "framework" ||
+      entry.role !== "production" ||
+      !runtimeProductionPathPattern.test(entry.repoPath)
+    ) {
+      continue;
+    }
+
+    for (const moduleImport of importsByImporter.get(entry.repoPath) ?? []) {
+      const capabilityProofViolation =
+        createCapabilityProofBoundaryViolation(entry, moduleImport);
+      if (capabilityProofViolation) violations.push(capabilityProofViolation);
+      const runtimeProductViolation =
+        createRuntimeProductBoundaryViolation(entry, moduleImport);
+      if (runtimeProductViolation) {
+        violations.push(runtimeProductViolation);
+      }
+    }
   }
 
   return {

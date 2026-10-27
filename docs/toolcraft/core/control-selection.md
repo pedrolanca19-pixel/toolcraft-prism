@@ -35,14 +35,35 @@ Before choosing a gizmo, Vector, camera controls, or renderer interaction, decla
 
 - `non-spatial`: no visible three-dimensional scene/model; include a concrete reason.
 - `orbit`: the default for a visible editable spatial scene; list every mutually exclusive `orientationGizmo` target.
-- `fixed-camera`: only when an explicit user request or inspected reference requires fixed framing; record source and evidence.
-- `timeline-camera`: only when an explicit user request or inspected reference owns an authored camera path driven by Toolcraft timeline intent.
+- `fixed-camera`: only with positive typed `authority` from either a verbatim user request or an inspected behavioral reference that demonstrates locked framing.
+- `timeline-camera`: only with the same positive authority when the request or behavioral reference owns an authored camera path driven by Toolcraft timeline intent.
 
 The absence of an explicit rotation request is not evidence for `fixed-camera`.
 Do not first make a 3D scene non-rotatable and then use that implementation
 choice to omit Orientation Gizmo. Renderer technology is not the classifier:
 WebGL, WebGPU, Canvas2D, and DOM/SVG may each render spatial or non-spatial
 output.
+
+Use one of these exact authority branches:
+
+```ts
+authority: {
+  kind: "explicit-user-request",
+  requestQuote: "Keep the camera locked to this framing.",
+}
+
+authority: {
+  kind: "inspected-behavioral-reference",
+  observedBehavior: "Playback follows one authored camera path and exposes no orbit interaction.",
+  referenceId: "reference-camera-playback",
+}
+```
+
+`requestQuote` is verbatim user text. `observedBehavior` describes an observed
+interaction from the named reference, not an inference from its appearance. A
+still image, screenshot, or desired output frame can establish the default
+composition, but it cannot establish locked camera interaction. Without one of
+these positive authorities, a visible editable 3D scene uses orbit.
 
 ## Interaction Surface Ownership
 
@@ -108,14 +129,17 @@ renamed copy of the same capability is still duplication.
 - The collection control shows the collection label on the left and remove/add icon buttons on the right.
 - Homogeneous repeated items do not show visible per-item labels when the collection label already names the group.
 - Plain color items may use equal 50% columns; color+opacity items stay stacked. Use `itemControl` for one homogeneous value. Use `itemControls` only when two or more built-in fields form one logical target-array record and affect that entity's outcome: `+` appends all field defaults, `−` removes the final record, and runtime places a content-width line only between records without `Item N` headings. Standalone color `itemControl` stays a divider-free two-column grid; color may still be a legitimate compound field.
+- Compound collection fields opt into nested keyframes individually with `keyframeable: true`; omitted/false capable fields remain ordinary live values.
+- Declare one `selectionTarget` when the panel or canvas edits a selected record. It is a runtime-owned nullable safe index, not a per-item boolean. Dispatch only the four structured collection commands; product code never constructs the reserved nested address or mutates the parent array directly.
 
 ## Actions
 
 - Use schema `actions` for local section commands such as randomize palette, normalize weights, sort glyphs, clear selection, duplicate item, or reset current stop.
 - If there is one `actions` button, the control label and button label must not be identical. Keep the button as the command verb and make the label a concise context.
 - If an `actions` control has a visible label, the label is above the buttons.
-- Actions render in 50% cells: one button uses the left half, two buttons fill one row, and larger groups continue in two columns.
-- Do not stretch an odd trailing action full-width or center it.
+- Actions use two columns by default: one button uses the left half and groups of up to four rows retain the grid. Above four rows, the shared control renders one previous button, a dropdown and one next button. The threshold uses the resolved column count, including explicit built-in layouts.
+- In grid mode, do not stretch an odd trailing action full-width or center it.
+- In compact mode, dropdown and arrow buttons share the default 28px height. Selecting any menu item (including the last invoked command) or stepping invokes the original action once. No action runs on mount; the dropdown initially says Choose action. Navigation skips disabled/loading items and stops at the ends. Its last-invoked label is local UI state, not a persisted product selection.
 - Keep final product actions in `panelActions`, keep timeline transport in the top timeline, and keep global reset in the controls panel header.
 
 ## Vector Ownership
@@ -133,6 +157,23 @@ Do not expose a pad for current animation state, keyboard movement, pointer move
 
 Do not use Vector for camera orbit, object orbit, or a three-dimensional view orientation. Those interactions belong to Orientation Gizmo.
 
+For a spatial Vector, define the screen-to-product mapping before renderer code:
+right gesture → visible feature right; left → left; up → up; down → down.
+Record which feature is moved (object, focus, light feature, texture detail, or
+chromatic channel), its coordinate basis, and the renderer/export conversion.
+Runtime values are canonical; do not mirror the pad or negate stored values to
+compensate for renderer sampling. Sampling a texture at `uv + offset` moves its
+visible features opposite to the offset; implement the inverse sampling transform
+for the intended visual translation. Apply UV/world/camera basis conversion once.
+
+The default and `chromaOffset` pads require schema-derived `vector-screen-motion`
+browser evidence, including inside `itemControl`/`itemControls`. Mathematical
+`coordinateMode: "cartesian"` does not authorize mirrored screen movement.
+`whiteBalance`, `colorBalance`, and `toneBias` are semantic color axes, not position
+controls; prove their color outcomes instead. Do not select a color variant or
+Width/Height size fields to evade spatial direction proof. See
+`../vector-controls.md` before implementing the mapping or bounded proof recipe.
+
 ## Orientation Gizmo Ownership
 
 Use schema `orientationGizmo` whenever a visible model can be rotated through three-dimensional space. This is the exact owner for both volumetric 3D models and visually flat planes/cards that expose a 3D orbit.
@@ -140,7 +181,7 @@ Use schema `orientationGizmo` whenever a visible model can be rotated through th
 For a visible editable spatial scene, `viewInteraction.mode: "orbit"` is the
 default and every `orientationTargets` entry must match a schema gizmo target.
 Fixed framing is not a default alternative; it is accepted only through the
-typed evidence-backed `fixed-camera` escape hatch.
+positive typed-authority `fixed-camera` escape hatch above.
 
 - Declare one shared pose target for the active model mode with `{ position: [x, y, z], up: [x, y, z] }`, `label: false`, and `keyframeable: false`.
 - At most one orientation gizmo may be visible at a time. Multiple declarations are valid only when their combined section/control visibility conditions are statically provable as mutually exclusive; runtime rejects ambiguous active states.

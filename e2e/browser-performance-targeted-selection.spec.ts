@@ -6,7 +6,7 @@ import {
   evaluateToolcraftTargetedPerformanceSelection,
   type ToolcraftTargetedPerformanceReportTarget,
 } from "./browser-performance-reporter-evaluation";
-import { getToolcraftPerformancePathTestName } from "./performance-path-helpers";
+import { getToolcraftPerformancePathTestName } from "./performance-path-adapter-matrix";
 
 function pathFixture(
   id: string,
@@ -16,7 +16,9 @@ function pathFixture(
     id,
     interaction: "control-change",
     invalidates,
+    preparationInvalidates: [],
     profile: "interactive-discrete",
+    retainedAccesses: [],
     runsOn: [],
     targets: [`target.${id}`],
     workloadDimensions: [],

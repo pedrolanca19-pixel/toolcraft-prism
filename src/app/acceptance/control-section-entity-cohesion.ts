@@ -1,9 +1,5 @@
 import type { ToolcraftControlSectionInventoryEntry } from "./types";
 
-export const TOOLCRAFT_DENSE_SECTION_MIN_CONTROLS = 8;
-
-const TOOLCRAFT_MAX_CONTROLS_PER_SECTION = 10;
-const TOOLCRAFT_MIN_CONTROLS_PER_SPLIT_SECTION = 2;
 const TOOLCRAFT_MIN_SPLIT_REASON_LENGTH = 12;
 
 export function hasToolcraftInventoryEntityAgreement({
@@ -53,11 +49,6 @@ export function getToolcraftControlSectionEntityCohesionErrors(
   }
 
   for (const [entityId, entries] of entriesByEntityId) {
-    const controlCount = entries.reduce(
-      (total, entry) => total + entry.targets.length,
-      0,
-    );
-    const sectionNames = entries.map((entry) => entry.title.trim() || entry.id);
     const entityNames = new Set(entries.map((entry) => entry.entity.trim()));
 
     if (entityNames.size > 1) {
@@ -68,19 +59,7 @@ export function getToolcraftControlSectionEntityCohesionErrors(
       );
     }
 
-    if (controlCount <= TOOLCRAFT_MAX_CONTROLS_PER_SECTION) {
-      if (entries.length > 1) {
-        errors.push(
-          `Control Section Inventory entity "${entityId}" owns ${controlCount} controls across ${entries.length} sections (${sectionNames.join(", ")}). Entities with ${TOOLCRAFT_MAX_CONTROLS_PER_SECTION} or fewer controls must stay in one section.`,
-        );
-      }
-      continue;
-    }
-
     if (entries.length === 1) {
-      errors.push(
-        `Control Section Inventory entity "${entityId}" owns ${controlCount} controls in section ${sectionNames[0]}. Split entities above ${TOOLCRAFT_MAX_CONTROLS_PER_SECTION} controls into explicit workflow stages.`,
-      );
       continue;
     }
 
@@ -88,18 +67,8 @@ export function getToolcraftControlSectionEntityCohesionErrors(
 
     for (const entry of entries) {
       const sectionName = entry.title.trim() || entry.id;
-      const sectionControlCount = entry.targets.length;
       const workflowStage = entry.workflowStage?.trim() ?? "";
       const splitReason = entry.splitReason?.trim() ?? "";
-
-      if (
-        sectionControlCount < TOOLCRAFT_MIN_CONTROLS_PER_SPLIT_SECTION ||
-        sectionControlCount > TOOLCRAFT_MAX_CONTROLS_PER_SECTION
-      ) {
-        errors.push(
-          `Control Section Inventory entity "${entityId}" section ${sectionName} owns ${sectionControlCount} ${sectionControlCount === 1 ? "control" : "controls"}. Every section in a split entity must own between ${TOOLCRAFT_MIN_CONTROLS_PER_SPLIT_SECTION} and ${TOOLCRAFT_MAX_CONTROLS_PER_SECTION} controls.`,
-        );
-      }
 
       if (!workflowStage) {
         errors.push(

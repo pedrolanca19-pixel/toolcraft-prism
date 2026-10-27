@@ -1,5 +1,6 @@
 "use client";
 
+import { sanitizeInteractionHostProps } from "../../primitives/sanitize-composed-host-props";
 import * as React from "react";
 import {
   closestCenter,
@@ -92,6 +93,7 @@ function SortablePreviewTile({
           aria-label={`Select ${item.alt ?? item.fileName}`}
           aria-pressed={selected}
           className="absolute inset-0 block size-full border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)] focus-visible:ring-inset"
+          data-slot="file-upload-preview-select"
           onClick={() => {
             onPreviewSelect(itemKey);
           }}
@@ -107,29 +109,39 @@ function SortablePreviewTile({
       {isSortable ? (
         <button
           aria-label={`Reorder ${item.alt ?? item.fileName}`}
-          className="absolute top-0.5 left-0.5 z-[1] flex size-7 cursor-grab touch-none items-center justify-center rounded-sm border-0 bg-[color:color-mix(in_oklab,var(--background)_62%,transparent)] p-0 text-[color:color-mix(in_oklab,var(--foreground)_70%,transparent)] backdrop-blur-sm active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+          className="absolute top-0.5 left-0.5 z-[1] flex size-[22px] cursor-grab touch-none items-center justify-center rounded-sm border-0 bg-[color:color-mix(in_oklab,var(--background)_62%,transparent)] p-0 text-[color:color-mix(in_oklab,var(--foreground)_70%,transparent)] backdrop-blur-sm active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
+          {...sanitizeInteractionHostProps({
+            ...attributes,
+            ...listeners,
+          })}
           type="button"
-          {...attributes}
-          {...listeners}
+          data-slot="file-upload-preview-reorder"
+          role={undefined}
         >
-          <DotsSixVerticalIcon aria-hidden="true" className="size-3.5" />
+          <DotsSixVerticalIcon
+            aria-hidden="true"
+            className="size-3.5"
+            stroke="currentColor"
+            strokeWidth={12}
+            weight="regular"
+          />
         </button>
       ) : null}
       {onItemRemove ? (
         <Button
           aria-label={`Remove ${item.alt ?? item.fileName}`}
-          className="absolute top-0.5 right-0.5"
+          className="absolute top-[0.75px] right-[0.75px]"
           onClick={() => {
             onItemRemove(item, sourceIndex);
           }}
           onPointerDown={(event) => {
             event.stopPropagation();
           }}
-          size="icon-sm"
+          size="icon-xxs"
           type="button"
           variant="ghost"
         >
-          <XIcon className="drop-shadow-[0_2px_1px_color-mix(in_oklab,var(--background)_80%,transparent)]" />
+          <XIcon className="size-3 drop-shadow-[0_2px_1px_#000]" weight="bold" />
         </Button>
       ) : null}
     </div>
@@ -179,18 +191,19 @@ export function FileDropImageGrid({
           ))}
         </SortableContext>
       </DndContext>
-      <button
+      <Button
         aria-label="Add image files"
-        className="flex aspect-square min-w-0 items-center justify-center rounded-[calc(var(--radius-lg)-4px)] border border-[color:color-mix(in_oklab,var(--border)_5%,transparent)] bg-[color:color-mix(in_oklab,var(--foreground)_4%,transparent)] text-[color:color-mix(in_oklab,var(--foreground)_65%,transparent)] transition-[background-color,border-color,color] duration-150 ease-out hover:border-[color:color-mix(in_oklab,var(--border)_8%,transparent)] hover:bg-[color:color-mix(in_oklab,var(--foreground)_9%,transparent)] hover:text-[color:var(--foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--ring)]"
-        data-slot="file-upload-add-preview"
+        className="aspect-square h-auto w-full"
         onClick={(event) => {
           event.stopPropagation();
           onAddImages();
         }}
+        size="icon"
         type="button"
+        variant="outline"
       >
         <FileDropPlusGlyph className="size-3.5" />
-      </button>
+      </Button>
     </div>
   );
 }

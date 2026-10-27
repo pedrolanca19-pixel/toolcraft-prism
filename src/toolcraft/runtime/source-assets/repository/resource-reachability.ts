@@ -91,6 +91,13 @@ function addMediaAssets(refs: Set<string>, value: unknown): void {
   }
 }
 
+/** Schema-independent roots, also used by older/newer durable workspace payloads. */
+export function collectToolcraftMediaResourceRefs(value: unknown): ReadonlySet<string> {
+  const refs = new Set<string>();
+  addMediaAssets(refs, value);
+  return refs;
+}
+
 function addManifestRefs(
   refs: Set<string>,
   manifest: ToolcraftResourceManifest | null | undefined,

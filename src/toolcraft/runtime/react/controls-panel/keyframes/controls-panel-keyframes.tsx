@@ -16,6 +16,7 @@ import type {
   ToolcraftCommand,
   ToolcraftTimelineKeyframeGroup,
 } from "../../../state/types";
+import { getToolcraftSelectedKeyframeTime } from "../../../state/selected-keyframe-time";
 import {
   getControlName,
   type ControlEntry,
@@ -145,15 +146,11 @@ export function createControlsPanelKeyframeActions({
   }) => React.ReactNode;
 } {
   function getSelectedControlKeyframeTime(controlId: string): number | undefined {
-    if (!selectedKeyframeId) {
-      return undefined;
-    }
-
-    const selectedKeyframe = keyframeGroups
-      .find((group) => group.controlId === controlId)
-      ?.keyframes.find((keyframe) => keyframe.id === selectedKeyframeId);
-
-    return selectedKeyframe?.timeSeconds;
+    return getToolcraftSelectedKeyframeTime(
+      controlId,
+      keyframeGroups,
+      selectedKeyframeId,
+    );
   }
 
   function maybeUpsertControlKeyframe(

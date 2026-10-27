@@ -30,7 +30,7 @@ import {
   type ThreeStaticGeometryFormat,
   type ThreeStaticGeometryPrimitivePlan,
   validateThreeStaticGeometryLimits,
-} from "./obj-stl-ply-model-format-adapter-support";
+} from "./three-static-geometry-primitives";
 import {
   createThreeStaticAppearanceBuilder,
   type ThreeStaticAppearanceCatalog,

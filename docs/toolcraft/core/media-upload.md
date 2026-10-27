@@ -89,22 +89,22 @@ Read this module before changing image upload, file upload, source material impo
 
 ### Preview, Orientation, And Export
 
-- `ToolcraftAppComposition.modelPresentation` selects exactly one visible owner. `{ mode: "runtime" }` is the standard lazy Three preview/export path. `{ mode: "custom", consumers }` suppresses standard layers only for declared model targets and requires each checked consumer to acquire/release a runtime presentation lease.
-- `renderDefaultCanvasMedia={false}` hides generic image/file preview only. It does not hide standard runtime model layers.
+- Omitted `modelPresentation` selects the standard lazy Three preview/export path. The dedicated `{ mode: "custom", consumers }` port suppresses standard layers only for declared model targets and requires each checked consumer to acquire/release a runtime presentation lease.
+- `scene.renderDefaultCanvasMedia: false` hides generic image/file preview only. It does not hide standard runtime model layers.
 - A structurally valid staged draft may preview during analysis without replacing committed state.
 - Analyzing and repairing preview opacity is `40%`; committed preview and export opacity is `100%`.
 - Rotatable model products use `orientationGizmo`. Direct drag on model geometry and the gizmo write the same orientation target against the same presentation lease; a canvas miss remains viewport pan. Preview, undo/reset, and export read that shared pose, canonical document reference, and appearance cache key.
-- Runtime image/video export composites visible committed model layers at the exact scene frame, output size, pixel ratio, and shared orientation before awaiting the product's shared `exportRenderer` frame. Product code does not enumerate model assets, call Three loaders, invoke model compositors, encode canvases, or download artifacts.
+- Runtime image/video export composites visible committed model layers at the exact scene frame, output size, pixel ratio, and shared orientation before awaiting the product's shared `scene.rasterFrameRenderer` frame. Product code does not enumerate model assets, call Three loaders, invoke model compositors, encode canvases, or download artifacts.
 - Every scheduled video frame uses the same runtime model binding and shared pose; it cannot substitute the panel preview or omit model layers.
 
 ### Persistence And Proof
 
 - Apps with image, file, or model media automatically resolve `"media"` into the default persistence plan. Serializable state and localStorage snapshots contain metadata plus durable resource references; binary bytes live in the Toolcraft IndexedDB repository and never enter runtime state, history, or snapshots as data URLs.
-- Image, file, and model records restore asynchronously through the shared source-asset coordinator. Missing, corrupt, forged, stale, or unavailable resources mark only the affected asset `unavailable` rather than publishing a partial migration, losing other persisted slices, or crashing.
-- Legacy data-URL snapshots migrate through a repository lease before a new snapshot is published. Failed migration preserves the original recoverable snapshot and reports persistence as unavailable.
+- Exact current image, file, and model records restore asynchronously through the shared source-asset coordinator. Missing, corrupt, forged, stale, inline-data-URL, or unavailable resources reject the affected persisted media slice rather than upgrading it or publishing partial state.
+- Binary media snapshots contain repository references only. Non-current or inline-data-URL records are incompatible and are never migrated into the current snapshot.
 - Reset restores default model attachments through the same async import pipeline. Delete, replacement, undo, redo, reset, hydration, and active jobs participate in repository reachability and cleanup.
 - Model acceptance uses complete `modelImportCoverage` and protected browser recipes. Required proof covers every advertised format, package extraction, deterministic root selection, authored appearance, exact fallback, checked presentation readiness, nontransparent RGBA output, staged/committed output, repair diagnosis/action/progress/result, fatal preservation, persistence/unavailable restoration, preview/export parity, and history/reset.
-- Model workload and responsiveness checks derive from normalized model limits and run as targeted model paths. Package extraction and canonical decode are worker passes; presentation, orbit, export, and cleanup are main-thread/GPU passes with frame and completion budgets. The combined geometry-plus-texture envelope, cache reuse, and disposal lifecycle are measured without refreshing the full checkpoint during later functional feature work.
+- Model workload and responsiveness checks derive from normalized model limits and run as targeted model paths. Package extraction and canonical decode are worker passes; presentation, orbit, export, and cleanup are main-thread/GPU passes with frame and completion budgets. The combined geometry-plus-texture envelope, cache reuse, and disposal lifecycle are measured only with request authority; ordinary later feature work runs focused functional checks without refreshing the initial receipt.
 
 ## Canvas Source Images
 

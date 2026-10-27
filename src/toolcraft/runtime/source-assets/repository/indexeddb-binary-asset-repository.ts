@@ -22,6 +22,7 @@ import {
   type ToolcraftBinaryAssetLease,
   type ToolcraftBinaryAssetRepository,
   type ToolcraftBinaryAssetRepositoryEntry,
+  type ToolcraftPersistedResourceRefsReader,
 } from "./binary-asset-repository";
 import { expandToolcraftBinaryAssetReachability } from "./binary-asset-reachability";
 import {
@@ -51,6 +52,7 @@ class IndexedDbToolcraftBinaryAssetRepository
     private readonly lifecycle: IndexedDbBinaryAssetRepositoryLifecycle,
     private readonly ownerId: string,
     private readonly idFactory: () => string,
+    private readonly getPersistedResourceRefs?: ToolcraftPersistedResourceRefsReader,
   ) {}
   async beginLease(jobId: string): Promise<ToolcraftBinaryAssetLease> {
     return this.lifecycle.runOperation(async (operationContext) => {
@@ -117,8 +119,10 @@ class IndexedDbToolcraftBinaryAssetRepository
           const entries = (await requestResult(
             entryStore.getAll(),
           )) as IndexedDbEntryRecord[];
+          const persistedRefs = this.getPersistedResourceRefs?.();
+          if (persistedRefs === null) return [];
           const reachable = expandToolcraftBinaryAssetReachability(
-            union,
+            new Set([...union, ...(persistedRefs ?? [])]),
             entries.map(asRepositoryEntry),
           );
           const deletedRefs = entries
@@ -386,5 +390,6 @@ export function createIndexedDbToolcraftBinaryAssetRepository(
     lifecycle,
     ownerId,
     idFactory,
+    options.getPersistedResourceRefs,
   );
 }

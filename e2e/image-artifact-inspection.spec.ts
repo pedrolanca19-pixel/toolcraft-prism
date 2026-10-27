@@ -39,3 +39,32 @@ test("image inspection hashes decoded pixels and reports product bounds", async 
   });
   expect(result.inspection.decodedPixelHash).toMatch(/^[a-f0-9]{64}$/u);
 });
+
+
+test("image inspection catches a single pixel missed by normalized sampling", async ({ page }, testInfo) => {
+  await page.goto("/");
+  const fixtures = await page.evaluate(() => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 256;
+    canvas.height = 256;
+    const context = canvas.getContext("2d")!;
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, 256, 256);
+    const before = canvas.toDataURL("image/png").split(",")[1]!;
+    context.fillStyle = "#000000";
+    context.fillRect(0, 0, 1, 1);
+    return [before, canvas.toDataURL("image/png").split(",")[1]!];
+  });
+  const results = [];
+  for (const [index, base64] of fixtures.entries()) {
+    const artifactPath = testInfo.outputPath(`single-pixel-${index}.png`);
+    await fs.writeFile(artifactPath, Buffer.from(base64, "base64"));
+    results.push(await inspectToolcraftImageDownload({
+      backgroundRgba: [255, 255, 255, 255],
+      download: { path: async () => artifactPath } as Download,
+      page,
+    }));
+  }
+  expect(results[0]!.observation.decodedPixelHash).toBe(results[1]!.observation.decodedPixelHash);
+  expect(results[0]!.inspection.decodedPixelHash).not.toBe(results[1]!.inspection.decodedPixelHash);
+});

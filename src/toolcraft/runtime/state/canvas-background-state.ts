@@ -1,27 +1,46 @@
-import {
-  getToolcraftRuntimeSetupBackgroundControls,
-  toolcraftOutputBackgroundToggleTarget,
-} from "../schema/runtime-setup-background";
-import type { ResolvedToolcraftAppSchema } from "../schema/types";
-import type { ToolcraftState } from "./types";
+import { getToolcraftRuntimeSetupBackgroundControls } from "../schema/runtime-setup-background";
+import type { ResolvedToolcraftAppSchema } from "../schema/resolved-app-schema";
+import type {
+  ReadonlyToolcraftState,
+  ToolcraftReadonly,
+} from "./readonly-state";
 
-function getToolcraftColorHex(value: unknown): string | undefined {
-  const candidate =
-    typeof value === "string"
-      ? value
-      : value !== null &&
-          typeof value === "object" &&
-          "hex" in value &&
-          typeof value.hex === "string"
-        ? value.hex
-        : undefined;
-  const normalized = candidate?.trim();
+export type ToolcraftCanvasBackgroundState = Readonly<{
+  color: string | undefined;
+  enabled: boolean;
+}>;
 
-  return normalized ? normalized : undefined;
+export function getToolcraftCanvasBackgroundState({
+  schema,
+  values,
+}: {
+  schema: ToolcraftReadonly<ResolvedToolcraftAppSchema>;
+  values: Readonly<Record<string, unknown>>;
+}): ToolcraftCanvasBackgroundState {
+  const background = getToolcraftRuntimeSetupBackgroundControls(schema);
+
+  if (!background) {
+    return { color: undefined, enabled: false };
+  }
+
+  const colorValue =
+    values[background.color.target] ?? background.color.defaultValue;
+  const includeValue =
+    values[background.include.target] ?? background.include.defaultValue;
+
+  return {
+    color:
+      typeof colorValue === "string"
+        ? colorValue
+        : typeof background.color.defaultValue === "string"
+          ? background.color.defaultValue
+          : undefined,
+    enabled: includeValue !== false,
+  };
 }
 
 export function hasToolcraftRuntimeSetupBackground(
-  schema: ResolvedToolcraftAppSchema,
+  schema: ToolcraftReadonly<ResolvedToolcraftAppSchema>,
 ): boolean {
   return getToolcraftRuntimeSetupBackgroundControls(schema) !== undefined;
 }
@@ -30,13 +49,14 @@ export function isToolcraftRuntimeBackgroundEnabled({
   schema,
   values,
 }: {
-  schema: ResolvedToolcraftAppSchema;
+  schema: ToolcraftReadonly<ResolvedToolcraftAppSchema>;
   values: Readonly<Record<string, unknown>>;
 }): boolean {
-  return (
-    !hasToolcraftRuntimeSetupBackground(schema) ||
-    values[toolcraftOutputBackgroundToggleTarget] !== false
-  );
+  if (!hasToolcraftRuntimeSetupBackground(schema)) {
+    return true;
+  }
+
+  return getToolcraftCanvasBackgroundState({ schema, values }).enabled;
 }
 
 export function normalizeToolcraftCanvasModeForBackground({
@@ -44,36 +64,31 @@ export function normalizeToolcraftCanvasModeForBackground({
   schema,
   values,
 }: {
-  mode: ToolcraftState["canvas"]["mode"];
-  schema: ResolvedToolcraftAppSchema;
+  mode: ReadonlyToolcraftState["canvas"]["mode"];
+  schema: ToolcraftReadonly<ResolvedToolcraftAppSchema>;
   values: Readonly<Record<string, unknown>>;
-}): ToolcraftState["canvas"]["mode"] {
+}): ReadonlyToolcraftState["canvas"]["mode"] {
   return mode === "infinite" &&
+    schema.canvas.infinityBackgroundPolicy !== "optional" &&
     !isToolcraftRuntimeBackgroundEnabled({ schema, values })
     ? "finite"
     : mode;
 }
 
 export function getToolcraftInfiniteCanvasBackgroundColor(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): string | undefined {
-  if (
-    state.canvas.mode !== "infinite" ||
-    !isToolcraftRuntimeBackgroundEnabled(state)
-  ) {
+  const background = getToolcraftCanvasBackgroundState(state);
+
+  if (state.canvas.mode !== "infinite" || !background.enabled) {
     return undefined;
   }
 
-  return getToolcraftRuntimeBackgroundColor(state);
+  return background.color;
 }
 
 export function getToolcraftRuntimeBackgroundColor(
-  state: ToolcraftState,
+  state: ReadonlyToolcraftState,
 ): string | undefined {
-  const background = getToolcraftRuntimeSetupBackgroundControls(state.schema);
-  const value = background
-    ? state.values[background.color.target] ?? background.color.defaultValue
-    : undefined;
-
-  return getToolcraftColorHex(value);
+  return getToolcraftCanvasBackgroundState(state).color;
 }

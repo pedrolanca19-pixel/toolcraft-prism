@@ -7,13 +7,14 @@ import {
 } from "./output-background-rules";
 import {
   schemaHasPngExportPanelAction,
+  schemaHasSvgExportPanelAction,
   schemaHasVideoExportPanelAction,
 } from "./output-export-actions";
 import { getToolcraftOutputExportLayoutErrors } from "./output-export-layout-rules";
 import { buildToolcraftOutputExportFacts } from "./output-export-model";
 import { getToolcraftImageExportErrors } from "./output-image-export-rules";
 import { getToolcraftVideoExportErrors } from "./output-video-export-rules";
-import { getToolcraftExportArtifactCoverageErrors } from "./export-artifact-coverage";
+import { getToolcraftExportArtifactActionPlacementErrors } from "./export-artifact-coverage";
 import type {
   ToolcraftComponentAcceptance,
   ToolcraftProductReadiness,
@@ -23,6 +24,7 @@ import type {
 export {
   isOutputBackgroundToggleControl,
   schemaHasPngExportPanelAction,
+  schemaHasSvgExportPanelAction,
   schemaHasVideoExportPanelAction,
 };
 
@@ -37,10 +39,8 @@ export function getToolcraftOutputExportErrors({
   productReadiness: ToolcraftProductReadiness;
   schema: ResolvedToolcraftAppSchema;
 }): string[] {
-  const exportArtifactCoverageErrors = getToolcraftExportArtifactCoverageErrors({
-    acceptance,
-    schema,
-  });
+  const exportArtifactCoverageErrors =
+    getToolcraftExportArtifactActionPlacementErrors(schema);
   if (productReadiness.mode === "starter") {
     return exportArtifactCoverageErrors;
   }
@@ -50,6 +50,7 @@ export function getToolcraftOutputExportErrors({
     validateToolcraftArtifactExportIntentCorrespondence({
       hasImageExportAction: facts.hasImageExportAction,
       hasImageExportSection: facts.imageExportSection !== undefined,
+      hasSvgExportAction: facts.hasSvgExportAction,
       hasVideoExportAction: facts.hasVideoExportAction,
       hasVideoExportSection: facts.videoExportSection !== undefined,
       intent: productReadiness.exportIntent,
@@ -59,7 +60,7 @@ export function getToolcraftOutputExportErrors({
     ...intentErrors,
     ...(delivery.imageEnabled ? getToolcraftImageExportErrors(facts) : []),
     ...(delivery.videoEnabled ? getToolcraftVideoExportErrors(facts) : []),
-    ...(delivery.imageEnabled || delivery.videoEnabled
+    ...(delivery.imageEnabled || delivery.svgEnabled || delivery.videoEnabled
       ? getToolcraftOutputBackgroundErrors({ controls, facts })
       : []),
     ...getToolcraftOutputExportLayoutErrors({ delivery, facts }),

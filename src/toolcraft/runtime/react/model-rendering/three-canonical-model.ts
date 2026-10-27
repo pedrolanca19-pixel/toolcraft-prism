@@ -12,8 +12,6 @@ import {
 
 import type {
   ToolcraftModelDocument,
-  ToolcraftModelPrimitiveV1,
-  ToolcraftModelPrimitiveV2,
 } from "../../model-import/canonical/model-document";
 import {
   createToolcraftPrimitiveGeometryProjections,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createContractSectionInventoryFixture,
   defineContractSchemaFixture,
   validateContractAcceptance,
 } from "./app-acceptance.contract-fixtures";
@@ -8,26 +9,33 @@ import {
 describe("starter acceptance custom control built-in fit contract", () => {
   it("rejects custom controls with invalid built-in fit checks", () => {
     const schema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                glyphRamp: {
-                  defaultValue: [],
-                  label: "Glyph ramp",
-                  orderRole: "input",
-                  target: "glyph.ramp",
-                  type: "glyphRamp",
-                } as never,
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "glyphs",
+                controls: {
+                  glyphRamp: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: [],
+                    label: "Glyph ramp",
+                    orderRole: "input",
+                    target: "glyph.ramp",
+                    type: "glyphRamp",
+                  } as never,
+                },
+                title: "Glyphs",
               },
-              title: "Glyphs",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [],
     });
 
     expect(
@@ -37,14 +45,19 @@ describe("starter acceptance custom control built-in fit contract", () => {
           {
             automated: true,
             automatedTestName: "glyph ramp changes output",
-            browser: true,
-            browserTestName: "browser: glyph ramp changes output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: glyph ramp changes output",
+            },
             builtInFitCheck: {
               capabilities: [],
               checkedBuiltIns: ["imaginaryPicker" as never],
               closestBuiltIn: "glyphRamp" as never,
-              productObservable: "Ordering uploaded glyphs changes the rendered glyph ramp output.",
-              whyInsufficient: "The built-in controls cannot upload, preview, reorder, and remove a density-ordered glyph set in one runtime value.",
+              productObservable:
+                "Ordering uploaded glyphs changes the rendered glyph ramp output.",
+              whyInsufficient:
+                "The built-in controls cannot upload, preview, reorder, and remove a density-ordered glyph set in one runtime value.",
             },
             componentType: "glyphRamp",
             customControlCoverage: [
@@ -55,7 +68,8 @@ describe("starter acceptance custom control built-in fit contract", () => {
               "runtime-state",
             ],
             evidence: "product-output",
-            expectedObservable: "Choosing and ordering glyphs changes the rendered product output.",
+            expectedObservable:
+              "Choosing and ordering glyphs changes the rendered product output.",
             fixture: "glyph ramp fixture",
             id: "glyph.ramp",
             kind: "control",
@@ -63,6 +77,15 @@ describe("starter acceptance custom control built-in fit contract", () => {
             userAction: "Upload, reorder, and remove glyphs.",
           },
         ],
+        sectionInventory: createContractSectionInventoryFixture(schema, [
+          {
+            entity: "Glyphs",
+            entityId: "glyphs",
+            finiteSelectors: [],
+            groupingReason: "Glyph controls edit one rendered glyph ramp.",
+            id: "glyphs",
+          },
+        ]),
       }),
     ).toEqual([
       "Glyphs / glyphRamp (glyph.ramp) builtInFitCheck.capabilities must declare the product capabilities that require custom UI; prose labels are not capability evidence.",
@@ -74,26 +97,33 @@ describe("starter acceptance custom control built-in fit contract", () => {
 
   it("rejects custom controls justified only by visual chrome", () => {
     const schema = defineContractSchemaFixture({
-      canvas: { enabled: true },
-      panels: {
-        controls: {
-          sections: [
-            {
-              controls: {
-                shapeButtons: {
-                  defaultValue: "rect",
-                  label: "Shape",
-                  orderRole: "style",
-                  target: "shape.kind",
-                  type: "shapeButtons",
-                } as never,
+      base: {
+        identity: { id: "contract-fixture", title: "Contract fixture" },
+        canvas: { enabled: true },
+        panels: {
+          controls: {
+            sections: [
+              {
+                id: "shape",
+                controls: {
+                  shapeButtons: {
+                    applicability: { mode: "always" as const },
+                    defaultValue: "rect",
+                    label: false,
+                    orderRole: "style",
+                    target: "shape.kind",
+                    type: "shapeButtons",
+                  } as never,
+                },
+                title: "Shape",
               },
-              title: "Shape",
-            },
-          ],
-          title: "Controls",
+            ],
+            title: "Controls",
+          },
         },
+        persistence: { storage: "none" },
       },
+      modules: [],
     });
 
     expect(
@@ -103,14 +133,19 @@ describe("starter acceptance custom control built-in fit contract", () => {
           {
             automated: true,
             automatedTestName: "shape buttons change output",
-            browser: true,
-            browserTestName: "browser: shape buttons change output",
+            browser: {
+              budget: "standard",
+              file: "e2e/app-controls.spec.ts",
+              testName: "browser: shape buttons change output",
+            },
             builtInFitCheck: {
               capabilities: ["commands"],
               checkedBuiltIns: ["actions", "segmented", "select"],
               closestBuiltIn: "segmented",
-              productObservable: "Choosing a shape changes the rendered product geometry.",
-              whyInsufficient: "The custom control uses icon buttons and a compact visual layout.",
+              productObservable:
+                "Choosing a shape changes the rendered product geometry.",
+              whyInsufficient:
+                "The custom control uses icon buttons and a compact visual layout.",
             },
             componentType: "shapeButtons",
             customControlCoverage: [
@@ -121,7 +156,8 @@ describe("starter acceptance custom control built-in fit contract", () => {
               "runtime-state",
             ],
             evidence: "product-output",
-            expectedObservable: "Choosing rectangle, circle, or triangle changes the rendered output.",
+            expectedObservable:
+              "Choosing rectangle, circle, or triangle changes the rendered output.",
             fixture: "shape fixture",
             id: "shape.kind",
             kind: "control",
@@ -129,6 +165,16 @@ describe("starter acceptance custom control built-in fit contract", () => {
             userAction: "Choose each shape icon button.",
           },
         ],
+        sectionInventory: createContractSectionInventoryFixture(schema, [
+          {
+            entity: "Shape",
+            entityId: "shape",
+            finiteSelectors: [],
+            groupingReason:
+              "Shape controls choose one rendered product geometry.",
+            id: "shape",
+          },
+        ]),
       }),
     ).toEqual([
       "Shape / shapeButtons (shape.kind) builtInFitCheck.capabilities must include custom-interaction, custom-value-model, or custom-visualization; collection or command chrome alone is not enough to justify custom UI.",

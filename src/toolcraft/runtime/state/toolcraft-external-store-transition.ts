@@ -1,4 +1,3 @@
-import { toolcraftReducer } from "./reducer";
 import {
   getAppliedToolcraftHistoryPatch,
   getToolcraftHistoryPatchHotFieldTouches,
@@ -75,6 +74,7 @@ export function reduceToolcraftDurableStoreTransition(
   committedState: ToolcraftState,
   effectiveState: ToolcraftState,
   command: ToolcraftCommand,
+  toolcraftReducer: (state: ToolcraftState, command: ToolcraftCommand) => ToolcraftState,
 ): ToolcraftDurableStoreTransition {
   const committedResult = toolcraftReducer(committedState, command);
   const effectiveResult = toolcraftReducer(effectiveState, command);

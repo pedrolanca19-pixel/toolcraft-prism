@@ -4,7 +4,6 @@ import type {
   ToolcraftModelImportLimits,
   ToolcraftModelTopologyProfile,
 } from "../schema/types";
-import { createToolcraftSourceAssetPresentation } from "../source-assets/source-asset-presentation";
 import type {
   ToolcraftPreparedSourceAssetRecord,
   ToolcraftSourceAssetBatch,
@@ -457,6 +456,12 @@ export function createToolcraftModelSourceAssetHandler({
         analysis: projected,
         assetKind: "model" as const,
         fileName: root.displayName,
+        sourcePaths: Object.freeze([
+          ...(staged.bundle.packageSource.kind === "zip"
+            ? context.batch.files.map((file) => file.webkitRelativePath || file.name)
+            : []),
+          ...staged.bundle.sourceFiles.map(({ path }) => path),
+        ]),
         lifecycle,
         mimeType: root.mimeType,
         originalAnalysis: projected,
@@ -473,7 +478,5 @@ export function createToolcraftModelSourceAssetHandler({
         stagedResourceRefs: Object.freeze([...staged.stagedRefs].sort()),
       });
     },
-    present: ({ control, mediaAssets, operation }) =>
-      createToolcraftSourceAssetPresentation("model", control, mediaAssets, operation),
   };
 }

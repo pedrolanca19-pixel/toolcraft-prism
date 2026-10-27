@@ -1,26 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { toolcraftModuleExtensions } from "./toolcraft-product-dependency-resolution.mjs";
+
 export const toolcraftSourceExtensions = new Set([
-  ".cjs",
+  ...toolcraftModuleExtensions,
   ".css",
-  ".cts",
-  ".js",
-  ".jsx",
-  ".mjs",
-  ".mts",
-  ".ts",
-  ".tsx",
 ]);
 
 const defaultGeneratedFilePatterns = [/\/route-tree\.gen\.ts$/u];
 const defaultTestFilePatterns = [
-  /(?:^|\/)[^/]+\.(?:test|spec)\.[cm]?[jt]sx?$/u,
+  /(?:^|\/)[^/]+\.(?:test|spec|story|stories)\.[cm]?[jt]sx?$/u,
 ];
 const defaultTestSupportPatterns = [
   /^e2e\//u,
-  /(?:^|\/)test-evidence\//u,
-  /(?:^|\/)[^/]*(?:test-utils|fixtures)\.[cm]?[jt]sx?$/u,
+  /(?:^|\/)(?:__mocks__|__tests__|fixtures|story|stories|support|test-evidence|test-support|tests?)(?:\/|$)/u,
+  /(?:^|\/)[^/]*(?:[.-](?:fixtures?|support|test-support|test-utils))\.[cm]?[jt]sx?$/u,
 ];
 
 function toPosixPath(value) {
@@ -59,7 +54,8 @@ export function classifyToolcraftSourcePath(
       toPosixPath(filePath).replace(/^\.\//u, ""),
     ),
   );
-  const normalizedFrameworkPrefixes = frameworkPathPrefixes.map(normalizePrefix);
+  const normalizedFrameworkPrefixes =
+    frameworkPathPrefixes.map(normalizePrefix);
 
   const owner = protectedPathSet.has(normalizedPath)
     ? "platform"
@@ -208,7 +204,21 @@ function pathEscapesRoot(rootPath, targetPath) {
   );
 }
 
-function resolveExplicitResourcePath(resourcePath, rootDir) {
+function resolveExistingResourceAncestor(targetPath) {
+  let candidatePath = targetPath;
+  for (;;) {
+    try {
+      return fs.realpathSync(candidatePath);
+    } catch (error) {
+      if (error?.code !== "ENOENT") throw error;
+      const parentPath = path.dirname(candidatePath);
+      if (parentPath === candidatePath) throw error;
+      candidatePath = parentPath;
+    }
+  }
+}
+
+export function resolveToolcraftRootResourcePath(resourcePath, rootDir) {
   if (
     typeof resourcePath !== "string" ||
     path.isAbsolute(resourcePath) ||
@@ -221,7 +231,9 @@ function resolveExplicitResourcePath(resourcePath, rootDir) {
       "must be root-relative and stay within the configured root boundary",
     );
   }
-  const normalizedPath = path.posix.normalize(resourcePath.replaceAll("\\", "/"));
+  const normalizedPath = path.posix.normalize(
+    resourcePath.replaceAll("\\", "/"),
+  );
   const absolutePath = path.resolve(rootDir, ...normalizedPath.split("/"));
   if (
     normalizedPath === ".." ||
@@ -232,6 +244,15 @@ function resolveExplicitResourcePath(resourcePath, rootDir) {
       resourcePath,
       rootDir,
       "is outside the configured root boundary",
+    );
+  }
+  const rootRealPath = fs.realpathSync(rootDir);
+  const resourceBoundaryPath = resolveExistingResourceAncestor(absolutePath);
+  if (pathEscapesRoot(rootRealPath, resourceBoundaryPath)) {
+    throw createResourceRootEscapeError(
+      resourcePath,
+      rootDir,
+      "resolves outside the root boundary for configured root",
     );
   }
   return absolutePath;
@@ -248,11 +269,11 @@ export function createCanonicalGraphEntries({
       entry,
     ]),
   );
-  const rootRealPath =
-    explicitResourcePaths.length > 0 ? fs.realpathSync(rootDir) : undefined;
-
   for (const resourcePath of explicitResourcePaths) {
-    const absolutePath = resolveExplicitResourcePath(resourcePath, rootDir);
+    const absolutePath = resolveToolcraftRootResourcePath(
+      resourcePath,
+      rootDir,
+    );
     const repoPath = toPosixPath(path.relative(rootDir, absolutePath));
     if (entriesByRepoPath.has(repoPath)) continue;
 
@@ -264,15 +285,6 @@ export function createCanonicalGraphEntries({
       throw error;
     }
     if (!resourceStat.isFile() || resourceStat.isSymbolicLink()) continue;
-    const resourceRealPath = fs.realpathSync(absolutePath);
-    if (pathEscapesRoot(rootRealPath, resourceRealPath)) {
-      throw createResourceRootEscapeError(
-        resourcePath,
-        rootDir,
-        "resolves outside the root boundary for configured root",
-      );
-    }
-
     entriesByRepoPath.set(repoPath, {
       absolutePath,
       repoPath,

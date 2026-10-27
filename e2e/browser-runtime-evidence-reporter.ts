@@ -23,8 +23,11 @@ import {
   appAcceptance,
   appControlSectionInventory,
 } from "../src/app/app-acceptance";
-import { appPerformance } from "../src/app/app-performance";
 import { appSchema } from "../src/app/app-schema";
+import {
+  parseToolcraftFeatureVerificationPlanSource,
+  type ToolcraftFeatureVerificationPlan,
+} from "../scripts/toolcraft-feature-verification-plan.mjs";
 import {
   deriveToolcraftBrowserRuntimeRequirements,
   deriveToolcraftPerformancePathRuntimeRequirements,
@@ -47,13 +50,15 @@ import {
   writeToolcraftPerformanceCheckpointReport,
   type ToolcraftPerformanceCheckpointReport,
 } from "./performance-checkpoint-report";
-import { getToolcraftPerformancePathTestName } from "./performance-path-helpers";
+import { getToolcraftPerformancePathTestName } from "./performance-path-adapter-matrix";
 import { writeToolcraftTargetedPerformanceReportSync } from "../scripts/toolcraft-targeted-performance-report.mjs";
+import { getToolcraftPlaywrightProjectRoot } from "../scripts/playwright-containing-file.mjs";
 
 type ToolcraftBrowserRuntimeEvidenceReporterOptions = {
   acceptanceRequirements?: readonly ToolcraftBrowserRuntimeRequirement[];
   browserExecutionLedger?: ToolcraftBrowserExecutionLedgerTarget;
   checkpointReport?: ToolcraftCheckpointReportTarget;
+  featureVerificationPlanSource?: string;
   performanceConfig?: ToolcraftPerformanceConfig;
   performanceRequirements?: readonly ToolcraftBrowserRuntimeRequirement[];
   performanceSchema?: ResolvedToolcraftAppSchema;
@@ -62,6 +67,19 @@ type ToolcraftBrowserRuntimeEvidenceReporterOptions = {
   reportCheckpoint?: (report: ToolcraftPerformanceCheckpointReport) => void;
   targetedPerformanceReport?: ToolcraftTargetedPerformanceReportTarget;
 };
+
+const environmentFeatureVerificationPlanSource =
+  process.env.TOOLCRAFT_FEATURE_VERIFICATION_PLAN;
+const environmentFeatureVerificationPlan =
+  environmentFeatureVerificationPlanSource === undefined
+    ? undefined
+    : parseToolcraftFeatureVerificationPlanSource(
+        environmentFeatureVerificationPlanSource,
+      );
+const appPerformance =
+  environmentFeatureVerificationPlan === undefined
+    ? (await import("../src/app/app-performance")).appPerformance
+    : undefined;
 
 function uniqueSorted(values: readonly string[]): string[] {
   return [...new Set(values)].sort((left, right) =>
@@ -112,6 +130,9 @@ export default class ToolcraftBrowserRuntimeEvidenceReporter implements Reporter
   private readonly checkpointReport:
     | ToolcraftBrowserRuntimeEvidenceReporterOptions["checkpointReport"]
     | undefined;
+  private readonly featureVerificationPlan:
+    | ToolcraftFeatureVerificationPlan
+    | undefined;
   private readonly reportError: (error: string) => void;
   private readonly reportPerformance:
     | ((report: ToolcraftBrowserPerformanceReport) => void)
@@ -131,19 +152,25 @@ export default class ToolcraftBrowserRuntimeEvidenceReporter implements Reporter
   private acceptanceRequirements: readonly ToolcraftBrowserRuntimeRequirement[] = [];
   private canonicalPaths: readonly ToolcraftPerformancePath[] = [];
 
-  private performanceConfig: ToolcraftPerformanceConfig = appPerformance;
+  private performanceConfig: ToolcraftPerformanceConfig | undefined;
   private selectedTests: TestCase[] = [];
   private performanceRequirements: readonly ToolcraftBrowserRuntimeRequirement[] = [];
   private performanceSchema: ResolvedToolcraftAppSchema = appSchema;
 
   private validateFullAcceptance = false;
   private validateFullPerformance = false;
-  private rootDir = "";
+  private browserExecutionProjectRoot = "";
 
   constructor(options: ToolcraftBrowserRuntimeEvidenceReporterOptions = {}) {
     this.acceptanceRequirementsOverride = options.acceptanceRequirements;
     this.browserExecutionLedger = options.browserExecutionLedger;
     this.checkpointReport = options.checkpointReport;
+    this.featureVerificationPlan =
+      options.featureVerificationPlanSource === undefined
+        ? environmentFeatureVerificationPlan
+        : parseToolcraftFeatureVerificationPlanSource(
+            options.featureVerificationPlanSource,
+          );
     this.performanceConfigOverride = options.performanceConfig;
     this.performanceRequirementsOverride = options.performanceRequirements;
     this.performanceSchemaOverride = options.performanceSchema;
@@ -156,7 +183,9 @@ export default class ToolcraftBrowserRuntimeEvidenceReporter implements Reporter
   }
 
   onBegin(config: FullConfig, suite: Suite): void {
-    this.rootDir = config.rootDir;
+    this.browserExecutionProjectRoot = this.browserExecutionLedger
+      ? getToolcraftPlaywrightProjectRoot(config)
+      : "";
     this.selectedTests = suite.allTests();
     this.validateFullAcceptance = this.selectedTests.some(
       isProtectedAcceptanceMarker,
@@ -164,29 +193,88 @@ export default class ToolcraftBrowserRuntimeEvidenceReporter implements Reporter
     this.validateFullPerformance = this.selectedTests.some(
       isProtectedPerformanceMarker,
     );
-    this.performanceConfig =
-      this.performanceConfigOverride ?? appPerformance;
     this.performanceSchema = this.performanceSchemaOverride ?? appSchema;
-    this.acceptanceRequirements =
+    const focusedScenariosByAcceptanceId = this.featureVerificationPlan
+      ? new Map(
+          this.featureVerificationPlan.scenarios.flatMap((scenario) =>
+            scenario.acceptanceIds.map((acceptanceId) => [
+              acceptanceId,
+              scenario,
+            ] as const),
+          ),
+        )
+      : undefined;
+    const acceptanceSource = focusedScenariosByAcceptanceId
+      ? appAcceptance.flatMap((entry) => {
+          const scenario = focusedScenariosByAcceptanceId.get(entry.id);
+          return scenario
+            ? [{
+                ...entry,
+                browser: {
+                  budget: scenario.budget,
+                  file: scenario.file,
+                  testName: scenario.testName,
+                },
+              }]
+            : [];
+        })
+      : appAcceptance;
+    if (
+      focusedScenariosByAcceptanceId &&
+      (acceptanceSource.length !== focusedScenariosByAcceptanceId.size ||
+        new Set(acceptanceSource.map(({ id }) => id)).size !==
+          focusedScenariosByAcceptanceId.size)
+    ) {
+      throw new Error(
+        "Toolcraft focused runtime evidence requires every selected acceptance id exactly once in current app source.",
+      );
+    }
+    const acceptanceRequirements =
       this.acceptanceRequirementsOverride ??
       deriveToolcraftBrowserRuntimeRequirements(
-        appAcceptance,
+        acceptanceSource,
         appSchema,
         appControlSectionInventory,
       );
-    this.canonicalPaths = deriveToolcraftPerformancePaths(
-      this.performanceSchema,
-      this.performanceConfig,
-    );
-    this.performanceRequirements =
-      this.performanceRequirementsOverride ??
-      deriveToolcraftPerformancePathRuntimeRequirements(
-        this.canonicalPaths,
+    const focusedTestNames = this.featureVerificationPlan
+      ? new Set(
+          this.featureVerificationPlan.scenarios.map(({ testName }) => testName),
+        )
+      : undefined;
+    this.acceptanceRequirements = focusedTestNames
+      ? acceptanceRequirements.filter(({ testName }) =>
+          focusedTestNames.has(testName),
+        )
+      : acceptanceRequirements;
+    if (this.featureVerificationPlan === undefined) {
+      const performanceConfig =
+        this.performanceConfigOverride ?? appPerformance;
+      if (performanceConfig === undefined) {
+        throw new Error(
+          "Toolcraft full browser evidence requires the current app performance config.",
+        );
+      }
+      this.performanceConfig = performanceConfig;
+      this.canonicalPaths = deriveToolcraftPerformancePaths(
         this.performanceSchema,
+        this.performanceConfig,
       );
+      this.performanceRequirements =
+        this.performanceRequirementsOverride ??
+        deriveToolcraftPerformancePathRuntimeRequirements(
+          this.canonicalPaths,
+          this.performanceSchema,
+        );
+    } else {
+      this.performanceConfig = undefined;
+      this.canonicalPaths = [];
+      this.performanceRequirements = [];
+    }
   }
 
-  onEnd(_result: FullResult): { status: "failed" } | undefined {
+  async onEnd(
+    _result: FullResult,
+  ): Promise<void | { status: "failed" }> {
     const selectedTitles = new Set(this.selectedTests.map((test) => test.title));
     const acceptanceRequirements = this.validateFullAcceptance
       ? this.acceptanceRequirements
@@ -202,24 +290,26 @@ export default class ToolcraftBrowserRuntimeEvidenceReporter implements Reporter
       requirements: [...acceptanceRequirements, ...performanceRequirements],
       tests: this.selectedTests.map(toRuntimeTest),
     });
-    const performanceEvaluation = evaluateToolcraftBrowserPerformanceRun({
-      canonicalPaths: this.canonicalPaths,
-      checkpointReport: this.checkpointReport,
-      performanceConfig: this.performanceConfig,
-      performanceRequirements,
-      performanceSchema: this.performanceSchema,
-      resultStatus: _result.status,
-      selectedTests: this.selectedTests,
-      targetedPerformanceReport: this.targetedPerformanceReport,
-      validateFullPerformance: this.validateFullPerformance,
-    });
-    errors.push(...performanceEvaluation.errors);
+    const performanceEvaluation = this.performanceConfig
+      ? evaluateToolcraftBrowserPerformanceRun({
+          canonicalPaths: this.canonicalPaths,
+          checkpointReport: this.checkpointReport,
+          performanceConfig: this.performanceConfig,
+          performanceRequirements,
+          performanceSchema: this.performanceSchema,
+          resultStatus: _result.status,
+          selectedTests: this.selectedTests,
+          targetedPerformanceReport: this.targetedPerformanceReport,
+          validateFullPerformance: this.validateFullPerformance,
+        })
+      : undefined;
+    errors.push(...(performanceEvaluation?.errors ?? []));
 
     if (errors.length === 0) {
-      if (performanceEvaluation.performance) {
+      if (performanceEvaluation?.performance) {
         this.reportPerformance?.(performanceEvaluation.performance);
       }
-      if (this.checkpointReport && performanceEvaluation.checkpoint) {
+      if (this.checkpointReport && performanceEvaluation?.checkpoint) {
         writeToolcraftPerformanceCheckpointReport(
           this.checkpointReport.path,
           performanceEvaluation.checkpoint,
@@ -228,7 +318,7 @@ export default class ToolcraftBrowserRuntimeEvidenceReporter implements Reporter
       }
       if (
         this.targetedPerformanceReport &&
-        performanceEvaluation.measurements &&
+        performanceEvaluation?.measurements &&
         performanceEvaluation.targetedPaths
       ) {
         writeToolcraftTargetedPerformanceReportSync(
@@ -263,7 +353,7 @@ export default class ToolcraftBrowserRuntimeEvidenceReporter implements Reporter
           tests: this.selectedTests.map((test) =>
             createToolcraftBrowserExecutionLedgerTest(
               test,
-              this.rootDir,
+              this.browserExecutionProjectRoot,
             ),
           ),
         });

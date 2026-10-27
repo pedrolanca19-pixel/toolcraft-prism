@@ -16,15 +16,13 @@ import {
 } from "./toolcraft-readonly-adjacency.mjs";
 import { createCanonicalGraphEntries } from "./toolcraft-source-inventory.mjs";
 function compareCodeUnits(left, right) { return left < right ? -1 : left > right ? 1 : 0; }
-
 function toPosixPath(value) { return value.split(path.sep).join("/"); }
-
 function validateGraphSelection({
   analyzedEntryPaths,
   canonicalEntries,
   sourceRecordMode,
 }) {
-  if (!["full", "imports-only"].includes(sourceRecordMode)) {
+  if (!["full", "imports-only", "module-shape"].includes(sourceRecordMode)) {
     throw new Error(
       `Unknown Toolcraft dependency source record mode "${sourceRecordMode}".`,
     );
@@ -49,7 +47,9 @@ async function createForwardEdges({
   aliases,
   analyzedEntryPathSet,
   canonicalEntries,
+  fullEvidenceEntryPathSet,
   importsOnly,
+  moduleShapeOnly,
   rootDir,
 }) {
   const entryByAbsolutePath = new Map(
@@ -68,7 +68,9 @@ async function createForwardEdges({
     const sourceRecord = shouldAnalyze
       ? await createToolcraftDependencySourceRecord({
           entry,
-          importsOnly,
+          includeBoundaryEvidence: fullEvidenceEntryPathSet?.has(entry.repoPath) ||
+            (!importsOnly && !moduleShapeOnly),
+          importsOnly: importsOnly && !fullEvidenceEntryPathSet?.has(entry.repoPath),
           rootDir,
         })
       : undefined;
@@ -132,6 +134,7 @@ export async function createToolcraftLocalDependencyGraph({
   analyzedEntryPaths,
   entries,
   explicitResourcePaths = [],
+  fullEvidenceEntryPaths,
   sourceRecordMode = "full",
   rootDir,
 }) {
@@ -149,7 +152,10 @@ export async function createToolcraftLocalDependencyGraph({
     aliases,
     analyzedEntryPathSet,
     canonicalEntries,
+    fullEvidenceEntryPathSet: fullEvidenceEntryPaths &&
+      new Set(fullEvidenceEntryPaths),
     importsOnly: sourceRecordMode === "imports-only",
+    moduleShapeOnly: sourceRecordMode === "module-shape",
     rootDir,
   });
   return Object.freeze({

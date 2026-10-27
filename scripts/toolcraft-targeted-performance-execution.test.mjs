@@ -15,6 +15,8 @@ const performancePathId = (invalidates) =>
       "interactive-discrete",
       "control-change",
       invalidates,
+      [],
+      [],
       ["main"],
       ["control-count"],
     ]),
@@ -134,7 +136,7 @@ test("runs planned performance paths serially with exact per-path pass ids", asy
 
 test("rejects a performance path outside the canonical runtime codec", async () => {
   const pathId =
-    "performance-path:%5B%22unknown-profile%22%2C%22control-change%22%2C%5B%5D%2C%5B%22main%22%5D%2C%5B%5D%5D";
+    "performance-path:%5B%22unknown-profile%22%2C%22control-change%22%2C%5B%5D%2C%5B%5D%2C%5B%5D%2C%5B%22main%22%5D%2C%5B%5D%5D";
   const testName = `browser perf: toolcraft path ${pathId}`;
   const operations = freeze({
     createNonce: () => "unused",

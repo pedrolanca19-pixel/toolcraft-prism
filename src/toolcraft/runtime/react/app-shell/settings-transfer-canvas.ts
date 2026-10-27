@@ -1,13 +1,8 @@
-import { normalizeToolcraftCanvasAspectRatioValue } from "../../state/canvas-state";
+import { decodeToolcraftCanvasAspectRatioValue } from "../../state/canvas-state";
 import type { ToolcraftCanvasAspectRatioValue } from "../../state/canvas-state";
 import { readCanvasSize } from "../../state/persistence-reader-primitives";
 import { isToolcraftPersistenceRecord } from "../../state/persistence-shared";
-import type {
-  ToolcraftCommand,
-  ToolcraftState,
-} from "../../state/types";
-
-export const settingsTransferImportHistoryGroup = "settings.import";
+import type { ToolcraftState } from "../../state/types";
 
 export type ToolcraftSettingsCanvasPayload = Readonly<{
   aspectRatio?: ToolcraftCanvasAspectRatioValue;
@@ -15,54 +10,63 @@ export type ToolcraftSettingsCanvasPayload = Readonly<{
   size: ToolcraftState["canvas"]["size"];
 }>;
 
-export type ToolcraftSettingsCanvasImportContext = Readonly<{
-  dispatch: (command: ToolcraftCommand) => void;
-}>;
-
 export function parseToolcraftSettingsCanvas(
-  input: Readonly<{ canvas: unknown; values: unknown; version: 1 | 2 }>,
+  canvasValue: unknown,
 ): ToolcraftSettingsCanvasPayload | null {
-  if (!isToolcraftPersistenceRecord(input.canvas)) {
+  if (!isToolcraftPersistenceRecord(canvasValue)) {
     return null;
   }
 
-  const size = readCanvasSize(input.canvas.size);
-
-  if (!size) {
+  const hasAspectRatio = Object.hasOwn(canvasValue, "aspectRatio");
+  const expectedKeys = [
+    ...(hasAspectRatio ? ["aspectRatio"] : []),
+    "mode",
+    "size",
+  ].sort();
+  const actualKeys = Object.keys(canvasValue).sort();
+  if (
+    actualKeys.length !== expectedKeys.length ||
+    actualKeys.some((key, index) => key !== expectedKeys[index]) ||
+    !isToolcraftPersistenceRecord(canvasValue.size) ||
+    Object.keys(canvasValue.size).sort().join("|") !== "height|unit|width"
+  ) {
     return null;
   }
 
-  const values = isToolcraftPersistenceRecord(input.values) ? input.values : {};
-  const aspectCandidate =
-    input.version === 2 && "aspectRatio" in input.canvas
-      ? input.canvas.aspectRatio
-      : values["canvas.aspectRatio"];
-  const aspectRatio = aspectCandidate === undefined
-    ? undefined
-    : normalizeToolcraftCanvasAspectRatioValue(aspectCandidate, size);
-  const mode =
-    input.version === 2 && input.canvas.mode === "infinite"
-      ? "infinite"
-      : "finite";
+  const size = readCanvasSize(canvasValue.size);
+
+  if (
+    !size ||
+    size.height <= 0 ||
+    size.width <= 0 ||
+    (canvasValue.mode !== "finite" && canvasValue.mode !== "infinite")
+  ) {
+    return null;
+  }
+
+  const aspectCandidate = canvasValue.aspectRatio;
+  const aspectRatio =
+    aspectCandidate === undefined
+      ? undefined
+      : decodeToolcraftCanvasAspectRatioValue(aspectCandidate);
+
+  if (
+    hasAspectRatio &&
+    (!aspectRatio ||
+      !isToolcraftPersistenceRecord(aspectCandidate) ||
+      Object.keys(aspectCandidate).sort().join("|") !==
+        "height|mode|value|width" ||
+      aspectCandidate.height !== aspectRatio.height ||
+      aspectCandidate.mode !== aspectRatio.mode ||
+      aspectCandidate.value !== aspectRatio.value ||
+      aspectCandidate.width !== aspectRatio.width)
+  ) {
+    return null;
+  }
 
   return {
     ...(aspectRatio ? { aspectRatio } : {}),
-    mode,
+    mode: canvasValue.mode,
     size,
   };
-}
-
-export function applyToolcraftSettingsCanvas(
-  context: ToolcraftSettingsCanvasImportContext,
-  canvas: ToolcraftSettingsCanvasPayload,
-): void {
-  context.dispatch({
-    ...(canvas.aspectRatio ? { aspectRatio: canvas.aspectRatio } : {}),
-    history: "merge",
-    historyGroup: settingsTransferImportHistoryGroup,
-    label: "Import settings",
-    mode: canvas.mode,
-    size: canvas.size,
-    type: "canvas.applySettings",
-  });
 }

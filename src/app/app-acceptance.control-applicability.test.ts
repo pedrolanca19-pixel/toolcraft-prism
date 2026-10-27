@@ -11,6 +11,7 @@ import { collectToolcraftVisibleAcceptanceControls } from "./acceptance/validate
 const productReadiness: ToolcraftProductReadiness = {
   exportIntent: {
     image: { mode: "toolcraft-default" },
+    svg: { mode: "not-requested" },
     video: { mode: "not-requested" },
   },
   interactionOwnership: [],
@@ -59,9 +60,7 @@ const alwaysControls: Record<string, ToolcraftControlSchema> = {
   },
   sides: {
     applicability: {
-      all: [
-        { oneOf: ["polygon", "star"], target: "shape.kind" },
-      ],
+      all: [{ oneOf: ["polygon", "star"], target: "shape.kind" }],
       mode: "conditional",
     },
     target: "shape.sides",
@@ -73,13 +72,17 @@ function validateProduct(
   controls: Record<string, ToolcraftControlSchema>,
 ): string[] {
   const schema = defineToolcraft({
-    canvas: { enabled: true },
-    panels: {
-      controls: {
-        sections: [{ controls, id: "shape", title: "Shape" }],
-        title: "Controls",
+    base: {
+      identity: { id: "contract-fixture", title: "Contract fixture" },
+      canvas: { enabled: true },
+      panels: {
+        controls: {
+          sections: [{ controls, id: "shape", title: "Shape" }],
+          title: "Controls",
+        },
       },
     },
+    modules: [],
   });
 
   return getToolcraftControlApplicabilityErrors({
@@ -89,28 +92,26 @@ function validateProduct(
 }
 
 describe("starter product control applicability", () => {
-  it("requires explicit product applicability and rejects legacy visibility", () => {
-    expect(
+  it("rejects missing applicability and legacy visibility at the authored boundary", () => {
+    if (false) {
       validateProduct({
         kind: shapeKind,
+        // @ts-expect-error Product controls require explicit applicability.
         sides: { target: "shape.sides", type: "slider" },
-      }),
-    ).toContainEqual(
-      expect.stringContaining("shape.sides must declare explicit applicability"),
-    );
+      });
 
-    expect(
       validateProduct({
         kind: shapeKind,
         sides: {
           target: "shape.sides",
           type: "slider",
+          // @ts-expect-error Product controls cannot author legacy visibleWhen.
           visibleWhen: { equals: "star", target: "shape.kind" },
         },
-      }),
-    ).toContainEqual(
-      expect.stringContaining("shape.sides uses legacy visibleWhen"),
-    );
+      });
+    }
+
+    expect(validateProduct(alwaysControls)).toEqual([]);
   });
 
   it("rejects missing, invalid, contradictory, and unsupported selectors", () => {
@@ -127,7 +128,9 @@ describe("starter product control applicability", () => {
         },
       }),
     ).toContainEqual(
-      expect.stringContaining('predicate target "shape.missing" does not exist'),
+      expect.stringContaining(
+        'predicate target "shape.missing" does not exist',
+      ),
     );
 
     expect(
@@ -214,7 +217,9 @@ describe("starter product control applicability", () => {
         },
       }),
     ).toContainEqual(
-      expect.stringContaining("shape.sides has no satisfying value in shape.count"),
+      expect.stringContaining(
+        "shape.sides has no satisfying value in shape.count",
+      ),
     );
   });
 

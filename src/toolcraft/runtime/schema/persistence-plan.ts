@@ -1,70 +1,73 @@
-import type { ResolvedToolcraftAppCapabilities } from "./app-capabilities";
 import { normalizeToolcraftAdditionalValueTargets } from "./additional-value-targets";
+import { assertToolcraftProductTargetNamespace } from "./collection-actions";
+import type { ResolvedToolcraftAppSchema } from "./resolved-app-schema";
 import type {
   ResolvedToolcraftAppIdentity,
-  ResolvedToolcraftAppSchema,
-  ResolvedToolcraftPanelsSchema,
-  ToolcraftAppSchema,
   ToolcraftPersistableStateSlice,
 } from "./types";
+import type { ToolcraftProductPersistence } from "./product-base";
 
 const BASE_PERSISTENCE_SLICES = ["canvas", "panels", "values"] as const;
-const DEFAULT_PERSISTENCE_VERSION = 2;
+const CURRENT_PERSISTENCE_VERSION = 2;
 
-type ToolcraftPersistencePlanInput = {
-  appCapabilities: ResolvedToolcraftAppCapabilities;
+type ToolcraftPersistencePlanInput = Readonly<{
   identity: ResolvedToolcraftAppIdentity;
-  panels: ResolvedToolcraftPanelsSchema;
-  persistence: ToolcraftAppSchema["persistence"];
-};
+  persistence: ToolcraftProductPersistence | undefined;
+  requiredSlices: readonly ToolcraftPersistableStateSlice[];
+  collectionSelectionTargets?: readonly string[];
+}>;
+
+function createLocalStoragePersistencePlan({
+  additionalValueTargets,
+  identity,
+  include,
+}: Readonly<{
+  additionalValueTargets: readonly string[];
+  identity: ResolvedToolcraftAppIdentity;
+  include: ReadonlySet<ToolcraftPersistableStateSlice>;
+}>): ResolvedToolcraftAppSchema["persistence"] {
+  return Object.freeze({
+    additionalValueTargets,
+    include: Object.freeze([...include].sort()),
+    key: `toolcraft:${identity.id}:state:v${CURRENT_PERSISTENCE_VERSION}` as const,
+    storage: "localStorage" as const,
+    version: CURRENT_PERSISTENCE_VERSION,
+  });
+}
 
 export function resolveToolcraftPersistencePlan({
-  appCapabilities,
+  collectionSelectionTargets = [],
   identity,
-  panels,
   persistence,
+  requiredSlices,
 }: ToolcraftPersistencePlanInput): ResolvedToolcraftAppSchema["persistence"] {
   if (persistence?.storage === "none") {
+    if (requiredSlices.length > 0) {
+      throw new Error(
+        `Toolcraft product persistence storage "none" conflicts with resolved persistence slices: ${[
+          ...new Set(requiredSlices),
+        ]
+          .sort()
+          .join(", ")}.`,
+      );
+    }
     return Object.freeze({ storage: "none" as const });
   }
 
-  const include = new Set<ToolcraftPersistableStateSlice>(BASE_PERSISTENCE_SLICES);
-
-  if (panels.layers) {
-    include.add("layers");
+  const include = new Set<ToolcraftPersistableStateSlice>(
+    BASE_PERSISTENCE_SLICES,
+  );
+  for (const slice of requiredSlices) include.add(slice);
+  const additionalValueTargets = normalizeToolcraftAdditionalValueTargets([
+    ...(persistence?.additionalValueTargets ?? []),
+    ...collectionSelectionTargets,
+  ]);
+  for (const target of additionalValueTargets) {
+    assertToolcraftProductTargetNamespace(target, `persistence additional value target "${target}"`);
   }
-
-  if (panels.timeline?.enabled) {
-    include.add("timeline");
-  }
-
-  if (appCapabilities.hasMedia) {
-    include.add("media");
-  }
-
-  if (persistence?.storage === "localStorage") {
-    for (const slice of persistence.include) {
-      include.add(slice);
-    }
-  }
-
-  const version =
-    persistence?.storage === "localStorage"
-      ? persistence.version
-      : DEFAULT_PERSISTENCE_VERSION;
-
-  return Object.freeze({
-    additionalValueTargets: normalizeToolcraftAdditionalValueTargets(
-      persistence?.storage === "localStorage"
-        ? persistence.additionalValueTargets
-        : undefined,
-    ),
-    include: Object.freeze([...include].sort()),
-    key:
-      persistence?.storage === "localStorage"
-        ? persistence.key
-        : (`toolcraft:${identity.id}:state:v${version}` as const),
-    storage: "localStorage" as const,
-    version,
+  return createLocalStoragePersistencePlan({
+    additionalValueTargets,
+    identity,
+    include,
   });
 }

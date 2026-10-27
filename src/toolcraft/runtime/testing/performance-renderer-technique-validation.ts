@@ -1,10 +1,11 @@
 import type {
-  ToolcraftPerformanceConfig,
   ToolcraftRendererLayer,
   ToolcraftRendererLayerContent,
   ToolcraftRendererStrategy,
   ToolcraftRendererTechnique,
 } from "./performance-types";
+import type { ToolcraftEnvelopeValidationContext } from "./performance-envelope-validation-context";
+import { getToolcraftRendererGpuErrors } from "./performance-renderer-gpu-validation";
 
 const rasterRendererStrategies = new Set<ToolcraftRendererStrategy>([
   "canvas-2d",
@@ -114,8 +115,11 @@ function getRendererLayerErrors(technique: ToolcraftRendererTechnique): string[]
   return errors;
 }
 
-export function getRendererTechniqueErrors(config: ToolcraftPerformanceConfig): string[] {
+export function getRendererTechniqueErrors(
+  context: ToolcraftEnvelopeValidationContext,
+): string[] {
   const errors: string[] = [];
+  const { config } = context;
   const technique = config.rendererTechnique;
 
   if (config.usesCustomRenderer && !technique) {
@@ -169,6 +173,7 @@ export function getRendererTechniqueErrors(config: ToolcraftPerformanceConfig): 
   }
 
   errors.push(...getRendererLayerErrors(technique));
+  errors.push(...getToolcraftRendererGpuErrors(context));
 
   return errors;
 }

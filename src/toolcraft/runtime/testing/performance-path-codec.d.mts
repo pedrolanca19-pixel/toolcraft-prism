@@ -12,11 +12,13 @@ export type ToolcraftPerformancePathSignature = Readonly<{
     | "viewport-drag"
     | "viewport-zoom";
   invalidates: readonly string[];
+  preparationInvalidates: readonly string[];
   profile:
     | "batch-responsive"
     | "initial-render"
     | "interactive-continuous"
     | "interactive-discrete";
+  retainedAccesses: readonly string[];
   runsOn: readonly (
     | "export-only"
     | "gpu"

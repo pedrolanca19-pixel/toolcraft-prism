@@ -15,6 +15,7 @@ import type {
 } from "../../../state/types";
 import { useToolcraftMediaPresentationUrls } from "../../app-shell/toolcraft-source-asset-context";
 import { useToolcraftSelector } from "../../app-shell/use-toolcraft";
+import { createToolcraftSourceAssetPresentation } from "../../source-assets/source-asset-presentation";
 import { ControlsPanelFileDropItemControls } from "./controls-panel-file-drop-item-controls";
 
 export type FileDropControlRenderArgs = {
@@ -44,6 +45,16 @@ const IMAGE_TRANSFORM_OPERATIONS = new Set<ToolcraftMediaTransformOperation>([
 
 const MODEL_REPAIR_ACTION = "model.fix";
 
+function getSourceAssetKind(
+  control: ToolcraftControlSchema,
+): "file" | "image" | "model" {
+  return control.assetKind === "file"
+    ? "file"
+    : control.assetKind === "model"
+      ? "model"
+      : "image";
+}
+
 function isImageTransformOperation(
   value: string,
 ): value is ToolcraftMediaTransformOperation {
@@ -68,11 +79,7 @@ function FileDropControlRenderer({
   layerSelectedImageAsset?: ToolcraftImageAsset | null;
   suppressMediaCollection?: boolean;
 }): React.JSX.Element | null {
-  const assetKind = control.assetKind === "file"
-    ? "file"
-    : control.assetKind === "model"
-      ? "model"
-      : "image";
+  const assetKind = getSourceAssetKind(control);
   const getOperation = React.useCallback(
     () => sourceAssetCoordinator.getOperation(control.target),
     [control.target, sourceAssetCoordinator],
@@ -84,11 +91,14 @@ function FileDropControlRenderer({
   );
   const previewUrls = useToolcraftMediaPresentationUrls(mediaAssets);
   const [selectedMediaId, setSelectedMediaId] = React.useState<string | null>(null);
-  const unresolvedPresentation = sourceAssetCoordinator.getPresentation(
-    control,
-    mediaAssets,
-    operation,
-  );
+  const unresolvedPresentation = sourceAssetCoordinator.supportsKind(assetKind)
+    ? createToolcraftSourceAssetPresentation(
+        assetKind,
+        control,
+        mediaAssets,
+        operation,
+      )
+    : null;
   const basePresentation = unresolvedPresentation
     ? {
         ...unresolvedPresentation,
@@ -99,8 +109,10 @@ function FileDropControlRenderer({
         }),
       }
     : null;
-  const selectedLayerPresentation = layerSelectedImageAsset
-    ? sourceAssetCoordinator.getPresentation(
+  const selectedLayerPresentation = layerSelectedImageAsset &&
+      sourceAssetCoordinator.supportsKind("image")
+    ? createToolcraftSourceAssetPresentation(
+        "image",
         control,
         [layerSelectedImageAsset],
         operation,
@@ -256,17 +268,20 @@ function LayerSelectedFileDropControlRenderer(
   >,
 ): React.JSX.Element | null {
   const { control } = props;
+  const assetKind = getSourceAssetKind(control);
   const selectedImageAsset = useToolcraftSelector(
     React.useCallback(
       (state) =>
-        state.mediaAssets.find(
-          (asset): asset is ToolcraftImageAsset =>
-            asset.assetKind === "image" &&
-            asset.layerId === state.selectedLayerId &&
-            (asset.sourceTarget === undefined ||
-              asset.sourceTarget === control.target),
-        ) ?? null,
-      [control.target],
+        assetKind === "image"
+          ? state.mediaAssets.find(
+              (asset): asset is ToolcraftImageAsset =>
+                asset.assetKind === "image" &&
+                asset.layerId === state.selectedLayerId &&
+                (asset.sourceTarget === undefined ||
+                  asset.sourceTarget === control.target),
+            ) ?? null
+          : null,
+      [assetKind, control.target],
     ),
   );
 

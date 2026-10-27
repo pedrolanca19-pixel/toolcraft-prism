@@ -9,17 +9,25 @@ import {
   compileToolcraftPerformancePathAdapterMatrix,
   getToolcraftPerformancePathSettleFrames,
   getToolcraftPerformancePathTestName,
-} from "./performance-path-helpers";
+} from "./performance-path-adapter-matrix";
 import type { ToolcraftPerformancePathAdapter } from "./performance-path-adapter-contract";
 
 const rasterSchema = defineToolcraft({
-  canvas: { enabled: true, renderScale: true },
-  panels: { controls: { sections: [], title: "Controls" } },
+  base: {
+    identity: { id: "contract-fixture", title: "Contract fixture" },
+    canvas: { enabled: true, renderScale: true },
+    panels: { controls: { sections: [], title: "Controls" } },
+  },
+  modules: [],
 });
 
 const vectorSchema = defineToolcraft({
-  canvas: { enabled: true },
-  panels: { controls: { sections: [], title: "Controls" } },
+  base: {
+    identity: { id: "contract-fixture", title: "Contract fixture" },
+    canvas: { enabled: true },
+    panels: { controls: { sections: [], title: "Controls" } },
+  },
+  modules: [],
 });
 
 const paths = [
@@ -27,7 +35,9 @@ const paths = [
     id: "performance-path:b",
     interaction: "control-change",
     invalidates: [],
+    preparationInvalidates: [],
     profile: "interactive-discrete",
+    retainedAccesses: [],
     runsOn: [],
     targets: ["appearance.b"],
     workloadDimensions: [],
@@ -36,7 +46,9 @@ const paths = [
     id: "performance-path:a",
     interaction: "control-drag",
     invalidates: ["preview"],
+    preparationInvalidates: [],
     profile: "interactive-continuous",
+    retainedAccesses: [],
     runsOn: ["main"],
     targets: ["appearance.a", "appearance.aEquivalent"],
     workloadDimensions: [],
@@ -154,7 +166,9 @@ test("browser perf: path adapter matrix enforces outcome and output semantics", 
     id: "performance-path:export",
     interaction: "export",
     invalidates: ["output"],
+    preparationInvalidates: [],
     profile: "batch-responsive",
+    retainedAccesses: [],
     runsOn: ["main"],
     targets: ["export.image"],
     workloadDimensions: [],
@@ -196,6 +210,21 @@ test("browser perf: raster catalogs require one product canvas backing proof", (
       schema: vectorSchema,
     }),
   ).toThrow(/must be omitted.*render scale is disabled/iu);
+});
+
+test("browser perf: preparation render scale belongs only to its canvas action", () => {
+  const prepared = {
+    ...adapter(paths[1].id),
+    preparationRenderScale: 1,
+  };
+  expect(() =>
+    compileToolcraftPerformancePathAdapterMatrix({
+      adapters: [adapter(paths[0].id), prepared],
+      canvasBacking: { canvasSelector: "[data-product-canvas]" },
+      paths,
+      schema: rasterSchema,
+    }),
+  ).toThrow(/invalid preparation render scale/iu);
 });
 
 test("browser perf: canvas backing config is an exact selector object", () => {
@@ -301,4 +330,42 @@ test("browser perf: compiled canvas backing is one immutable snapshot", () => {
     canvasSelector: "[data-product-canvas]",
   });
   expect(Object.isFrozen(matrix[0]?.canvasBacking)).toBe(true);
+});
+
+test("browser perf: compiled adapters retain phase preparation outside action", async () => {
+  const preparedPhases: string[] = [];
+  const settledPhases: string[] = [];
+  const prepared = {
+    ...adapter(paths[0].id),
+    preparePhase: ({ phase }: Parameters<
+      NonNullable<ToolcraftPerformancePathAdapter["preparePhase"]>
+    >[0]) => {
+      preparedPhases.push(phase);
+    },
+    settlePhase: ({ phase }: Parameters<
+      NonNullable<ToolcraftPerformancePathAdapter["settlePhase"]>
+    >[0]) => {
+      settledPhases.push(phase);
+    },
+  };
+  const matrix = compileToolcraftPerformancePathAdapterMatrix({
+    adapters: [prepared, adapter(paths[1].id)],
+    canvasBacking: undefined,
+    paths,
+    schema: vectorSchema,
+  });
+  const compiled = matrix.find(({ path }) => path.id === paths[0].id)!;
+  await compiled.adapter.preparePhase?.({
+    page: {} as never,
+    path: compiled.path,
+    phase: "cold",
+  });
+  await compiled.adapter.settlePhase?.({
+    page: {} as never,
+    path: compiled.path,
+    phase: "cold",
+  });
+  expect(preparedPhases).toEqual(["cold"]);
+  expect(settledPhases).toEqual(["cold"]);
+  expect(compiled.adapter.action).toBe(prepared.action);
 });

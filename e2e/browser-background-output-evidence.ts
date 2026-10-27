@@ -1,3 +1,5 @@
+import { validateToolcraftFiniteBackgroundStacking, type ToolcraftFiniteBackgroundStackingObservation } from "./browser-background-stacking-observation";
+export type { ToolcraftFiniteBackgroundStackingObservation } from "./browser-background-stacking-observation";
 import { expect } from "@playwright/test";
 
 import { attachToolcraftBrowserRuntimeEvidence } from "./browser-runtime-evidence";
@@ -39,6 +41,7 @@ export type ToolcraftBackgroundVideoInspection =
     mediaType: string;
   };
 
+
 type ToolcraftBackgroundVideoProof<TArtifact> = {
   exportArtifact: ToolcraftBrowserAction<"interaction", TArtifact>;
   inspectArtifact: (
@@ -67,6 +70,50 @@ function validateBackgroundPreviewObservation(
     observation.outputSignature.trim(),
     `Background requirement "${requirementId}" must report a preview output signature.`,
   ).not.toBe("");
+}
+
+
+export async function expectToolcraftFiniteBackgroundMediaStacking(
+  observeStacking: ToolcraftBrowserObservation<ToolcraftFiniteBackgroundStackingObservation>,
+  enableBackground: ToolcraftBrowserAction,
+  expected: ToolcraftFiniteBackgroundStackingObservation,
+  options: ToolcraftSemanticEvidenceOptions,
+): Promise<ToolcraftFiniteBackgroundStackingObservation> {
+  assertToolcraftBrowserProofSession(observeStacking, enableBackground);
+  const target = requireTargetScopedAction(
+    enableBackground,
+    "Finite-background stacking evidence requires a target-scoped Background switch action.",
+  );
+  const before = await readToolcraftBrowserObservation(observeStacking);
+  expect(before.canvasMode).toBe("finite");
+  expect(before.backgroundVisible).toBe(false);
+  expect(before.mediaVisible).toBe(expected.mediaVisible);
+  expect(before.productForegroundTransparent).toBe(true);
+  expect(before.outputSignature.trim()).not.toBe("");
+  validateToolcraftFiniteBackgroundStacking(expected, options.requirementId);
+
+  const { after } = await expectToolcraftExpectedOutcomeAfterAction(
+    observeStacking,
+    enableBackground,
+    expected,
+    createToolcraftSemanticTransitionOptions(
+      `Background requirement "${options.requirementId}" should keep every visible scene contributor above the evaluated finite background.`,
+      options,
+    ),
+  );
+  validateToolcraftFiniteBackgroundStacking(after, options.requirementId);
+  expect(after.outputSignature).not.toBe(before.outputSignature);
+  await attachToolcraftBrowserRuntimeEvidence({
+    evidenceType: "product-observable-change",
+    requirementId: options.requirementId,
+    target,
+  });
+  await attachToolcraftBrowserRuntimeEvidence({
+    evidenceType: "background-finite-media-stacking",
+    requirementId: options.requirementId,
+    target,
+  });
+  return after;
 }
 
 export async function expectToolcraftBackgroundOutputSemantics<

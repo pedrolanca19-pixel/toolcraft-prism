@@ -146,6 +146,89 @@ test("records immutable unresolved local import evidence during graph constructi
   );
 });
 
+test("records unsupported subpaths of configured local packages as unresolved local", async () => {
+  await withDependencyFixture(
+    {
+      "packages/local/package.json": JSON.stringify({
+        exports: "./src/index.ts",
+        name: "@fixture/local",
+      }),
+      "packages/local/src/index.ts": "export const local = true;\n",
+      "src/app.ts": 'import "@fixture/local/missing";\n',
+    },
+    async ({ inventory, rootDir }) => {
+      const aliases = await loadToolcraftLocalModuleAliases({
+        packageDirectories: ["packages/local"],
+        rootDir,
+      });
+      const graph = await createGraph({ aliases, inventory, rootDir });
+      assert.deepEqual(graph.unresolvedImports, [
+        {
+          importerRepoPath: "src/app.ts",
+          reason: "unresolved-local",
+          specifier: "@fixture/local/missing",
+        },
+      ]);
+    },
+    { sourceRoots: ["packages", "src"] },
+  );
+});
+
+test("keeps package identity when only a subpath export resolves", async () => {
+  await withDependencyFixture(
+    {
+      "packages/local/package.json": JSON.stringify({
+        exports: { "./button": "./src/button.ts" },
+        name: "@fixture/local",
+      }),
+      "packages/local/src/button.ts": "export const button = true;\n",
+      "src/app.ts": [
+        'import "@fixture/local";',
+        'import "@fixture/local/missing";',
+      ].join("\n"),
+    },
+    async ({ inventory, rootDir }) => {
+      const aliases = await loadToolcraftLocalModuleAliases({
+        packageDirectories: ["packages/local"],
+        rootDir,
+      });
+      const graph = await createGraph({ aliases, inventory, rootDir });
+      assert.deepEqual(
+        graph.unresolvedImports.map(({ specifier }) => specifier),
+        ["@fixture/local", "@fixture/local/missing"],
+      );
+    },
+    { sourceRoots: ["packages", "src"] },
+  );
+});
+
+test("keeps package identity when no package export is resolvable", async () => {
+  await withDependencyFixture(
+    {
+      "packages/local/package.json": JSON.stringify({
+        exports: { ".": null },
+        name: "@fixture/local",
+      }),
+      "src/app.ts": [
+        'import "@fixture/local";',
+        'import "@fixture/local/missing";',
+      ].join("\n"),
+    },
+    async ({ inventory, rootDir }) => {
+      const aliases = await loadToolcraftLocalModuleAliases({
+        packageDirectories: ["packages/local"],
+        rootDir,
+      });
+      const graph = await createGraph({ aliases, inventory, rootDir });
+      assert.deepEqual(
+        graph.unresolvedImports.map(({ specifier }) => specifier),
+        ["@fixture/local", "@fixture/local/missing"],
+      );
+    },
+    { sourceRoots: ["packages", "src"] },
+  );
+});
+
 test("keeps the complete graph while analyzing only selected entries", async () => {
   await withDependencyFixture(
     {

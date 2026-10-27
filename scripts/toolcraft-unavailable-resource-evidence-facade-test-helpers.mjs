@@ -17,6 +17,10 @@ const helperPath = path.join(
   starterRoot,
   "e2e/browser-infinity-canvas-evidence.ts",
 );
+const observationHelperPath = path.join(
+  starterRoot,
+  "e2e/browser-infinity-canvas-observation.ts",
+);
 const unavailableImageHelperPath = path.join(
   starterRoot,
   "e2e/browser-infinity-canvas-unavailable-image-evidence.ts",
@@ -146,12 +150,17 @@ function createProtocolState() {
 async function transpileEvidenceModule(sourcePath, outputPath) {
   const source = (await fs.readFile(sourcePath, "utf8"))
     .replaceAll('"@playwright/test"', '"./playwright.mjs"')
+    .replaceAll('"./browser-infinity-artifact-parity"', '"./browser-infinity-artifact-parity.mjs"')
     .replaceAll('"./browser-runtime-evidence"', '"./evidence.mjs"')
     .replaceAll('"./browser-proof-session"', '"./proof-session.mjs"')
     .replaceAll('"./export-artifact-helpers"', '"./artifact.mjs"')
     .replaceAll(
       '"./browser-infinity-canvas-unavailable-image-evidence"',
       '"./browser-infinity-canvas-unavailable-image-evidence.mjs"',
+    )
+    .replaceAll(
+      '"./browser-infinity-canvas-observation"',
+      '"./browser-infinity-canvas-observation.mjs"',
     );
   const { outputText } = ts.transpileModule(source, {
     compilerOptions: {
@@ -174,6 +183,11 @@ export async function loadUnavailableResourceFacade(context) {
 
   await Promise.all([
     transpileEvidenceModule(helperPath, outputPath),
+    transpileEvidenceModule(path.join(starterRoot, "e2e/browser-infinity-artifact-parity.ts"), path.join(outputDir, "browser-infinity-artifact-parity.mjs")),
+    transpileEvidenceModule(
+      observationHelperPath,
+      path.join(outputDir, "browser-infinity-canvas-observation.mjs"),
+    ),
     transpileEvidenceModule(
       unavailableImageHelperPath,
       path.join(

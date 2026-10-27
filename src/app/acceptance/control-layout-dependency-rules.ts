@@ -7,7 +7,11 @@ import {
 } from "@/toolcraft/runtime";
 
 import type { ToolcraftControlLayoutFacts } from "./control-layout-model";
+import { hasToolcraftInventoryEntityAgreement } from "./control-section-entity-cohesion";
+import { getToolcraftSectionInventoryById } from "./control-section-inventory";
 import { normalizeToolcraftSemanticText } from "./semantic";
+import type { ToolcraftControlSectionInventoryEntry } from "./types";
+import { getToolcraftProductModeTargets } from "./product-mode-intent";
 
 function normalizeToolcraftConditionValue(value: unknown): string | null {
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
@@ -67,8 +71,11 @@ function sectionTitleLooksLikeDependencyBranch({
 
 export function getToolcraftControlDependencyGroupingErrors(
   facts: ToolcraftControlLayoutFacts,
+  sectionInventory: readonly ToolcraftControlSectionInventoryEntry[],
 ): string[] {
   const errors: string[] = [];
+  const sectionInventoryById = getToolcraftSectionInventoryById(sectionInventory);
+  const productModeTargets = getToolcraftProductModeTargets(sectionInventory);
 
   for (const item of facts.visibleControls) {
     const conditions = [
@@ -90,6 +97,20 @@ export function getToolcraftControlDependencyGroupingErrors(
       const gateControl = facts.controlsByTarget.get(condition.target);
 
       if (!gateControl || gateControl.sectionLabel === item.sectionLabel) {
+        continue;
+      }
+
+      // Explicit application modes govern multiple entities from the first section.
+      if (productModeTargets.has(condition.target)) continue;
+
+      // The entity-cohesion validator checks stage names and split reasons for this
+      // shared entity. Target spelling must not overrule its declared workflow.
+      if (
+        hasToolcraftInventoryEntityAgreement({
+          sectionInventoryById,
+          sections: new Set([gateControl.sectionId, item.sectionId]),
+        })
+      ) {
         continue;
       }
 

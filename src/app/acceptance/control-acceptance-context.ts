@@ -35,21 +35,28 @@ export function getControlAcceptanceByTarget(
 ): ReadonlyMap<string, ToolcraftComponentAcceptance> {
   return new Map(
     acceptance.flatMap((entry) => {
-      if (entry.kind === "control" && entry.target) {
-        return [[entry.target, entry] as const];
-      }
-
-      if (
-        entry.kind === "canvas-handle" &&
-        entry.componentType === "orientationGizmo" &&
-        entry.canvasHandle?.writesTarget
-      ) {
-        return [[entry.canvasHandle.writesTarget, entry] as const];
-      }
-
-      return [];
+      const target = getControlAcceptanceTarget(entry);
+      return target ? [[target, entry] as const] : [];
     }),
   );
+}
+
+export function getControlAcceptanceTarget(
+  entry: ToolcraftComponentAcceptance,
+): string | null {
+  if (entry.kind === "control" && entry.target) {
+    return entry.target;
+  }
+
+  if (
+    entry.kind === "canvas-handle" &&
+    entry.componentType === "orientationGizmo" &&
+    entry.canvasHandle?.writesTarget
+  ) {
+    return entry.canvasHandle.writesTarget;
+  }
+
+  return null;
 }
 
 export function getControlTargets(
