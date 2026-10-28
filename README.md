@@ -75,7 +75,7 @@ O primeiro e o último fotograma do loop são idênticos. O grão de filme é fi
   O Toolcraft pede `npm run test:feature -- <ids>` para alterações posteriores; neste sandbox esse
   comando não arranca (o passo `load-feature-plan` ultrapassa o limite protegido de 20 s porque a
   máquina ficou mais lenta). Em vez disso corri todas as specs de browser diretamente:
-  **119 de 120 passaram**. A falha, `export.image.resolution`, é a exportação 8K a ultrapassar os 120 s
+  **120 de 121 passaram** (incluindo o upload da máscara). A falha, `export.image.resolution`, é a exportação 8K a ultrapassar os 120 s
   do teste em software GL (8K ≈ 54 s a exportar e 30 s a inspecionar, neste sandbox); na máquina
   anterior passava em 1,4 min. Não foi uma falha de conteúdo (2K e 4K bateram com o preview).
 - A matriz cobre cada controlo, cada ação (presets, randomize, shuffle por secção, Edit as custom),
