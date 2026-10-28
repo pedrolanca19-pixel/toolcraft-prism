@@ -9,7 +9,7 @@ import { PRISM_SCENE_SHADER } from "./prism-shaders";
 import { readPrismSettings } from "./prism-settings";
 import { PRISM_ENTRIES, PRISM_KEYS, prismTarget } from "./prism-table";
 
-const RESOLVED_BY_PALETTE = new Set(["palette", "c0", "c1", "c2", "c3"]);
+const RESOLVED_BY_PALETTE = new Set(["palette", "customColors", "c0", "c1", "c2", "c3"]);
 
 function alternativeValue(key: (typeof PRISM_KEYS)[number]): unknown {
   const entry = PRISM_ENTRIES[key];

@@ -23,9 +23,18 @@ export type PrismGlFrame = Readonly<{
   width: number;
 }>;
 
+/** A rectangle of the full frame in physical pixels; the origin is the bottom-left corner. */
+export type PrismGlTile = Readonly<{ height: number; width: number; x: number; y: number }>;
+
 export type PrismGl = Readonly<{
   dispose(): void;
   render(frame: PrismGlFrame): void;
+  /**
+   * Renders the frame at its exact size in tiles that fit the browser's WebGL drawing-buffer
+   * limit (an 8K frame is larger than most browsers allow in one canvas). `onTile` runs while
+   * the tile is on the canvas.
+   */
+  renderTiled(frame: PrismGlFrame, maxTileSize: number, onTile: (tile: PrismGlTile) => void): void;
 }>;
 
 type Target = Readonly<{
@@ -42,7 +51,7 @@ type Program = Readonly<{
 
 type Context = WebGL2RenderingContext;
 
-const RESOLVED_KEYS = new Set<PrismKey>(["palette", "c0", "c1", "c2", "c3"]);
+const RESOLVED_KEYS = new Set<PrismKey>(["palette", "customColors", "c0", "c1", "c2", "c3"]);
 
 function compile(gl: Context, type: number, source: string): WebGLShader {
   const shader = gl.createShader(type);
@@ -119,7 +128,7 @@ export function createPrismGl(canvas: HTMLCanvasElement | OffscreenCanvas): Pris
     antialias: false,
     depth: false,
     premultipliedAlpha: true,
-    preserveDrawingBuffer: false,
+    preserveDrawingBuffer: true,
     stencil: false,
   });
   if (!context) throw new Error("WebGL2 is not available.");
@@ -224,45 +233,89 @@ export function createPrismGl(canvas: HTMLCanvasElement | OffscreenCanvas): Pris
       gl.deleteVertexArray(vao);
     },
     render(frame) {
+      let width = Math.max(2, Math.round(frame.width));
+      let height = Math.max(2, Math.round(frame.height));
+      resizeCanvas(width, height);
+      if (gl.drawingBufferWidth !== width || gl.drawingBufferHeight !== height) {
+        // The browser clamps the drawing buffer; render at the size it actually grants.
+        width = gl.drawingBufferWidth;
+        height = gl.drawingBufferHeight;
+      }
+      const set = prepare(frame, width, height);
+      present(frame, set, width, height, { height, width, x: 0, y: 0 });
+    },
+    renderTiled(frame, maxTileSize, onTile) {
       const width = Math.max(2, Math.round(frame.width));
       const height = Math.max(2, Math.round(frame.height));
-      if (canvas.width !== width) canvas.width = width;
-      if (canvas.height !== height) canvas.height = height;
-      const set =
-        targets && targets.width === width && targets.height === height
-          ? targets
-          : allocate(width, height);
-
-      gl.disable(gl.BLEND);
-      setShared(scene, frame, width, height);
-      draw(set.scene.fb, width, height);
-
-      let source = set.scene;
-      set.levels.forEach((level, index) => {
-        setShared(blur, frame, level.a.width, level.a.height);
-        gl.uniform1i(blur.loc("u_src"), 0);
-        gl.uniform1i(blur.loc("u_first"), index === 0 ? 1 : 0);
-        bind(0, source.tex);
-        gl.uniform2f(blur.loc("u_dir"), frame.settings.bloomRadius / level.a.width, 0);
-        draw(level.a.fb, level.a.width, level.a.height);
-        gl.uniform1i(blur.loc("u_first"), 0);
-        bind(0, level.a.tex);
-        gl.uniform2f(blur.loc("u_dir"), 0, frame.settings.bloomRadius / level.a.height);
-        draw(level.b.fb, level.b.width, level.b.height);
-        source = level.b;
-      });
-
-      setShared(composite, frame, width, height);
-      ["u_scene", "u_b0", "u_b1", "u_b2"].forEach((name, index) => {
-        gl.uniform1i(composite.loc(name), index);
-      });
-      bind(0, set.scene.tex);
-      set.levels.forEach((level, index) => bind(index + 1, level.b.tex));
-      gl.clearColor(0, 0, 0, 0);
-      gl.clear(gl.COLOR_BUFFER_BIT);
-      draw(null, width, height);
+      const set = prepare(frame, width, height);
+      for (let y = 0; y < height; y += maxTileSize) {
+        for (let x = 0; x < width; x += maxTileSize) {
+          const tile = {
+            height: Math.min(maxTileSize, height - y),
+            width: Math.min(maxTileSize, width - x),
+            x,
+            y,
+          };
+          resizeCanvas(tile.width, tile.height);
+          present(frame, set, width, height, tile);
+          onTile(tile);
+        }
+      }
     },
   };
+
+  function resizeCanvas(width: number, height: number): void {
+    if (canvas.width !== width) canvas.width = width;
+    if (canvas.height !== height) canvas.height = height;
+  }
+
+  /** Runs the scene and bloom-blur passes into the retained textures. */
+  function prepare(frame: PrismGlFrame, width: number, height: number): TargetSet {
+    const set =
+      targets && targets.width === width && targets.height === height
+        ? targets
+        : allocate(width, height);
+
+    gl.disable(gl.BLEND);
+    setShared(scene, frame, width, height);
+    draw(set.scene.fb, width, height);
+
+    let source = set.scene;
+    set.levels.forEach((level, index) => {
+      setShared(blur, frame, level.a.width, level.a.height);
+      gl.uniform1i(blur.loc("u_src"), 0);
+      gl.uniform1i(blur.loc("u_first"), index === 0 ? 1 : 0);
+      bind(0, source.tex);
+      gl.uniform2f(blur.loc("u_dir"), frame.settings.bloomRadius / level.a.width, 0);
+      draw(level.a.fb, level.a.width, level.a.height);
+      gl.uniform1i(blur.loc("u_first"), 0);
+      bind(0, level.a.tex);
+      gl.uniform2f(blur.loc("u_dir"), 0, frame.settings.bloomRadius / level.a.height);
+      draw(level.b.fb, level.b.width, level.b.height);
+      source = level.b;
+    });
+    return set;
+  }
+
+  /** Composites one tile of the prepared frame onto the canvas. */
+  function present(
+    frame: PrismGlFrame,
+    set: TargetSet,
+    width: number,
+    height: number,
+    tile: PrismGlTile,
+  ): void {
+    setShared(composite, frame, width, height);
+    gl.uniform2f(composite.loc("u_tile"), tile.x, tile.y);
+    ["u_scene", "u_b0", "u_b1", "u_b2"].forEach((name, index) => {
+      gl.uniform1i(composite.loc(name), index);
+    });
+    bind(0, set.scene.tex);
+    set.levels.forEach((level, index) => bind(index + 1, level.b.tex));
+    gl.clearColor(0, 0, 0, 0);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    draw(null, tile.width, tile.height);
+  }
 }
 
 export type PrismGlResult = Readonly<{ gl: PrismGl } | { message: string }>;

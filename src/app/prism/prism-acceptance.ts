@@ -17,7 +17,7 @@ export const PRISM_AUTOMATED_ACCEPTANCE_TEST =
   "Prism Field maps every control to a renderer setting";
 export const PRISM_BROWSER_FILE = "e2e/product-prism.spec.ts" as const;
 export const PRISM_FIXTURE =
-  "A 160×90 Prism Field canvas at Resolution scale 1 with the default settings, playback paused at its first frame.";
+  "A 160×90 Prism Field canvas at Resolution scale 1 with the default settings, playback paused 7.4 seconds into the 20 second loop.";
 
 export const prismBrowserTestName = (id: string): string => `browser: Prism Field ${id}`;
 
@@ -39,7 +39,7 @@ export function prismRow(
     automated: true,
     automatedTestName: PRISM_AUTOMATED_ACCEPTANCE_TEST,
     browser: {
-      budget: "standard",
+      budget: descriptor.evidence === "exported-bytes" ? "extended-io" : "standard",
       file: PRISM_BROWSER_FILE,
       testName: prismBrowserTestName(descriptor.id),
     },
@@ -149,8 +149,13 @@ const finiteSelectorsBySection: Readonly<
   mask: [
     {
       affectedTargets: [],
-      reason: "The mask shape decides whether the placement controls apply at all.",
+      reason: "Turning the mask on or off decides whether its shape and placement controls apply at all.",
       role: "branch",
+      target: prismTarget("maskEnabled"),
+    },
+    {
+      reason: "The mask shape changes which region the light fills, not which controls apply.",
+      role: "parameter",
       target: prismTarget("maskType"),
     },
     {
@@ -169,8 +174,13 @@ const finiteSelectorsBySection: Readonly<
   spectrum: [
     {
       affectedTargets: [],
-      reason: "The palette decides whether the four custom color stops apply.",
+      reason: "Custom colors decides whether the four color stops apply and replaces the chosen palette.",
       role: "branch",
+      target: prismTarget("customColors"),
+    },
+    {
+      reason: "The palette changes the colors of the sheet, not which controls apply.",
+      role: "parameter",
       target: prismTarget("palette"),
     },
     {
@@ -199,7 +209,9 @@ const prismAuthoredSectionInventory: readonly ToolcraftControlSectionInventoryEn
 
 const expectedByKey: Readonly<Partial<Record<PrismKey, string>>> = {
   cycles: "More cycles per loop make the animated frames at the same progress differ.",
-  palette: "Every palette recolors the sheet; Custom shows the four color stops.",
+  palette: "Every palette recolors the sheet.",
+  customColors: "Custom colors replaces the palette with the four color stops and shows them.",
+  maskEnabled: "The mask confines the light to its shape; turning it off lets the light fill the canvas.",
   maskType: "Each mask shape confines the light to a different region of the canvas.",
   mirror: "Each mirror mode reflects the sheet differently across the canvas axes.",
 };
@@ -330,7 +342,7 @@ const actionRows: readonly ToolcraftComponentAcceptance[] = [
       componentType: "actions",
       evidence: "command-side-effect",
       expectedObservable:
-        "Edit as custom switches to the Custom palette and copies the active preset colors into its four stops.",
+        "Edit as custom turns Custom colors on and copies the active palette colors into its four stops.",
       id: "prism.palette.edit",
       target: "prism.palette.edit",
       userAction: "Choose the Aurora palette, click Edit as custom and read the four stops.",

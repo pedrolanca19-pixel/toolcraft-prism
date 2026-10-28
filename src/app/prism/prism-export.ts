@@ -6,6 +6,9 @@ import { readPrismSettings } from "./prism-settings";
 
 type ExportResource = Readonly<{ canvas: OffscreenCanvas; gl: PrismGl }>;
 
+/** Browsers cap one WebGL drawing buffer near 33 megapixels; 4096 px tiles stay well inside it. */
+const EXPORT_TILE_SIZE = 4096;
+
 let cached: ExportResource | null = null;
 let releaseTimer = 0;
 
@@ -40,17 +43,36 @@ export const prismExportRenderer = {
   }) {
     signal.throwIfAborted();
     const settings = readPrismSettings(state.values);
+    const width = Math.max(2, Math.round(frame.width * pixelRatio));
+    const height = Math.max(2, Math.round(frame.height * pixelRatio));
     const render = (): void => {
       const { canvas, gl } = acquire();
       try {
-        gl.render({
-          height: Math.max(2, Math.round(frame.height * pixelRatio)),
-          includeBackdrop: settings.includeBackground,
-          progress: timelineProgress,
-          settings,
-          width: Math.max(2, Math.round(frame.width * pixelRatio)),
-        });
-        context.drawImage(canvas, frame.x, frame.y, frame.width, frame.height);
+        gl.renderTiled(
+          {
+            height,
+            includeBackdrop: settings.includeBackground,
+            progress: timelineProgress,
+            settings,
+            width,
+          },
+          EXPORT_TILE_SIZE,
+          (tile) => {
+            // GL tiles start at the bottom-left; the 2D frame starts at the top-left.
+            const top = height - tile.y - tile.height;
+            context.drawImage(
+              canvas,
+              0,
+              0,
+              tile.width,
+              tile.height,
+              frame.x + (tile.x / width) * frame.width,
+              frame.y + (top / height) * frame.height,
+              (tile.width / width) * frame.width,
+              (tile.height / height) * frame.height,
+            );
+          },
+        );
       } finally {
         scheduleRelease();
       }

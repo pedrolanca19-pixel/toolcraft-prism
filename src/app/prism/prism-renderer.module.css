@@ -1,6 +1,5 @@
 .surface {
   display: block;
-  overflow: hidden;
   pointer-events: none;
 }
 

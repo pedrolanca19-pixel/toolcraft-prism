@@ -83,10 +83,11 @@ export function hexToRgb(hex: string): PrismRgb {
 export function resolvePrismStops(
   settings: PrismSettings,
 ): readonly [PrismRgb, PrismRgb, PrismRgb, PrismRgb] | null {
-  if (settings.palette === "spectrum") return null;
+  if (!settings.customColors && settings.palette === "spectrum") return null;
   const preset = PRISM_PALETTES.find((palette) => palette.value === settings.palette);
-  const hexes =
-    preset?.stops ?? ([settings.c0, settings.c1, settings.c2, settings.c3] as const);
+  const hexes = settings.customColors
+    ? ([settings.c0, settings.c1, settings.c2, settings.c3] as const)
+    : (preset?.stops ?? ([settings.c0, settings.c1, settings.c2, settings.c3] as const));
   return hexes.map(hexToRgb) as unknown as readonly [PrismRgb, PrismRgb, PrismRgb, PrismRgb];
 }
 

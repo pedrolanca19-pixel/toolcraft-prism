@@ -1,7 +1,7 @@
 import { PRISM_ENTRIES, PRISM_KEYS, type PrismKey } from "./prism-table";
 
 /** Keys the renderer resolves itself instead of binding one-to-one. */
-const RESOLVED_KEYS = new Set<PrismKey>(["palette", "c0", "c1", "c2", "c3"]);
+const RESOLVED_KEYS = new Set<PrismKey>(["palette", "customColors", "c0", "c1", "c2", "c3"]);
 
 function uniformDeclarations(): string {
   return PRISM_KEYS.filter((key) => !RESOLVED_KEYS.has(key))
@@ -149,15 +149,15 @@ vec3 palette(float ph) {
 }
 
 float maskAt(vec2 uv) {
-  if (u_maskType == 0) return 1.0;
+  if (u_maskEnabled == 0) return 1.0;
   vec2 c = uv - vec2(u_maskX, u_maskY);
   float a = radians(u_maskAngle);
   c = mat2(cos(a), -sin(a), sin(a), cos(a)) * c;
   c += vec2(gnoise(vec3(c * 1.7, u_ev.y * 0.5)), gnoise(vec3(c * 1.7 + 9.0, u_ev.y * 0.5))) * u_maskWarp * 0.35;
   float d;
-  if (u_maskType == 1) d = abs(c.y) - u_maskSize * 0.5;
-  else if (u_maskType == 2) d = length(c * vec2(1.0, 1.5)) - u_maskSize * 0.5;
-  else if (u_maskType == 3) d = abs(length(c + vec2(0.0, 1.5)) - 1.5) - u_maskSize * 0.5;
+  if (u_maskType == 0) d = abs(c.y) - u_maskSize * 0.5;
+  else if (u_maskType == 1) d = length(c * vec2(1.0, 1.5)) - u_maskSize * 0.5;
+  else if (u_maskType == 2) d = abs(length(c + vec2(0.0, 1.5)) - 1.5) - u_maskSize * 0.5;
   else d = abs(length(c) - u_maskSize * 0.8) - u_maskSize * 0.25;
   float s = u_maskSoft * 0.5;
   float m = 1.0 - smoothstep(-s, s, d);
@@ -179,7 +179,8 @@ void main() {
   float sd = u_seed;
   p += vec2(fract(sd * 0.6180339) * 40.0, fract(sd * 0.7548776) * 40.0);
 
-  float e = 2.0 / (u_res.y * u_zoom);
+  // Finite-difference step in sheet space, so the relief does not depend on the output resolution.
+  float e = 2.0 / (1024.0 * u_zoom);
   float h0 = heightAt(p);
   float hx = heightAt(p + vec2(e, 0.0));
   float hy = heightAt(p + vec2(0.0, e));
@@ -242,12 +243,21 @@ void main() {
 }`;
 
 export const PRISM_COMPOSITE_SHADER = `${HEAD}
+// Integer hash: unlike sin()-based noise it keeps its distribution at 8K coordinates.
+uint pcgHash(uint v) {
+  uint state = v * 747796405u + 2891336453u;
+  uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+  return (word >> 22u) ^ word;
+}
 uniform sampler2D u_scene;
 uniform sampler2D u_b0;
 uniform sampler2D u_b1;
 uniform sampler2D u_b2;
+// Pixel offset of the tile being presented inside the full u_res frame.
+uniform vec2 u_tile;
 void main() {
-  vec2 uv = gl_FragCoord.xy / u_res;
+  vec2 frag = gl_FragCoord.xy + u_tile;
+  vec2 uv = frag / u_res;
   vec2 off = (uv - 0.5) * u_aberration;
   vec4 s0 = texture(u_scene, uv);
   vec3 s = vec3(texture(u_scene, uv + off).r, s0.g, texture(u_scene, uv - off).b);
@@ -262,7 +272,7 @@ void main() {
 
   vec2 q = (uv - 0.5) * vec2(u_res.x / u_res.y, 1.0);
   float v = u_vignette * smoothstep(0.35, 1.05, length(q));
-  float n = fract(sin(dot(gl_FragCoord.xy + u_frameSeed, vec2(12.9898, 78.233))) * 43758.5453) - 0.5;
+  float n = float(pcgHash(pcgHash(uint(frag.x)) + uint(frag.y) + uint(u_frameSeed))) / 4294967295.0 - 0.5;
   float g = n * u_grain;
 
   if (u_hasBackdrop == 1) {

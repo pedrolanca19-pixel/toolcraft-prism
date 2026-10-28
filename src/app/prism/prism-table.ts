@@ -94,7 +94,6 @@ export const PRISM_PALETTES = [
   { label: "Ice", stops: ["#E6FBFF", "#7FD6FF", "#5B7BFF", "#B9F3FF"], value: "ice" },
   { label: "Ember", stops: ["#FF3B1D", "#FF9D1A", "#FFE08A", "#C4144B"], value: "ember" },
   { label: "Gold wire", stops: ["#FFF3C4", "#F2B24D", "#FFFAF0", "#D98A2B"], value: "gold" },
-  { label: "Custom", stops: null, value: "custom" },
 ] as const;
 
 export const PRISM_ENTRIES = {
@@ -146,6 +145,7 @@ export const PRISM_ENTRIES = {
     options: PRISM_PALETTES.map(({ label, value }) => ({ label, value })),
     section: "spectrum",
   } satisfies SelectEntry,
+  customColors: { def: false, kind: "bool", label: "Custom colors", section: "spectrum" } satisfies BoolEntry,
   c0: { def: "#FFC6EC", kind: "color", label: false, section: "spectrum" } satisfies ColorEntry,
   c1: { def: "#C3D2FF", kind: "color", label: false, section: "spectrum" } satisfies ColorEntry,
   c2: { def: "#BFFBE6", kind: "color", label: false, section: "spectrum" } satisfies ColorEntry,
@@ -190,12 +190,12 @@ export const PRISM_ENTRIES = {
     section: "placement",
   } satisfies SelectEntry,
 
+  maskEnabled: { def: true, kind: "bool", label: "Use mask", section: "mask" } satisfies BoolEntry,
   maskType: {
     def: "beam",
     kind: "select",
     label: "Shape",
     options: [
-      { label: "None", value: "none" },
       { label: "Beam", value: "beam" },
       { label: "Ellipse", value: "ellipse" },
       { label: "Arc", value: "arc" },

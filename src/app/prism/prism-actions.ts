@@ -2,7 +2,7 @@ import type { ToolcraftPanelActionHandler } from "@/toolcraft/runtime/react";
 
 import { presetValues, randomizeValues, type PrismRandomScope } from "./prism-random";
 import { PRISM_PALETTES, prismTarget } from "./prism-table";
-import { readPrismSettings, resolvePrismStops } from "./prism-settings";
+import { readPrismSettings } from "./prism-settings";
 
 const SECTION_IDS = new Set<string>([
   "motion", "folds", "surface", "lighting", "highlights", "spectrum", "refraction",
@@ -13,18 +13,27 @@ function isScope(value: string): value is PrismRandomScope {
   return value === "all" || value === "colors" || SECTION_IDS.has(value);
 }
 
-/** Copies the active preset palette into the four editable stops and selects Custom. */
+function wheelHex(hue: number): string {
+  const channel = (offset: number): number => {
+    const c = Math.min(1, Math.max(0, Math.abs((((hue * 6 + offset) % 6) + 6) % 6 - 3) - 1));
+    return c * c * (3 - 2 * c);
+  };
+  return `#${[channel(0), channel(4), channel(2)]
+    .map((value) => Math.round(value * 255).toString(16).padStart(2, "0"))
+    .join("")}`.toUpperCase();
+}
+
+/** Copies the active palette (preset stops or four samples of the hue wheel) into the custom stops. */
 function editAsCustomValues(values: Readonly<Record<string, unknown>>): Record<string, unknown> {
   const settings = readPrismSettings(values);
-  const stops = resolvePrismStops(settings);
   const preset = PRISM_PALETTES.find((palette) => palette.value === settings.palette);
-  const hexes = preset?.stops;
-  const next: Record<string, unknown> = { [prismTarget("palette")]: "custom" };
-  if (stops && hexes) {
-    hexes.forEach((hex, index) => {
-      next[prismTarget((["c0", "c1", "c2", "c3"] as const)[index] ?? "c0")] = hex;
-    });
-  }
+  const hexes =
+    preset?.stops ??
+    [0, 1, 2, 3].map((index) => wheelHex(((index / 4) * settings.hueRange + settings.hueOffset) % 1));
+  const next: Record<string, unknown> = { [prismTarget("customColors")]: true };
+  hexes.forEach((hex, index) => {
+    next[prismTarget((["c0", "c1", "c2", "c3"] as const)[index] ?? "c0")] = hex;
+  });
   return next;
 }
 

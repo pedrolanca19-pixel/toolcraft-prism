@@ -75,6 +75,7 @@ export function PrismRenderer(): React.JSX.Element {
               width: Math.max(2, Math.round(rect.width * backing)),
             });
             canvas.dataset.prismProgress = progress.toFixed(6);
+            canvas.dataset.timelineProgress = progress.toFixed(6);
             canvas.dataset.prismPalette = settings.palette;
             canvas.dataset.prismMask = settings.maskType;
             canvas.dataset.renderScale = String(renderScale);

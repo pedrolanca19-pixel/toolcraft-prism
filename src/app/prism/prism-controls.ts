@@ -22,16 +22,20 @@ type ConditionalApplicability = Extract<
   { mode: "conditional" }
 >;
 
-const applicabilityByKey: Partial<Record<PrismKey, ConditionalApplicability>> = {
-  c0: { all: [{ equals: "custom", target: prismTarget("palette") }], mode: "conditional" },
-  c1: { all: [{ equals: "custom", target: prismTarget("palette") }], mode: "conditional" },
-  c2: { all: [{ equals: "custom", target: prismTarget("palette") }], mode: "conditional" },
-  c3: { all: [{ equals: "custom", target: prismTarget("palette") }], mode: "conditional" },
-};
+const applicabilityByKey: Partial<Record<PrismKey, ConditionalApplicability>> = {};
 
-for (const key of ["maskAngle", "maskX", "maskY", "maskSize", "maskSoft", "maskWarp", "maskInvert"] as const) {
+for (const key of ["c0", "c1", "c2", "c3"] as const) {
   applicabilityByKey[key] = {
-    all: [{ notEquals: "none", target: prismTarget("maskType") }],
+    all: [{ equals: true, target: prismTarget("customColors") }],
+    mode: "conditional",
+  };
+}
+
+for (const key of [
+  "maskType", "maskAngle", "maskX", "maskY", "maskSize", "maskSoft", "maskWarp", "maskInvert",
+] as const) {
+  applicabilityByKey[key] = {
+    all: [{ equals: true, target: prismTarget("maskEnabled") }],
     mode: "conditional",
   };
 }
@@ -163,10 +167,7 @@ function prismSection(section: PrismSectionId): ToolcraftControlSectionSchema {
             editAsCustom: {
               actions: [{ icon: "copy", label: "Edit as custom", value: "palette:custom" }],
               applicability: {
-                all: [
-                  { notEquals: "custom", target: prismTarget("palette") },
-                  { notEquals: "spectrum", target: prismTarget("palette") },
-                ],
+                all: [{ equals: false, target: prismTarget("customColors") }],
                 mode: "conditional",
               },
               label: "Stops",

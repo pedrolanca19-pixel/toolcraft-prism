@@ -42,10 +42,10 @@ describe("Prism Field schema", () => {
     }
   });
 
-  it("keeps the palette stops visible only for the custom palette", () => {
+  it("keeps the palette stops visible only for custom colors", () => {
     const stop = allControls().find((control) => control.target === prismTarget("c0"));
     expect(stop?.applicability).toMatchObject({
-      all: [{ equals: "custom", target: prismTarget("palette") }],
+      all: [{ equals: true, target: prismTarget("customColors") }],
       mode: "conditional",
     });
   });
