@@ -59,6 +59,19 @@ export const PRISM_PRESETS: Readonly<Record<string, PrismPresetValues>> = {
     maskY: 0, maskSize: 1.2, maskSoft: 0.45, maskWarp: 1, maskInvert: false, bg2: "#0A1030",
     bgAngle: 90, bgAmount: 0, exposure: 0.85, contrast: 2.2, vignette: 0, grain: 0.14,
   },
+  // The first Fluted glass render: softer and brighter, with fewer purple fringes.
+  "Fluted glass soft": {
+    ribsEnabled: true, ribCount: 24, ribIrregular: 0.8, ribLens: 6, ribShift: 0.5, ribEdge: 1.4,
+    ribEdgeWidth: 0.07, customColors: true, c0: "#0A2BFF", c1: "#10E4F0", c2: "#FFFFFF",
+    c3: "#2A6BFF", bandMirror: true, bandGradient: 2, bandAngle: 0, bands: 0.8, hueRange: 1,
+    hueOffset: 0, mirror: "y", dispersion: 0.03, relief: 0.2, foldFreq: 0.9, foldNoise: 1,
+    warp: 1, warpScale: 0.4, detail: 0, foldSharp: 0.2, ambient: 0.5, diffuse: 0.2, specular: 0,
+    rim: 0, ridge: 1.1, ridgePow: 1, intensity: 1.6, maskEnabled: true, maskType: "beam",
+    maskAngle: 90, maskX: 0.46, maskSize: 1.2, maskSoft: 0.45, maskWarp: 1, bloom: 1,
+    bloomThreshold: 0.45, bloomRadius: 2.2, bloomSpread: 0.6, bloomTint: "#FF5A14",
+    bloomTintAmt: 0.6, aberration: 0.008, bgAmount: 0, exposure: 1, contrast: 1.7, vignette: 0,
+    grain: 0.14,
+  },
 };
 
 export const PRISM_PRESET_NAMES = Object.keys(PRISM_PRESETS);
@@ -72,6 +85,7 @@ export const PRISM_PRESET_BACKGROUNDS: Readonly<Record<string, string>> = {
   "Striped neon": "#02020A",
   "Soft haze": "#0B0B14",
   "Fluted glass": "#050506",
+  "Fluted glass soft": "#050506",
 };
 
 export function presetControlValues(name: string): Record<string, unknown> {
