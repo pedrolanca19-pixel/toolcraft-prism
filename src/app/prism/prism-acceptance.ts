@@ -15,7 +15,9 @@ import { PRISM_ENTRIES, prismTarget, type PrismKey } from "./prism-table";
 
 export const PRISM_AUTOMATED_ACCEPTANCE_TEST =
   "Prism Field maps every control to a renderer setting";
-export const PRISM_BROWSER_FILE = "e2e/product-prism.spec.ts" as const;
+/** The delivery catalog wants one acceptance domain (the id prefix) per browser file. */
+export const prismBrowserFile = (id: string): `e2e/${string}.spec.ts` =>
+  `e2e/product-${id.split(".")[0]}.spec.ts`;
 export const PRISM_FIXTURE =
   "A 160×90 Prism Field canvas at Resolution scale 1 with the default settings, playback paused 7.4 seconds into the 20 second loop.";
 
@@ -40,7 +42,7 @@ export function prismRow(
     automatedTestName: PRISM_AUTOMATED_ACCEPTANCE_TEST,
     browser: {
       budget: descriptor.evidence === "exported-bytes" ? "extended-io" : "standard",
-      file: PRISM_BROWSER_FILE,
+      file: prismBrowserFile(descriptor.id),
       testName: prismBrowserTestName(descriptor.id),
     },
     componentType: descriptor.componentType,
@@ -523,7 +525,7 @@ const runtimeRows = (persistenceSlices: readonly ToolcraftPersistableStateSlice[
     {
       browser: {
         budget: "extended-io",
-        file: PRISM_BROWSER_FILE,
+        file: prismBrowserFile("persistence.reload"),
         testName: prismBrowserTestName("persistence.reload"),
       },
       persistenceCoverage: "reload",

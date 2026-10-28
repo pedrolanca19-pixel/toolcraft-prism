@@ -1,4 +1,4 @@
-import type { Download, Page } from "@playwright/test";
+import type { Download, Locator, Page } from "@playwright/test";
 
 import {
   getToolcraftRgbaDistance,
@@ -133,4 +133,13 @@ export function expectedSamplesFrom(
     pixels: expectedPixelsFrom(inspected.observations[index]!),
     timeSeconds,
   }));
+}
+
+/** One second keeps the video proofs short while still spanning 30 scheduled frames. */
+export const VIDEO_PROOF_SECONDS = 1;
+
+export async function downloadFromAction(control: Locator, page: Page, name: RegExp): Promise<Download> {
+  const pending = page.waitForEvent("download", { timeout: 240_000 });
+  await control.getByRole("button", { name }).click();
+  return pending;
 }
