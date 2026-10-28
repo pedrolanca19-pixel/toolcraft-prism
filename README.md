@@ -59,18 +59,25 @@ O primeiro e o último fotograma do loop são idênticos. O grão de filme é fi
 
 ## Estado da verificação
 
-- `npm run verify:delivery` **passou** (exit 0) e `npm run verify:receipt` confirma que a autoridade de
-  entrega está atual e válida: docs, code-health, 715 testes unitários e 110 testes de browser
-  (um por linha da matriz de aceitação, em `e2e/product-*.spec.ts`, um ficheiro por domínio).
-- A matriz de aceitação cobre cada controlo, cada ação (presets, randomize, shuffle por secção,
-  Edit as custom), Background, exportação PNG/JPG (2K/4K/8K) e MP4/WebM, timeline, Resolution scale,
-  Infinity canvas (continuidade, exportação de imagem e de vídeo) e persistência após reload.
-- Os testes de browser correram em renderização por software (SwiftShader), num ecrã 160×90; os
-  tempos não dizem nada sobre GPU real. A exportação 4K de vídeo prova 3 fotogramas (0,1 s) por
-  causa do custo por software. Não foi testado em GPU real nem no Safari/Firefox.
-- Os pixels esperados das exportações vêm de uma primeira exportação das mesmas definições
-  (prova de determinismo); a fidelidade em relação ao preview é medida à parte (distância média
-  por blocos 8×8 abaixo de 16) e o JPG é comparado com o PNG.
+- A entrega inicial passou `npm run verify:delivery` (exit 0) e `npm run verify:receipt` confirmou a
+  autoridade de entrega: docs, code-health, 715 testes unitários e 110 testes de browser (um por linha
+  da matriz de aceitação, em `e2e/product-*.spec.ts`, um ficheiro por domínio).
+- Depois disso entraram a secção **Glass Ribs** e os presets **Fluted glass** e **Fluted glass soft**.
+  O Toolcraft pede `npm run test:feature -- <ids>` para alterações posteriores; neste sandbox esse
+  comando não arranca (o passo `load-feature-plan` ultrapassa o limite protegido de 20 s porque a
+  máquina ficou mais lenta). Em vez disso corri todas as specs de browser diretamente:
+  **119 de 120 passaram**. A falha, `export.image.resolution`, é a exportação 8K a ultrapassar os 120 s
+  do teste em software GL (8K ≈ 54 s a exportar e 30 s a inspecionar, neste sandbox); na máquina
+  anterior passava em 1,4 min. Não foi uma falha de conteúdo (2K e 4K bateram com o preview).
+- A matriz cobre cada controlo, cada ação (presets, randomize, shuffle por secção, Edit as custom),
+  Background, exportação PNG/JPG (2K/4K/8K) e MP4/WebM, timeline, Resolution scale, Infinity canvas
+  (continuidade, exportação de imagem e de vídeo) e persistência após reload.
+- Os testes de browser correm em renderização por software (SwiftShader), num ecrã 160×90; os tempos
+  não dizem nada sobre GPU real. A exportação 4K de vídeo prova 3 fotogramas (0,1 s). Não foi testado
+  em GPU real nem no Safari/Firefox.
+- Os pixels esperados nas exportações vêm de uma primeira exportação das mesmas definições (prova de
+  determinismo); a fidelidade em relação ao preview é medida à parte (distância média por blocos 8×8
+  abaixo de 16) e o JPG é comparado com o PNG.
 - Os testes apanharam e corrigiram dois defeitos reais: a exportação 8K saía cortada (limite do buffer
   WebGL do browser, agora exporta-se em tiles de 4096 px) e o wrapper do canvas cortava o output no
   modo Infinity.

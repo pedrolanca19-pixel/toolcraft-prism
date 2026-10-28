@@ -46,8 +46,15 @@ test(prismBrowserTestName("export.image.format"), async ({ page }) => {
   }
 });
 
+// The proof is about frame size, so one fold layer and no bloom keep an 8K software-GL frame fast enough.
+const CHEAP_FRAME_START = {
+  [prismTarget("bloom")]: 0,
+  [prismTarget("layers")]: 1,
+  [prismTarget("octaves")]: 1,
+} as const;
+
 test(prismBrowserTestName("export.image.resolution"), async ({ page }) => {
-  const session = await openProof(page, ["runtime.image-export"]);
+  const session = await openProof(page, ["runtime.image-export"], CHEAP_FRAME_START);
   for (const [label, longEdge] of [["2K", 2048], ["4K", 4096], ["8K", 8192]] as const) {
     await expectToolcraftExportedArtifact(
       session.controlAction("export.image.resolution", async (control, currentPage) => {
