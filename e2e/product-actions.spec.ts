@@ -1,6 +1,6 @@
 import { prismBrowserTestName } from "../src/app/prism/prism-acceptance";
 import { expectToolcraftImageExportArtifact, expectToolcraftVideoExportArtifact } from "./browser-media-export-evidence";
-import { FIXTURE_BACKGROUND_RGBA, expectedPixelsFrom, expectedSamplesFrom, inspectImage, inspectVideo, videoSchedule } from "./prism-export-helpers";
+import { FIXTURE_BACKGROUND_RGBA, expectedPixelsFrom, expectedSamplesFrom, inspectImage, inspectVideoDecoded, videoSchedule, withFreshVideoExport } from "./prism-export-helpers";
 import { exportImage, exportVideo, FIXTURE_SIZE, openProof } from "./prism-browser-helpers";
 import { test } from "./toolcraft-product-test";
 import { VIDEO_PROOF_SECONDS, downloadFromAction } from "./prism-export-helpers";
@@ -27,17 +27,20 @@ test(prismBrowserTestName("actions.output"), async ({ page }) => {
     requirementId: "actions.output",
   });
 
-  const baselineVideo = await inspectVideo(page, await exportVideo(page), VIDEO_PROOF_SECONDS);
-  await expectToolcraftVideoExportArtifact(exportVideoAction, {
-    animated: true,
-    backgroundRgba: FIXTURE_BACKGROUND_RGBA,
-    expectedDurationSeconds: VIDEO_PROOF_SECONDS,
-    expectedHeight: FIXTURE_SIZE.height,
-    expectedMediaType: "video/webm",
-    expectedSamples: expectedSamplesFrom(baselineVideo),
-    expectedWidth: FIXTURE_SIZE.width,
-    page,
-    requirementId: "actions.output",
-    schedule: videoSchedule(VIDEO_PROOF_SECONDS),
+  // Headless decoding can miss a frame; each attempt exports and decodes a fresh video.
+  await withFreshVideoExport(async () => {
+    const baselineVideo = await inspectVideoDecoded(page, await exportVideo(page), VIDEO_PROOF_SECONDS);
+    await expectToolcraftVideoExportArtifact(exportVideoAction, {
+      animated: true,
+      backgroundRgba: FIXTURE_BACKGROUND_RGBA,
+      expectedDurationSeconds: VIDEO_PROOF_SECONDS,
+      expectedHeight: FIXTURE_SIZE.height,
+      expectedMediaType: "video/webm",
+      expectedSamples: expectedSamplesFrom(baselineVideo),
+      expectedWidth: FIXTURE_SIZE.width,
+      page,
+      requirementId: "actions.output",
+      schedule: videoSchedule(VIDEO_PROOF_SECONDS),
+    });
   });
 });

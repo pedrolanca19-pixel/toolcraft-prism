@@ -4,7 +4,7 @@ import { assertToolcraftExpectedDecodedPixels, getToolcraftRgbaDistance } from "
 import { expectToolcraftBackgroundOutputSemantics } from "./browser-background-output-evidence";
 import { readToolcraftBrowserObservation, runToolcraftBrowserValueAction } from "./browser-proof-session";
 import { expectToolcraftExportedArtifact } from "./browser-acceptance-outcome-helpers";
-import { FIXTURE_BACKGROUND_RGBA, expectedPixelsFrom, pixelAt, inspectImage, inspectVideo, meanDistanceToPreview, videoSchedule } from "./prism-export-helpers";
+import { FIXTURE_BACKGROUND_RGBA, expectedPixelsFrom, pixelAt, inspectImage, inspectVideoDecoded, meanDistanceToPreview, videoSchedule } from "./prism-export-helpers";
 import { expectToolcraftInfinityCanvasBackgroundEvidence, observeInfinityCanvasBackground } from "./browser-infinity-canvas-evidence";
 import { setInfinity } from "./prism-infinity-helpers";
 import { chooseOption, exportImage, exportVideo, openProof } from "./prism-browser-helpers";
@@ -81,7 +81,7 @@ test(prismBrowserTestName("export.video.format"), async ({ page }) => {
         return exportVideo(currentPage);
       }),
       async (download) => {
-        const inspected = await inspectVideo(page, download, VIDEO_PROOF_SECONDS);
+        const inspected = await inspectVideoDecoded(page, download, VIDEO_PROOF_SECONDS);
         expect(inspected.inspection.mediaType).toBe(mediaType);
         expect(inspected.inspection.frameCount).toBe(videoSchedule(VIDEO_PROOF_SECONDS).length);
         expect(inspected.inspection.durationMs).toBeCloseTo(VIDEO_PROOF_SECONDS * 1000, -2);
@@ -102,7 +102,7 @@ test(prismBrowserTestName("export.video.resolution"), async ({ page }) => {
         return exportVideo(currentPage);
       }),
       async (download) => {
-        const inspected = await inspectVideo(page, download, VIDEO_4K_PROOF_SECONDS);
+        const inspected = await inspectVideoDecoded(page, download, VIDEO_4K_PROOF_SECONDS);
         expect([inspected.inspection.width, inspected.inspection.height]).toEqual([width, height]);
         expect(inspected.inspection.frameCount).toBe(videoSchedule(VIDEO_4K_PROOF_SECONDS).length);
         return inspected.inspection;
@@ -167,7 +167,7 @@ test(prismBrowserTestName("export.includeBackground"), async ({ page }) => {
     video: {
       exportArtifact: exportVideoAction,
       inspectArtifact: async (download) => {
-        const inspected = await inspectVideo(page, download, VIDEO_PROOF_SECONDS);
+        const inspected = await inspectVideoDecoded(page, download, VIDEO_PROOF_SECONDS);
         const corner = pixelAt(inspected.observations[0]!, 0, 0);
         return {
           ...inspected.inspection,

@@ -126,6 +126,40 @@ export async function inspectVideo(
   });
 }
 
+/**
+ * Headless Chromium sometimes reports a video's first frame as not yet painted, so the decoded
+ * sample is fully transparent. A real export never contains such a frame; decode again until
+ * every sample has pixels.
+ */
+export async function inspectVideoDecoded(
+  page: Page,
+  download: Download,
+  durationSeconds: number,
+): Promise<ToolcraftInspectedVideoArtifact> {
+  let inspected = await inspectVideo(page, download, durationSeconds);
+  for (let attempt = 1; attempt < 4 && inspected.observations.some(isBlank); attempt += 1) {
+    inspected = await inspectVideo(page, download, durationSeconds);
+  }
+  return inspected;
+}
+
+function isBlank(observation: ToolcraftDecodedPixelObservation): boolean {
+  return !pixelAt(observation, 0.5, 0.5)[3];
+}
+
+/** Runs a proof that exports and decodes a fresh video each time, retrying a decode-timing miss. */
+export async function withFreshVideoExport<T>(attempt: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastError: unknown;
+  for (let index = 0; index < attempts; index += 1) {
+    try {
+      return await attempt();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
 export function expectedSamplesFrom(
   inspected: ToolcraftInspectedVideoArtifact,
 ): readonly ToolcraftExpectedDecodedVideoSample[] {

@@ -1,5 +1,5 @@
 import { prismBrowserTestName } from "../src/app/prism/prism-acceptance";
-import { inspectImage, inspectVideo } from "./prism-export-helpers";
+import { inspectImage, inspectVideoDecoded } from "./prism-export-helpers";
 import { getToolcraftFiniteArtboardRect } from "../src/toolcraft/runtime/scene";
 import { expectToolcraftInfinityCanvasImageExportEvidence, expectToolcraftInfinityCanvasModeEvidence, expectToolcraftInfinityCanvasVideoExportEvidence, observeInfinityCanvas } from "./browser-infinity-canvas-evidence";
 import { dragToolcraftCanvasViewport } from "./performance-canvas-helpers";
@@ -117,7 +117,7 @@ test(prismBrowserTestName("canvas.infinity.scene-bounds-image-export"), async ({
 test(prismBrowserTestName("canvas.infinity.scene-bounds-video-export"), async ({ page }) => {
   await openProof(page, ["runtime.setup"], {}, VIDEO_PROOF_SECONDS);
   const artifactOf = async () => {
-    const { inspection } = await inspectVideo(page, await exportVideo(page), VIDEO_PROOF_SECONDS);
+    const { inspection } = await inspectVideoDecoded(page, await exportVideo(page), VIDEO_PROOF_SECONDS);
     return {
       byteLength: inspection.byteLength,
       durationMs: inspection.durationMs,
