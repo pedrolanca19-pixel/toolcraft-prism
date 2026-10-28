@@ -212,6 +212,7 @@ export const PRISM_ENTRIES = {
       { label: "Ellipse", value: "ellipse" },
       { label: "Arc", value: "arc" },
       { label: "Ring", value: "ring" },
+      { label: "Image", value: "image" },
     ],
     section: "mask",
   } satisfies SelectEntry,

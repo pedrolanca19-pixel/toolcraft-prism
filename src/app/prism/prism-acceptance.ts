@@ -10,6 +10,7 @@ import {
   prismControlSections,
   prismShuffleTarget,
 } from "./prism-controls";
+import { PRISM_MASK_IMAGE_TARGET } from "./prism-mask-source";
 import { PRISM_PRESET_NAMES } from "./prism-presets";
 import { PRISM_ENTRIES, prismTarget, type PrismKey } from "./prism-table";
 
@@ -41,7 +42,10 @@ export function prismRow(
     automated: true,
     automatedTestName: PRISM_AUTOMATED_ACCEPTANCE_TEST,
     browser: {
-      budget: descriptor.evidence === "exported-bytes" ? "extended-io" : "standard",
+      budget:
+        descriptor.evidence === "exported-bytes" || descriptor.evidence === "media-lifecycle"
+          ? "extended-io"
+          : "standard",
       file: prismBrowserFile(descriptor.id),
       testName: prismBrowserTestName(descriptor.id),
     },
@@ -168,8 +172,9 @@ const finiteSelectorsBySection: Readonly<
       target: prismTarget("maskEnabled"),
     },
     {
-      reason: "The mask shape changes which region the light fills, not which controls apply.",
-      role: "parameter",
+      affectedTargets: [],
+      reason: "Choosing the Image shape shows the Mask image upload; the other shapes hide it.",
+      role: "branch",
       target: prismTarget("maskType"),
     },
     {
@@ -255,14 +260,29 @@ function describeControl(key: PrismKey): Describe {
   };
 }
 
-export const prismControlAcceptance: readonly ToolcraftComponentAcceptance[] = (
-  Object.keys(PRISM_ENTRIES) as PrismKey[]
-).map((key) => {
-  const entry = PRISM_ENTRIES[key];
-  const extra: Partial<ToolcraftComponentAcceptance> =
-    entry.kind === "select" ? { optionCoverage: "each-visible-item" } : {};
-  return prismRow(describeControl(key), extra);
-});
+export const prismControlAcceptance: readonly ToolcraftComponentAcceptance[] = [
+  ...(Object.keys(PRISM_ENTRIES) as PrismKey[]).map((key) => {
+    const entry = PRISM_ENTRIES[key];
+    const extra: Partial<ToolcraftComponentAcceptance> =
+      entry.kind === "select" ? { optionCoverage: "each-visible-item" } : {};
+    return prismRow(describeControl(key), extra);
+  }),
+  prismRow(
+    {
+      componentType: "fileDrop",
+      evidence: "media-lifecycle",
+      expectedObservable:
+        "A black and white image uploaded as the Image shape confines the light to its white areas; clearing it, Reset, rotate and flip update the light.",
+      id: PRISM_MASK_IMAGE_TARGET,
+      target: PRISM_MASK_IMAGE_TARGET,
+      userAction:
+        "Choose the Image shape, upload an image, rotate and flip it, clear it and use Reset controls.",
+    },
+    {
+      mediaLifecycleCoverage: ["upload", "remove", "reset", "rotate", "flip", "transform-output"],
+    },
+  ),
+];
 
 const runtimeSectionInventory: readonly ToolcraftControlSectionInventoryEntry[] = [
   {
@@ -383,9 +403,9 @@ const runtimeRows = (persistenceSlices: readonly ToolcraftPersistableStateSlice[
   prismRow(
     {
       componentType: "switch",
-      evidence: "rendered-pixels",
+      evidence: "exported-bytes",
       expectedObservable:
-        "Background off removes the runtime fill and the backdrop overlay; the preview becomes transparent.",
+        "Background off removes the runtime fill and the backdrop overlay; the preview and the exported image become transparent and the exported video keeps its background.",
       id: "export.includeBackground",
       target: "export.includeBackground",
       userAction: "Toggle Background and compare preview and exported pixels.",

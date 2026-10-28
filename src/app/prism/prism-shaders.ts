@@ -192,12 +192,26 @@ vec2 ribWarp(vec2 uv, out float c, out float cover) {
   return ax * (xs * period - 0.5 * span) + al * dot(uv, al);
 }
 
+// Uploaded mask image: its luminance (times alpha) is the light. Size is the image height.
+uniform sampler2D u_maskTex;
+uniform int u_maskHasImage;
+uniform float u_maskAspect;
+
 float maskAt(vec2 uv) {
   if (u_maskEnabled == 0) return 1.0;
   vec2 c = uv - vec2(u_maskX, u_maskY);
   float a = radians(u_maskAngle);
   c = mat2(cos(a), -sin(a), sin(a), cos(a)) * c;
   c += vec2(gnoise(vec3(c * 1.7, u_ev.y * 0.5)), gnoise(vec3(c * 1.7 + 9.0, u_ev.y * 0.5))) * u_maskWarp * 0.35;
+  if (u_maskType == 4) {
+    // Until an image is uploaded the Image shape lets the light through everywhere.
+    if (u_maskHasImage == 0) return 1.0;
+    vec2 q = vec2(c.x / (u_maskSize * u_maskAspect), -c.y / u_maskSize) + 0.5;
+    float inside = step(0.0, q.x) * step(q.x, 1.0) * step(0.0, q.y) * step(q.y, 1.0);
+    vec4 t = textureLod(u_maskTex, clamp(q, 0.0, 1.0), u_maskSoft * 3.0);
+    float img = dot(t.rgb, vec3(0.299, 0.587, 0.114)) * t.a * inside;
+    return u_maskInvert == 1 ? 1.0 - img : img;
+  }
   float d;
   if (u_maskType == 0) d = abs(c.y) - u_maskSize * 0.5;
   else if (u_maskType == 1) d = length(c * vec2(1.0, 1.5)) - u_maskSize * 0.5;

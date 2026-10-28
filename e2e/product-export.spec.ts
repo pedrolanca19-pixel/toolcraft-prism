@@ -1,13 +1,14 @@
 import { prismTarget } from "../src/app/prism/prism-table";
 import { prismBrowserTestName } from "../src/app/prism/prism-acceptance";
 import { assertToolcraftExpectedDecodedPixels, getToolcraftRgbaDistance } from "./decoded-pixel-observation";
-import { expectToolcraftBackgroundOutputSemantics } from "./browser-background-output-evidence";
+import { expectToolcraftBackgroundOutputSemantics, expectToolcraftFiniteBackgroundMediaStacking } from "./browser-background-output-evidence";
+import { PRISM_MASK_IMAGE_TARGET } from "../src/app/prism/prism-mask-source";
 import { readToolcraftBrowserObservation, runToolcraftBrowserValueAction } from "./browser-proof-session";
 import { expectToolcraftExportedArtifact } from "./browser-acceptance-outcome-helpers";
 import { FIXTURE_BACKGROUND_RGBA, expectedPixelsFrom, pixelAt, inspectImage, inspectVideoDecoded, meanDistanceToPreview, videoSchedule } from "./prism-export-helpers";
 import { expectToolcraftInfinityCanvasBackgroundEvidence, observeInfinityCanvasBackground } from "./browser-infinity-canvas-evidence";
 import { setInfinity } from "./prism-infinity-helpers";
-import { chooseOption, exportImage, exportVideo, openProof } from "./prism-browser-helpers";
+import { chooseOption, controlField, exportImage, exportVideo, openProof } from "./prism-browser-helpers";
 import { expect, test } from "./toolcraft-product-test";
 import { VIDEO_PROOF_SECONDS, downloadFromAction } from "./prism-export-helpers";
 
@@ -129,7 +130,7 @@ const EMPTY_CORNER_START = {
 } as const;
 
 test(prismBrowserTestName("export.includeBackground"), async ({ page }) => {
-  const session = await openProof(page, ["runtime.setup"], EMPTY_CORNER_START, VIDEO_PROOF_SECONDS);
+  const session = await openProof(page, ["runtime.setup", "mask"], EMPTY_CORNER_START, VIDEO_PROOF_SECONDS);
   const target = "export.includeBackground";
   const toggleBackground = session.controlAction(target, (control) => control.getByRole("switch").click());
   const observePreview = session.observe((root) => {
@@ -199,4 +200,82 @@ test(prismBrowserTestName("export.includeBackground"), async ({ page }) => {
     { backgroundExcluded, backgroundRestored, infinite },
     { expectedBackgroundColor: "#04050A", requirementId: target, target },
   );
+
+  // The mask upload is this app's only media and is never drawn as a layer: the finite background
+  // sits under the product output and no media layer appears.
+  await setInfinity(page, false);
+  await chooseOption(page, controlField(page, prismTarget("maskType")), "Image");
+  await controlField(page, PRISM_MASK_IMAGE_TARGET).locator('input[type="file"]').setInputFiles("e2e/fixtures/prism-mask-test.png");
+  await expect(controlField(page, PRISM_MASK_IMAGE_TARGET).locator("button[aria-label^='Remove ']")).toHaveCount(1, { timeout: 30_000 });
+  const observeStacking = session.observe((root) => {
+    const background = root.querySelector("[data-toolcraft-finite-background-layer]");
+    const media = root.querySelector("img[data-toolcraft-generated-output]");
+    const product = root.querySelector("[data-toolcraft-product-scene]");
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas[data-prism-canvas="true"]');
+    const sample = document.createElement("canvas");
+    sample.width = 80;
+    sample.height = 45;
+    const context = sample.getContext("2d", { willReadFrequently: true });
+    let hash = 2166136261;
+    let transparent = false;
+    if (canvas && context) {
+      context.drawImage(canvas, 0, 0, sample.width, sample.height);
+      const data = context.getImageData(0, 0, sample.width, sample.height).data;
+      for (let index = 0; index < data.length; index += 1) {
+        hash = Math.imul(hash ^ data[index]!, 16777619) >>> 0;
+        if (index % 4 === 3 && data[index]! < 250) transparent = true;
+      }
+    }
+    const order = [
+      ["background", background],
+      ["media", media],
+      ["product", product],
+    ]
+      .filter((entry): entry is [string, Element] => entry[1] !== null)
+      .sort((left, right) =>
+        left[1].compareDocumentPosition(right[1]) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1,
+      )
+      .map(([name]) => name);
+    return {
+      backgroundColor:
+        root.querySelector<HTMLInputElement>('[data-toolcraft-control-target="appearance.background"] input')?.value ?? "",
+      backgroundVisible: background !== null,
+      canvasMode: root.querySelector<HTMLElement>("[data-toolcraft-canvas-mode]")?.dataset.toolcraftCanvasMode === "infinite"
+        ? ("infinite" as const)
+        : ("finite" as const),
+      layerOrder: order,
+      mediaVisible: media !== null,
+      outputSignature: hash.toString(16),
+      productForegroundTransparent: transparent,
+    };
+  });
+  const settledStacking = async () => {
+    let previous = await readToolcraftBrowserObservation(observeStacking);
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await page.waitForTimeout(500);
+      const next = await readToolcraftBrowserObservation(observeStacking);
+      if (next.outputSignature === previous.outputSignature && next.backgroundVisible === previous.backgroundVisible) return next;
+      previous = next;
+    }
+    return previous;
+  };
+  // Reference pass: read the state with the background on, then switch it off for the proven toggle.
+  const backgroundOn = await settledStacking();
+  if (backgroundOn.backgroundVisible) {
+    await runToolcraftBrowserValueAction(toggleBackground);
+    await expect.poll(async () => (await readToolcraftBrowserObservation(observeStacking)).backgroundVisible).toBe(false);
+  }
+  const backgroundOff = await settledStacking();
+  expect(backgroundOff.backgroundVisible).toBe(false);
+  await runToolcraftBrowserValueAction(toggleBackground);
+  await expect.poll(async () => (await readToolcraftBrowserObservation(observeStacking)).backgroundVisible).toBe(true);
+  const expectedWithBackground = await settledStacking();
+  await runToolcraftBrowserValueAction(toggleBackground);
+  await expect.poll(async () => (await readToolcraftBrowserObservation(observeStacking)).backgroundVisible).toBe(false);
+  await settledStacking();
+  await expectToolcraftFiniteBackgroundMediaStacking(observeStacking, toggleBackground, expectedWithBackground, {
+    requirementId: target,
+    stabilityIntervalMs: 400,
+    timeoutMs: 20_000,
+  });
 });

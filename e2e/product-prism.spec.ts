@@ -2,10 +2,14 @@ import type { Locator, Page } from "@playwright/test";
 import { PRISM_PRESET_NAMES } from "../src/app/prism/prism-presets";
 import { PRISM_ENTRIES, PRISM_KEYS, prismTarget, type PrismKey } from "../src/app/prism/prism-table";
 import { prismBrowserTestName } from "../src/app/prism/prism-acceptance";
+import { PRISM_MASK_IMAGE_TARGET } from "../src/app/prism/prism-mask-source";
+import { readToolcraftBrowserObservation } from "./browser-proof-session";
+import { expectToolcraftMediaLifecycle } from "./browser-state-evidence-helpers";
 import { expectToolcraftAcceptanceOutcome } from "./browser-acceptance-outcome-helpers";
-import { applicabilityCases, canvasHash, openProof, prismValuesSnapshot, type ProofSession, proveApplicabilityCase, proveColorChange, proveSelectChange, proveSliderChange, proveSwitchChange } from "./prism-browser-helpers";
+import { applicabilityCases, canvasHash, controlField, exportImage, openProof, prismValuesSnapshot, type ProofSession, proveApplicabilityCase, proveColorChange, proveSelectChange, proveSliderChange, proveSwitchChange } from "./prism-browser-helpers";
+import { inspectImage, meanDistanceToPreview } from "./prism-export-helpers";
 import { expectToolcraftDiscreteSliderMarkers } from "./performance-control-layout-helpers";
-import { test } from "./toolcraft-product-test";
+import { expect, test } from "./toolcraft-product-test";
 
 /**
  * Values a control's proof starts from when the shipped default would hide the
@@ -132,3 +136,101 @@ for (const section of SECTION_IDS) {
     await expectActionToChangeOutput(session, page, target, "Randomize");
   });
 }
+
+const MASK_FILE = "e2e/fixtures/prism-mask-test.png";
+const MASK_FILE_NAME = "prism-mask-test.png";
+
+test(prismBrowserTestName(PRISM_MASK_IMAGE_TARGET), async ({ page }) => {
+  const session = await openProof(page, ["mask"], {
+    [prismTarget("maskSize")]: 1,
+    [prismTarget("maskSoft")]: 0.3,
+    [prismTarget("maskType")]: "image",
+  });
+  const field = controlField(page, PRISM_MASK_IMAGE_TARGET);
+  const observe = session.observe((root) => {
+    const owner = root.querySelector(`[data-toolcraft-control-target="prism.maskImage"]`);
+    const itemIds = [...(owner?.querySelectorAll("button[aria-label^='Remove ']") ?? [])].map(
+      (button) => (button.getAttribute("aria-label") ?? "").replace(/^Remove /u, ""),
+    );
+    const canvas = root.querySelector<HTMLCanvasElement>('canvas[data-prism-canvas="true"]');
+    const sample = document.createElement("canvas");
+    sample.width = 80;
+    sample.height = 45;
+    const context = sample.getContext("2d", { willReadFrequently: true });
+    let hash = 2166136261;
+    if (canvas && context) {
+      context.drawImage(canvas, 0, 0, sample.width, sample.height);
+      for (const byte of context.getImageData(0, 0, sample.width, sample.height).data) {
+        hash = Math.imul(hash ^ byte, 16777619) >>> 0;
+      }
+    }
+    return { itemIds, outputSignature: hash.toString(16) };
+  });
+  const read = () => readToolcraftBrowserObservation(observe);
+  // Software GL decodes and renders slowly, so uploads get a generous window.
+  const items = (expected: readonly string[]) =>
+    expect.poll(async () => (await read()).itemIds, { timeout: 30_000 }).toEqual(expected);
+  const settled = async (): Promise<string> => {
+    // The signature is final once two reads half a second apart agree.
+    let previous = (await read()).outputSignature;
+    for (let attempt = 0; attempt < 40; attempt += 1) {
+      await page.waitForTimeout(500);
+      const next = (await read()).outputSignature;
+      if (next === previous) return next;
+      previous = next;
+    }
+    return previous;
+  };
+  const upload = (): Promise<void> => field.locator('input[type="file"]').setInputFiles(MASK_FILE);
+  const press = (name: string): Promise<void> => field.getByRole("button", { exact: true, name }).click();
+
+  // The upload is visible only while the mask is on and its shape is Image.
+  for (const applicabilityCase of applicabilityCases(PRISM_MASK_IMAGE_TARGET)) {
+    await proveApplicabilityCase(session, PRISM_MASK_IMAGE_TARGET, applicabilityCase);
+  }
+
+  // Behaviors: upload, rotate, flip and remove each change what the light is confined to.
+  const empty = await settled();
+  await upload();
+  await items([MASK_FILE_NAME]);
+  const uploaded = await settled();
+  expect(uploaded).not.toBe(empty);
+  // The export renderer reads the same decoded mask, so the exported frame matches the preview.
+  const exported = await inspectImage(page, await exportImage(page));
+  expect(await meanDistanceToPreview(page, exported.observation)).toBeLessThan(16);
+  await press("90° Right");
+  const rotated = await settled();
+  expect(rotated).not.toBe(uploaded);
+  await press("Flip horizontal");
+  const flippedH = await settled();
+  expect(flippedH).not.toBe(rotated);
+  await press("Flip vertical");
+  const flippedV = await settled();
+  expect(flippedV).not.toBe(flippedH);
+  await press(`Remove ${MASK_FILE_NAME}`);
+  await items([]);
+  expect(await settled()).toBe(empty);
+
+  const [uploadRequirement, removeRequirement] = [
+    `${PRISM_MASK_IMAGE_TARGET}#applicability:prism.maskEnabled=true:visible`,
+    `${PRISM_MASK_IMAGE_TARGET}#applicability:prism.maskType=%22image%22:visible`,
+  ];
+  await expectToolcraftMediaLifecycle(
+    observe,
+    session.controlAction(PRISM_MASK_IMAGE_TARGET, () => upload()),
+    { itemIds: [MASK_FILE_NAME], outputSignature: uploaded },
+    { requirementId: uploadRequirement, stabilityIntervalMs: 400, timeoutMs: 40_000 },
+  );
+  await expectToolcraftMediaLifecycle(
+    observe,
+    session.controlAction(PRISM_MASK_IMAGE_TARGET, () => press(`Remove ${MASK_FILE_NAME}`)),
+    { itemIds: [], outputSignature: empty },
+    { requirementId: removeRequirement, stabilityIntervalMs: 400, timeoutMs: 40_000 },
+  );
+
+  // Reset controls clears the uploaded mask along with every other setting.
+  await upload();
+  await items([MASK_FILE_NAME]);
+  await page.getByRole("button", { exact: true, name: "Reset controls" }).click();
+  await items([]);
+});

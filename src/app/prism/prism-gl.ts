@@ -10,6 +10,7 @@ import {
   PRISM_SCENE_SHADER,
   PRISM_VERTEX_SHADER,
 } from "./prism-shaders";
+import type { PrismMaskSource } from "./prism-mask-source";
 import { PRISM_ENTRIES, PRISM_KEYS, type PrismKey } from "./prism-table";
 
 export type PrismGlFrame = Readonly<{
@@ -29,6 +30,8 @@ export type PrismGlTile = Readonly<{ height: number; width: number; x: number; y
 export type PrismGl = Readonly<{
   dispose(): void;
   render(frame: PrismGlFrame): void;
+  /** Uploads the mask image into this context (a no-op while its version is unchanged). */
+  setMask(source: PrismMaskSource | null): void;
   /**
    * Renders the frame at its exact size in tiles that fit the browser's WebGL drawing-buffer
    * limit (an 8K frame is larger than most browsers allow in one canvas). `onTile` runs while
@@ -140,6 +143,14 @@ export function createPrismGl(canvas: HTMLCanvasElement | OffscreenCanvas): Pris
   const vao = gl.createVertexArray();
   gl.bindVertexArray(vao);
   let targets: TargetSet | null = null;
+  const MASK_UNIT = 4;
+  const emptyMask = gl.createTexture();
+  gl.activeTexture(gl.TEXTURE0 + MASK_UNIT);
+  gl.bindTexture(gl.TEXTURE_2D, emptyMask);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.RGBA8, 1, 1);
+  let maskTexture: WebGLTexture | null = null;
+  let maskVersion = -1;
+  let maskAspect = 1;
 
   function allocate(width: number, height: number): TargetSet {
     if (targets) {
@@ -227,10 +238,32 @@ export function createPrismGl(canvas: HTMLCanvasElement | OffscreenCanvas): Pris
         }
         targets = null;
       }
+      if (maskTexture) gl.deleteTexture(maskTexture);
+      gl.deleteTexture(emptyMask);
       gl.deleteProgram(scene.prog);
       gl.deleteProgram(blur.prog);
       gl.deleteProgram(composite.prog);
       gl.deleteVertexArray(vao);
+    },
+    setMask(source) {
+      const next = source?.version ?? -1;
+      if (next === maskVersion) return;
+      maskVersion = next;
+      if (maskTexture) gl.deleteTexture(maskTexture);
+      maskTexture = null;
+      if (!source) return;
+      const levels = Math.floor(Math.log2(Math.max(source.width, source.height))) + 1;
+      maskTexture = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0 + MASK_UNIT);
+      gl.bindTexture(gl.TEXTURE_2D, maskTexture);
+      gl.texStorage2D(gl.TEXTURE_2D, levels, gl.RGBA8, source.width, source.height);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, source.bitmap);
+      gl.generateMipmap(gl.TEXTURE_2D);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      maskAspect = source.width / source.height;
     },
     render(frame) {
       let width = Math.max(2, Math.round(frame.width));
@@ -278,6 +311,11 @@ export function createPrismGl(canvas: HTMLCanvasElement | OffscreenCanvas): Pris
 
     gl.disable(gl.BLEND);
     setShared(scene, frame, width, height);
+    gl.activeTexture(gl.TEXTURE0 + MASK_UNIT);
+    gl.bindTexture(gl.TEXTURE_2D, maskTexture ?? emptyMask);
+    gl.uniform1i(scene.loc("u_maskTex"), MASK_UNIT);
+    gl.uniform1i(scene.loc("u_maskHasImage"), maskTexture ? 1 : 0);
+    gl.uniform1f(scene.loc("u_maskAspect"), maskAspect);
     draw(set.scene.fb, width, height);
 
     let source = set.scene;

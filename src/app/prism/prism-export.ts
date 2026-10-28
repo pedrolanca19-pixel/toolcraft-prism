@@ -1,6 +1,7 @@
 import type { ToolcraftProductExportRenderer } from "@/toolcraft/runtime";
 
 import { createPrismGl, type PrismGl } from "./prism-gl";
+import { getPrismMaskSource } from "./prism-mask-source";
 import { prismPipelinePasses } from "./prism-pipeline";
 import { readPrismSettings } from "./prism-settings";
 
@@ -48,6 +49,7 @@ export const prismExportRenderer = {
     const render = (): void => {
       const { canvas, gl } = acquire();
       try {
+        gl.setMask(getPrismMaskSource());
         gl.renderTiled(
           {
             height,

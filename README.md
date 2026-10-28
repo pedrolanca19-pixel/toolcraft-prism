@@ -40,6 +40,15 @@ aproxima o poster "Vitrium Opus"; funciona melhor num canvas vertical (por exemp
 É uma aproximação: mantém o preto, as barras com degradê interno, o grão e o brilho ciano/azul/branco,
 mas não reproduz o desenho exato das manchas nem os laranjas do poster.
 
+### Máscara por imagem
+
+Em **Light Mask**, a forma **Image** mostra um upload ("Mask image"). Carregue uma imagem a preto e
+branco (ou em tons de cinza): o branco deixa passar a luz e o preto bloqueia-a. O Invert, o Mask X/Y,
+o Mask size (altura da imagem), o Mask angle, a Mask softness e o Organic edge também funcionam com a
+imagem, e os botões 90°, Flip H e Flip V rodam e espelham a máscara. A imagem é guardada com o
+workspace (persiste ao recarregar), entra na exportação de imagem e de vídeo e é reduzida a 2048 px
+no maior lado. Sem imagem, a forma Image deixa a luz passar em todo o canvas.
+
 ### Movimento em loop
 
 A timeline tem um loop com duração editável (20 s por omissão) e o Toolcraft exige loops sem salto.

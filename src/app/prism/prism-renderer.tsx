@@ -3,11 +3,19 @@ import * as React from "react";
 import { getToolcraftTimelineLoopProgress } from "@/toolcraft/runtime";
 import {
   useToolcraft,
+  useToolcraftMediaPresentationUrls,
   useToolcraftPipeline,
   useToolcraftProductSceneFrame,
 } from "@/toolcraft/runtime/react";
 
 import { createPrismGl, tryCreatePrismGl, type PrismGl } from "./prism-gl";
+import {
+  decodePrismMask,
+  getPrismMaskSource,
+  PRISM_MASK_IMAGE_TARGET,
+  setPrismMaskSource,
+  subscribePrismMaskSource,
+} from "./prism-mask-source";
 import { prismPipelinePasses } from "./prism-pipeline";
 import styles from "./prism-renderer.module.css";
 import { readPrismSettings } from "./prism-settings";
@@ -34,6 +42,54 @@ export function PrismRenderer(): React.JSX.Element {
   stateRef.current = state;
   frameRef.current = sceneFrame;
   dirtyRef.current = true;
+
+  // The uploaded mask image: decoded once per file and transform, shared with the export renderer.
+  const maskUrls = useToolcraftMediaPresentationUrls(state.mediaAssets);
+  const maskAsset = state.mediaAssets.find(
+    (asset) =>
+      asset.assetKind === "image" &&
+      asset.sourceTarget === PRISM_MASK_IMAGE_TARGET &&
+      asset.lifecycle !== "unavailable",
+  );
+  const maskImage = maskAsset?.assetKind === "image" ? maskAsset : undefined;
+  const maskUrl = maskImage ? maskUrls.get(maskImage.id) : undefined;
+  const maskTransform = maskImage?.transform;
+  const maskKey = maskImage && maskUrl
+    ? [
+        maskImage.id,
+        maskImage.resourceRef,
+        maskTransform?.rotationDeg ?? 0,
+        maskTransform?.flipHorizontal === true,
+        maskTransform?.flipVertical === true,
+      ].join(":")
+    : "";
+
+  React.useEffect(() => {
+    if (!maskKey || !maskUrl) {
+      setPrismMaskSource(null);
+      return;
+    }
+    const controller = new AbortController();
+    void decodePrismMask(maskUrl, maskTransform, controller.signal)
+      .then((bitmap) => {
+        if (controller.signal.aborted) bitmap.close();
+        else setPrismMaskSource(bitmap);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setPrismMaskSource(null);
+      });
+    return () => controller.abort();
+    // maskKey already encodes the asset, its resource and its transform.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maskKey, maskUrl]);
+
+  React.useEffect(
+    () =>
+      subscribePrismMaskSource(() => {
+        dirtyRef.current = true;
+      }),
+    [],
+  );
 
   React.useEffect(() => {
     settleUntilRef.current = performance.now() + VIEWPORT_SETTLE_MS;
@@ -67,6 +123,7 @@ export function PrismRenderer(): React.JSX.Element {
           const settings = readPrismSettings(current.values);
           const progress = getToolcraftTimelineLoopProgress(current.timeline);
           const render = (): void => {
+            gl.setMask(getPrismMaskSource());
             gl.render({
               height: Math.max(2, Math.round(rect.height * backing)),
               includeBackdrop: settings.includeBackground,

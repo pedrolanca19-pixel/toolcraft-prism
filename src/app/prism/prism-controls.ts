@@ -13,6 +13,7 @@ import {
   type PrismKey,
   type PrismSectionId,
 } from "./prism-table";
+import { PRISM_MASK_IMAGE_TARGET } from "./prism-mask-source";
 import { PRISM_PRESET_NAMES } from "./prism-presets";
 
 const always = { mode: "always" } as const;
@@ -187,6 +188,26 @@ function prismSection(section: PrismSectionId): ToolcraftControlSectionSchema {
               performanceRole: "responsiveness",
               target: "prism.palette.edit",
               type: "actions",
+            } satisfies ToolcraftControlSchema,
+          }
+        : {}),
+      ...(section === "mask"
+        ? {
+            maskImage: {
+              applicability: {
+                all: [
+                  { equals: true, target: prismTarget("maskEnabled") },
+                  { equals: "image", target: prismTarget("maskType") },
+                ],
+                mode: "conditional",
+              },
+              assetKind: "image",
+              defaultValue: null,
+              label: "Mask image",
+              performanceReason: "The decoded image (at most 2048 px) is uploaded once and sampled once per pixel in the field pass.",
+              performanceRole: "responsiveness",
+              target: PRISM_MASK_IMAGE_TARGET,
+              type: "fileDrop",
             } satisfies ToolcraftControlSchema,
           }
         : {}),

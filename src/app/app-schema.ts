@@ -1,6 +1,7 @@
 import {
   defineToolcraft,
   imageExportModule,
+  mediaSourceModule,
   timelineModule,
   videoExportModule,
 } from "@/toolcraft/runtime";
@@ -37,6 +38,7 @@ export const appSchema = defineToolcraft({
   },
   modules: [
     imageExportModule(),
+    mediaSourceModule(),
     timelineModule({ defaultDurationSeconds: PRISM_LOOP_SECONDS, mode: "playback" }),
     videoExportModule(),
   ],
