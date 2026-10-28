@@ -14,6 +14,7 @@ export type PrismSectionId =
   | "refraction"
   | "glow"
   | "placement"
+  | "ribs"
   | "mask"
   | "backdrop"
   | "finish";
@@ -189,6 +190,17 @@ export const PRISM_ENTRIES = {
     ],
     section: "placement",
   } satisfies SelectEntry,
+
+  // Fluted (reeded) glass: ribs that each act as a cylindrical lens in front of the sheet.
+  ribsEnabled: { def: false, kind: "bool", label: "Use glass ribs", section: "ribs" } satisfies BoolEntry,
+  ribCount: int("ribs", "Number of ribs", 2, 120, 28),
+  ribWidth: slider("ribs", "Rib width", 0.3, 1, 0.01, 0.92),
+  ribIrregular: slider("ribs", "Irregularity", 0, 1, 0.01, 0.35),
+  ribAngle: angle("ribs", "Orientation", -60, 60, 0),
+  ribLens: slider("ribs", "Lens strength", 0, 8, 0.01, 1.4),
+  ribShift: slider("ribs", "Lens displacement", 0, 2, 0.01, 0.25),
+  ribEdge: slider("ribs", "Edge glow", 0, 3, 0.01, 0.8),
+  ribEdgeWidth: slider("ribs", "Edge width", 0.02, 0.5, 0.01, 0.12),
 
   maskEnabled: { def: true, kind: "bool", label: "Use mask", section: "mask" } satisfies BoolEntry,
   maskType: {

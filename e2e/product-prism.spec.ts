@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { PRISM_PRESET_NAMES } from "../src/app/prism/prism-presets";
 import { PRISM_ENTRIES, PRISM_KEYS, prismTarget, type PrismKey } from "../src/app/prism/prism-table";
 import { prismBrowserTestName } from "../src/app/prism/prism-acceptance";
@@ -20,6 +20,7 @@ const PROOF_START: Partial<Record<PrismKey, Readonly<Record<string, unknown>>>> 
 const CONDITIONAL_KEYS: ReadonlySet<PrismKey> = new Set([
   "c0", "c1", "c2", "c3",
   "maskType", "maskAngle", "maskX", "maskY", "maskSize", "maskSoft", "maskWarp", "maskInvert",
+  "ribCount", "ribWidth", "ribIrregular", "ribAngle", "ribLens", "ribShift", "ribEdge", "ribEdgeWidth",
 ]);
 
 const COLOR_PROOF: Readonly<Record<string, string>> = {
@@ -67,31 +68,44 @@ for (const key of PRISM_KEYS) {
 
 const SECTION_IDS = [
   "motion", "folds", "surface", "lighting", "highlights", "spectrum", "refraction", "glow",
-  "placement", "mask", "backdrop", "finish",
+  "placement", "ribs", "mask", "backdrop", "finish",
 ] as const;
+
+type ActionClick = (control: Locator, page: Page) => Promise<void>;
 
 async function expectActionToChangeOutput(
   session: ProofSession,
   page: Page,
   target: string,
-  label: string,
+  label: string | ActionClick,
   requirementId: string = target,
 ): Promise<void> {
   await expectToolcraftAcceptanceOutcome(
     async () => `${await prismValuesSnapshot(page)}|${await canvasHash(page)}`,
-    session.controlAction(target, (control) =>
-      control.getByRole("button", { name: label, exact: true }).click(),
-    ),
-    { evidenceType: "command-side-effect", requirementId, stabilityIntervalMs: 80, timeoutMs: 15_000 },
+    session.controlAction(target, async (control, currentPage) => {
+      if (typeof label === "function") await label(control, currentPage);
+      else await control.getByRole("button", { name: label, exact: true }).click();
+    }),
+    // Two settled samples are enough: the persisted values are exact, and this keeps the preset proof inside 30 s.
+    { evidenceType: "command-side-effect", requirementId, stabilityIntervalMs: 30, stabilitySamples: 2, timeoutMs: 15_000 },
   );
 }
 
 test(prismBrowserTestName("prism.presets"), async ({ page }) => {
   const session = await openProof(page, ["presets"]);
+  // Nine presets are too many for inline buttons, so the control is a chooser with Previous and Next.
+  const choose = (name: string): ActionClick => async (control, currentPage) => {
+    await control.getByRole("button", { name: "Choose presets action", exact: true }).click();
+    await currentPage.getByRole("menuitem", { name, exact: true }).click();
+  };
+  const next: ActionClick = (control) => control.getByRole("button", { name: "Next presets action", exact: true }).click();
   // The first preset matches the shipped defaults, so it goes last to keep every click a change.
-  for (const name of [...PRISM_PRESET_NAMES.slice(1), ...PRISM_PRESET_NAMES.slice(0, 1)]) {
-    await expectActionToChangeOutput(session, page, "prism.presets", name);
+  const [first, second, ...rest] = PRISM_PRESET_NAMES;
+  await expectActionToChangeOutput(session, page, "prism.presets", choose(second!));
+  for (let index = 0; index < rest.length; index += 1) {
+    await expectActionToChangeOutput(session, page, "prism.presets", next);
   }
+  await expectActionToChangeOutput(session, page, "prism.presets", choose(first!));
 });
 
 test(prismBrowserTestName("prism.randomize"), async ({ page }) => {

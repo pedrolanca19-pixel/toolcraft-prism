@@ -28,7 +28,7 @@ export const FIXTURE_SIZE = { height: 90, width: 160 } as const;
 
 const PANEL_SECTION_IDS = [
   "runtime.setup", "runtime.image-export", "runtime.video-export", "presets", "motion", "folds",
-  "surface", "lighting", "highlights", "spectrum", "refraction", "glow", "placement", "mask",
+  "surface", "lighting", "highlights", "spectrum", "refraction", "glow", "placement", "ribs", "mask",
   "backdrop", "finish",
 ] as const;
 

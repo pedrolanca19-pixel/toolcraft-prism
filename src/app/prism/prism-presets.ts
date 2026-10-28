@@ -39,6 +39,26 @@ export const PRISM_PRESETS: Readonly<Record<string, PrismPresetValues>> = {
     warp: 1.4, detail: 0, relief: 0.4, ridge: 1.2, ridgePow: 1.2, intensity: 1.1, saturation: 1.2,
     bg2: "#15152A", maskType: "ellipse", maskSize: 1.4, maskSoft: 1.6, bloom: 0.7, whiten: 0.05,
   },
+  // Reeded-glass poster look: black field, ribs that each show a flipped slice of a cyan, blue
+  // and white light, orange bloom and heavy grain. Works best on a portrait canvas.
+  "Fluted glass": {
+    cycles: 1, flowAngle: 18, flow: 0.22, evolve: 0.35, foldSpeed: 1, hueDrift: 0,
+    foldFreq: 0.9, foldAngle: 38, foldSpread: 38, layers: 3, layerFalloff: 0.62, foldSharp: 0.2,
+    foldNoise: 1, foldNoiseScale: 0.8, warp: 1, warpScale: 0.4, detail: 0, detailScale: 3,
+    octaves: 4, coverage: 1, edgeSoft: 0.3, seed: 7, intensity: 1.7, relief: 0.2,
+    lightAngle: 40, lightElev: 42, ambient: 0.35, diffuse: 0.2, specular: 0, shine: 28, rim: 0,
+    rimPower: 2.4, ridge: 1.2, ridgePow: 1, whiten: 0.1, palette: "spectrum",
+    customColors: true, c0: "#0A2BFF", c1: "#10E4F0", c2: "#FFFFFF", c3: "#2A6BFF",
+    hueOffset: 0.02, hueRange: 1, bands: 0.8, bandSharp: 0, bandMirror: true, bandAngle: 60,
+    bandGradient: 2, tilt: 0.3, tiltAngle: 20, dispersion: 0.12, saturation: 0.8, bloom: 1,
+    bloomThreshold: 0.45, bloomRadius: 2.2, bloomSpread: 0.6, bloomTint: "#FF5A14",
+    bloomTintAmt: 0.6, aberration: 0.012, zoom: 1, panX: 0, panY: 0, rotate: 0, stretch: 1,
+    persp: 0.15, mirror: "y", ribsEnabled: true, ribCount: 20, ribWidth: 0.92,
+    ribIrregular: 0.9, ribAngle: 0, ribLens: 7, ribShift: 0.25, ribEdge: 1.4,
+    ribEdgeWidth: 0.07, maskEnabled: true, maskType: "beam", maskAngle: 90, maskX: 0.46,
+    maskY: 0, maskSize: 1.2, maskSoft: 0.45, maskWarp: 1, maskInvert: false, bg2: "#0A1030",
+    bgAngle: 90, bgAmount: 0, exposure: 0.85, contrast: 2.2, vignette: 0, grain: 0.14,
+  },
 };
 
 export const PRISM_PRESET_NAMES = Object.keys(PRISM_PRESETS);
@@ -51,6 +71,7 @@ export const PRISM_PRESET_BACKGROUNDS: Readonly<Record<string, string>> = {
   "Chromatic ice": "#02060C",
   "Striped neon": "#02020A",
   "Soft haze": "#0B0B14",
+  "Fluted glass": "#050506",
 };
 
 export function presetControlValues(name: string): Record<string, unknown> {

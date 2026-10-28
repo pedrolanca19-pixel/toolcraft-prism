@@ -6,7 +6,7 @@ import { readPrismSettings } from "./prism-settings";
 
 const SECTION_IDS = new Set<string>([
   "motion", "folds", "surface", "lighting", "highlights", "spectrum", "refraction",
-  "glow", "placement", "mask", "backdrop", "finish",
+  "glow", "placement", "ribs", "mask", "backdrop", "finish",
 ]);
 
 function isScope(value: string): value is PrismRandomScope {

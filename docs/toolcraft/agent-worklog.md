@@ -29,7 +29,7 @@ First product delivery uses complete functional proof. Later delivery uses owner
 - State/output mapping: Every `prism.*` value, `export.includeBackground` and `appearance.background` feed `readPrismSettings`, which feeds shader uniforms in both the preview canvas and the export frame renderer. Motion values are reduced to loop progress by `getPrismMotion`. Presets and Randomize write values through one `controls.apply` command.
 - Performance intent: ordinary-product-work
 - Performance model: One fixed-cost field pass per frame (three height samples per pixel), three fixed blur levels and one composite. Only the image export long edge is a workload dimension; octaves and layers are bounded by their schema maxima and do not change pass cardinality.
-- Verification: Typecheck, production build, the protected integrity check and the product unit tests pass. The acceptance matrix validator reports no errors. The shader loop seam was measured: the wrapped frame is pixel-identical to frame zero for the same context. The browser acceptance specs in `e2e/product-prism.spec.ts` caught and fixed two real defects before they passed: the 8K export was cropped because browsers cap one WebGL drawing buffer near 33 megapixels (exports now render in 4096 pixel tiles), and the Infinity presentation wrapper clipped its output. The protected delivery gate is reported separately in the final summary of this change.
+- Verification: Typecheck, production build, the protected integrity check and the product unit tests pass. The acceptance matrix validator reports no errors. The shader loop seam was measured: the wrapped frame is pixel-identical to frame zero for the same context. The browser acceptance specs in `e2e/product-prism.spec.ts` caught and fixed two real defects before they passed: the 8K export was cropped because browsers cap one WebGL drawing buffer near 33 megapixels (exports now render in 4096 pixel tiles), and the Infinity presentation wrapper clipped its output. The Glass Ribs section was added later: every rib is a cylindrical lens (count, width, irregularity, orientation, lens strength, displacement and edge glow), all conditional on one switch. The protected delivery gate is reported separately in the final summary of this change.
 - Risks: Video export is included because the first app recorded video and the user asked for all of its functions; the evidence message reference is the session id because the host exposes no message id. The software GL available in the build environment is far slower than a real GPU, so browser proofs use a 160 by 90 fixture. Grain is static, not animated, to keep the loop seam exact. The Toolcraft shell only runs at 1024 px width or more.
 
 ## Decisions
@@ -66,7 +66,7 @@ First product delivery uses complete functional proof. Later delivery uses owner
 
 ### Controls
 
-- Decision: Twelve product sections plus Presets, Background and the runtime export sections, all generated from one table.
+- Decision: Thirteen product sections (including Glass Ribs, a fluted-glass lens mode added after the first delivery) plus Presets, Background and the runtime export sections, all generated from one table.
 - Reason: Sections follow the first app's groups, split where a group had more than ten controls, with the four palette stops visible only while Custom colors is on and the mask controls only while Use mask is on.
 - Evidence: `appControlSectionInventory` and `validateProductAcceptanceCoverage()` returning no errors.
 

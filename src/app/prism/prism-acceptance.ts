@@ -84,6 +84,10 @@ const sectionNotes: Readonly<
     entity: "Lighting",
     reason: "These controls set the key light and the overall light level.",
   },
+  ribs: {
+    entity: "Glass ribs",
+    reason: "These controls cut the frame into fluted-glass ribs that act as lenses in front of the sheet.",
+  },
   mask: {
     entity: "Light mask",
     reason: "These controls choose and place the shape that confines the light.",
@@ -146,6 +150,14 @@ const finiteSelectorsBySection: Readonly<
       reason: "Detail octaves changes how many noise octaves roughen the surface.",
       role: "parameter",
       target: prismTarget("octaves"),
+    },
+  ],
+  ribs: [
+    {
+      affectedTargets: [],
+      reason: "Turning the glass ribs on or off decides whether their count, lens and edge controls apply at all.",
+      role: "branch",
+      target: prismTarget("ribsEnabled"),
     },
   ],
   mask: [
@@ -213,6 +225,7 @@ const expectedByKey: Readonly<Partial<Record<PrismKey, string>>> = {
   cycles: "More cycles per loop make the animated frames at the same progress differ.",
   palette: "Every palette recolors the sheet.",
   customColors: "Custom colors replaces the palette with the four color stops and shows them.",
+  ribsEnabled: "Glass ribs cut the sheet into lens ribs; turning them off shows the continuous sheet.",
   maskEnabled: "The mask confines the light to its shape; turning it off lets the light fill the canvas.",
   maskType: "Each mask shape confines the light to a different region of the canvas.",
   mirror: "Each mirror mode reflects the sheet differently across the canvas axes.",
@@ -323,7 +336,7 @@ const actionRows: readonly ToolcraftComponentAcceptance[] = [
         "Each preset button replaces the Prism settings with that preset and changes the rendered pixels.",
       id: "prism.presets",
       target: "prism.presets",
-      userAction: "Click every preset button and read back the palette and mask values.",
+      userAction: "Choose every preset from the chooser, or step with Previous and Next, and read back the palette and mask values.",
     },
     { actionCoverage: PRISM_PRESET_NAMES.map((name) => `preset:${name}`) },
   ),

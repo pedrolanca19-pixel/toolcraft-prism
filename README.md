@@ -16,7 +16,7 @@ O Toolcraft só abre em janelas com pelo menos 1024 px de largura.
 
 Todos os controlos da primeira app existem como controlos do Toolcraft, agrupados em secções:
 Presets · Motion · Fold Layers · Surface Detail · Lighting · Highlights · Spectrum · Refraction ·
-Glow · Placement · Light Mask · Background · Backdrop · Finish. Há 8 presets, "Randomize all",
+Glow · Placement · Glass Ribs · Light Mask · Background · Backdrop · Finish. Há 9 presets, "Randomize all",
 "Colors only" e um botão "Randomize" por secção.
 
 | Primeira app | Toolcraft |
@@ -29,6 +29,16 @@ Glow · Placement · Light Mask · Background · Backdrop · Finish. Há 8 prese
 | Gravar vídeo, PNG | Export MP4/WebM e Export PNG/JPG |
 | Copiar e colar definições | Import/Export Settings |
 | Repor | Reset do cabeçalho do painel |
+
+### Vidro canelado (Glass Ribs)
+
+Secção nova, ausente da primeira versão: corta o enquadramento em barras que funcionam como lentes
+cilíndricas à frente da folha de luz (cada barra mostra uma fatia invertida e deslocada do campo).
+Controlos: número de barras, largura, irregularidade, orientação (vertical ou inclinada), força da
+lente, deslocamento da lente, brilho nas arestas e largura das arestas. O preset **Fluted glass**
+aproxima o poster "Vitrium Opus"; funciona melhor num canvas vertical (por exemplo 5:7).
+É uma aproximação: mantém o preto, as barras com degradê interno, o grão e o brilho ciano/azul/branco,
+mas não reproduz o desenho exato das manchas nem os laranjas do poster.
 
 ### Movimento em loop
 

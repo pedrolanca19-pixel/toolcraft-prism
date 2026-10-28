@@ -148,6 +148,50 @@ vec3 palette(float ph) {
   return u_palMode == 0 ? hueWheel(x) : stopsGradient(x);
 }
 
+float hash11(float n) {
+  return fract(sin(n * 127.1 + 311.7) * 43758.5453);
+}
+
+/**
+ * Fluted glass. The frame is cut into ribs (irregular widths, optional tilt); each rib acts as a
+ * cylindrical lens, so the sheet behind it is sampled from a compressed, flipped and shifted slice.
+ * c is the position across the rib in [-1, 1], cover fades the dark gaps between ribs.
+ */
+vec2 ribWarp(vec2 uv, out float c, out float cover) {
+  c = 0.0;
+  cover = 1.0;
+  if (u_ribsEnabled == 0) return uv;
+  float aspect = u_res.x / u_res.y;
+  float ang = radians(u_ribAngle);
+  vec2 ax = vec2(cos(ang), sin(ang));
+  vec2 al = vec2(-sin(ang), cos(ang));
+  float span = aspect * abs(ax.x) + abs(ax.y);
+  float period = span / u_ribCount;
+  float x = (dot(uv, ax) + 0.5 * span) / period;
+  float i0 = floor(x);
+  float lo = i0;
+  float hi = i0 + 1.0;
+  float idx = i0;
+  for (int j = -1; j <= 1; j++) {
+    float i = i0 + float(j);
+    float b0 = i + u_ribIrregular * 0.42 * (hash11(i) * 2.0 - 1.0);
+    float b1 = i + 1.0 + u_ribIrregular * 0.42 * (hash11(i + 1.0) * 2.0 - 1.0);
+    if (x >= b0 && x < b1) {
+      lo = b0;
+      hi = b1;
+      idx = i;
+    }
+  }
+  float wd = hi - lo;
+  float pad = (1.0 - u_ribWidth) * wd * 0.5;
+  float inner = max(wd - 2.0 * pad, 0.0001);
+  c = ((x - lo) - pad) / inner * 2.0 - 1.0;
+  cover = u_ribWidth > 0.999 ? 1.0 : 1.0 - smoothstep(0.96, 1.03, abs(c));
+  float seed = hash11(idx * 1.7 + 3.0);
+  float xs = 0.5 * (lo + hi) + c * 0.5 * inner * (1.0 - u_ribLens) + (seed * 2.0 - 1.0) * u_ribShift;
+  return ax * (xs * period - 0.5 * span) + al * dot(uv, al);
+}
+
 float maskAt(vec2 uv) {
   if (u_maskEnabled == 0) return 1.0;
   vec2 c = uv - vec2(u_maskX, u_maskY);
@@ -165,7 +209,10 @@ float maskAt(vec2 uv) {
 }
 
 void main() {
-  vec2 uv = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y;
+  vec2 uv0 = (gl_FragCoord.xy - 0.5 * u_res) / u_res.y;
+  float ribC;
+  float ribCover;
+  vec2 uv = ribWarp(uv0, ribC, ribCover);
 
   vec2 p = uv;
   if (u_mirror == 1 || u_mirror == 3) p.x = abs(p.x);
@@ -208,15 +255,18 @@ void main() {
   float cov = (1.0 - u_coverage) * 0.95;
   float es = max(u_edgeSoft * 0.5, 0.001);
   float a = mix(smoothstep(cov - es, cov + es, hn), 1.0, step(0.999, u_coverage));
-  float m = maskAt(uv) * a;
+  float m = maskAt(uv) * a * ribCover;
 
   vec3 light = col * I * u_intensity * m;
+  // Edge glow: the lens catches light where a rib meets its neighbour.
+  float ribEdge = u_ribsEnabled == 1 ? smoothstep(1.0 - u_ribEdgeWidth * 2.0, 1.0, abs(ribC)) : 0.0;
+  light += mix(col, vec3(1.0), 0.5) * ribEdge * u_ribEdge * m * (0.4 + 0.6 * I * u_intensity);
   light += vec3(smoothstep(0.7, 1.8, I * u_intensity)) * u_whiten * m;
   light = 1.0 - exp(-light * u_exposure);
   light = pow(light, vec3(u_contrast));
 
   // Backdrop tint: a gradient overlay that exists only while the runtime Background is on.
-  float bt = dot(uv, vec2(cos(radians(u_bgAngle)), sin(radians(u_bgAngle)))) + 0.5;
+  float bt = dot(uv0, vec2(cos(radians(u_bgAngle)), sin(radians(u_bgAngle)))) + 0.5;
   float backdropAlpha = u_hasBackdrop == 1 ? smoothstep(0.0, 1.0, bt) * u_bgAmount : 0.0;
   vec3 overlay = u_bg2 * backdropAlpha;
   vec3 premult = overlay + light - overlay * light;

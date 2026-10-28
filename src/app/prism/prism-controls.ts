@@ -40,6 +40,15 @@ for (const key of [
   };
 }
 
+for (const key of [
+  "ribCount", "ribWidth", "ribIrregular", "ribAngle", "ribLens", "ribShift", "ribEdge", "ribEdgeWidth",
+] as const) {
+  applicabilityByKey[key] = {
+    all: [{ equals: true, target: prismTarget("ribsEnabled") }],
+    mode: "conditional",
+  };
+}
+
 const performanceReasonBySection: Record<PrismSectionId, string> = {
   backdrop: "Updates one gradient uniform in the single field pass.",
   finish: "Updates tone, vignette or grain uniforms in the composite pass.",
@@ -51,6 +60,7 @@ const performanceReasonBySection: Record<PrismSectionId, string> = {
   motion: "Changes loop phase uniforms read by the next timeline frame.",
   placement: "Updates the view transform applied before the height field.",
   refraction: "Updates spectral phase and dispersion uniforms.",
+  ribs: "Updates the analytic rib lens uniforms evaluated once per pixel in the field pass.",
   spectrum: "Updates palette lookup uniforms in the field pass.",
   surface: "Updates warp and detail uniforms of the bounded height field.",
 };
@@ -123,6 +133,7 @@ const sectionTitles: Record<PrismSectionId, string> = {
   motion: "Motion",
   placement: "Placement",
   refraction: "Refraction",
+  ribs: "Glass Ribs",
   spectrum: "Spectrum",
   surface: "Surface Detail",
 };
@@ -137,6 +148,7 @@ export const PRISM_RANDOMIZABLE_SECTIONS = [
   "refraction",
   "glow",
   "placement",
+  "ribs",
   "mask",
   "backdrop",
   "finish",
@@ -252,6 +264,7 @@ export const prismControlSections: readonly ToolcraftControlSectionSchema[] = [
   prismSection("refraction"),
   prismSection("glow"),
   prismSection("placement"),
+  prismSection("ribs"),
   prismSection("mask"),
   backgroundSection,
   prismSection("backdrop"),
