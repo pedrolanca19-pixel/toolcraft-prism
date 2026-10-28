@@ -49,11 +49,20 @@ O primeiro e o último fotograma do loop são idênticos. O grão de filme é fi
 
 ## Estado da verificação
 
-- `npm run build` e `tsc` passam. `scripts/check-toolcraft-integrity.mjs` passa.
-- `src/app/app-schema.test.ts` passa (esquema, valores por omissão, presets, aleatório, loop sem salto).
-- **A matriz de aceitação do Toolcraft não foi escrita.** `app-acceptance-data.ts` ainda está em modo
-  starter, sem uma linha de aceitação nem teste de browser por controlo, e o worklog não foi
-  preenchido. Por isso `vitest` ainda falha nos testes de cobertura (`app-acceptance.*`,
-  `app-performance.gates`) e `npm run verify:delivery` não foi corrido.
-- Em `npm test`, 8 testes de infraestrutura do próprio Toolcraft falham neste ambiente (caminho de
-  módulos globais, tempos, `npm` em vez de `pnpm`, portas IPv4). Não tocam no código da app.
+- `npm run verify:delivery` **passou** (exit 0) e `npm run verify:receipt` confirma que a autoridade de
+  entrega está atual e válida: docs, code-health, 715 testes unitários e 110 testes de browser
+  (um por linha da matriz de aceitação, em `e2e/product-*.spec.ts`, um ficheiro por domínio).
+- A matriz de aceitação cobre cada controlo, cada ação (presets, randomize, shuffle por secção,
+  Edit as custom), Background, exportação PNG/JPG (2K/4K/8K) e MP4/WebM, timeline, Resolution scale,
+  Infinity canvas (continuidade, exportação de imagem e de vídeo) e persistência após reload.
+- Os testes de browser correram em renderização por software (SwiftShader), num ecrã 160×90; os
+  tempos não dizem nada sobre GPU real. A exportação 4K de vídeo prova 3 fotogramas (0,1 s) por
+  causa do custo por software. Não foi testado em GPU real nem no Safari/Firefox.
+- Os pixels esperados das exportações vêm de uma primeira exportação das mesmas definições
+  (prova de determinismo); a fidelidade em relação ao preview é medida à parte (distância média
+  por blocos 8×8 abaixo de 16) e o JPG é comparado com o PNG.
+- Os testes apanharam e corrigiram dois defeitos reais: a exportação 8K saía cortada (limite do buffer
+  WebGL do browser, agora exporta-se em tiles de 4096 px) e o wrapper do canvas cortava o output no
+  modo Infinity.
+- O descodificador de vídeo do browser headless por vezes devolve o primeiro fotograma ainda por
+  pintar; os testes voltam a descodificar e `actions.output` repete com uma exportação nova.
